@@ -2,8 +2,8 @@
 
 mod msc;
 
-use msc::Msc;
 use eframe::{egui::ViewportBuilder, run_native, Error, NativeOptions, Result};
+use msc::Msc;
 
 fn main() -> Result<(), Error> {
     let native_options = NativeOptions {

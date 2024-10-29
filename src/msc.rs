@@ -3,12 +3,11 @@ use eframe::{
     App, CreationContext, Frame,
 };
 
-pub struct Msc {
-}
+pub struct Msc {}
 
 impl Default for Msc {
     fn default() -> Self {
-        Self {  }
+        Self {}
     }
 }
 
@@ -20,6 +19,8 @@ impl Msc {
 
 impl App for Msc {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
-        
+        CentralPanel::default().show(ctx, |ui| {
+            ui.label("Hello, world!");
+        });
     }
 }
