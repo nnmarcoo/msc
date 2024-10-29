@@ -3,11 +3,15 @@ use eframe::{
     App, CreationContext, Frame,
 };
 
-pub struct Msc {}
+use crate::components::title_bar::show_title_bar;
+
+pub struct Msc {
+}
 
 impl Default for Msc {
     fn default() -> Self {
-        Self {}
+        Self {
+        }
     }
 }
 
@@ -20,7 +24,7 @@ impl Msc {
 impl App for Msc {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
         CentralPanel::default().show(ctx, |ui| {
-            ui.label("Hello, world!");
+            show_title_bar(ctx);
         });
     }
 }
