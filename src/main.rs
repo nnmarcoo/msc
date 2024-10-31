@@ -12,7 +12,7 @@ fn main() -> Result<(), Error> {
         viewport: ViewportBuilder::default()
             .with_title("msc")
             .with_decorations(false)
-            .with_min_inner_size([400., 300.]),
+            .with_min_inner_size([800., 600.]),
         ..Default::default()
     };
     run_native(
