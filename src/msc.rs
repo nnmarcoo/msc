@@ -4,13 +4,19 @@ use eframe::{
 };
 use egui_extras::install_image_loaders;
 
-use crate::{components::{audio_column::show_audio_column, audio_controls::show_audio_controls, main_area::show_main_area, title_bar::show_title_bar}, util::handle_resize};
+use crate::{
+    components::{
+        audio_column::show_audio_column, audio_controls::AudioControls, main_area::show_main_area,
+        title_bar::show_title_bar,
+    },
+    util::handle_resize,
+};
 
 pub struct Msc {
     pub resizing: Option<ResizeDirection>,
     pub is_maximized: bool,
     pub is_dragging: bool,
-    pub is_playing: bool,
+    pub audio_controls: AudioControls,
 }
 
 impl Default for Msc {
@@ -19,7 +25,7 @@ impl Default for Msc {
             resizing: None,
             is_maximized: false,
             is_dragging: false,
-            is_playing: false,
+            audio_controls: AudioControls::new(),
         }
     }
 }
@@ -44,7 +50,7 @@ impl App for Msc {
                 handle_resize(self, ctx);
 
                 show_title_bar(self, ctx);
-                show_audio_controls(self, ctx);
+                self.audio_controls.show(ctx);
                 show_audio_column(self, ctx);
                 show_main_area(self, ctx);
             });
