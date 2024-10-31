@@ -1,5 +1,5 @@
 use eframe::{
-    egui::{CentralPanel, Context, ResizeDirection},
+    egui::{CentralPanel, Context, Frame as gFrame, Margin, ResizeDirection},
     App, CreationContext, Frame,
 };
 use egui_extras::install_image_loaders;
@@ -31,11 +31,17 @@ impl Msc {
 
 impl App for Msc {
     fn update(&mut self, ctx: &Context, _frame: &mut Frame) {
-        CentralPanel::default().show(ctx, |ui| {
-            self.is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false)); // duplcate
-            handle_resize(self, ctx);
+        CentralPanel::default()
+            .frame(
+                gFrame::default()
+                    .inner_margin(Margin::ZERO)
+                    .fill(ctx.style().visuals.panel_fill),
+            )
+            .show(ctx, |ui| {
+                self.is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+                handle_resize(self, ctx);
 
-            show_title_bar(self, ctx);
-        });
+                show_title_bar(self, ctx);
+            });
     }
 }
