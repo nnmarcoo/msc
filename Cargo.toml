@@ -5,6 +5,7 @@ edition = "2021"
 
 [dependencies]
 eframe = "0.29.1"
+egui_extras = { version = "0.29.1", features = ["all_loaders"] }
 
 [profile.release]
 panic = "abort" # Strip expensive panic clean-up logic

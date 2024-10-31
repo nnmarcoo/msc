@@ -1,52 +1,70 @@
 use eframe::egui::{
-    menu, Align, Button, Context, Layout, PointerButton, RichText, Sense, TopBottomPanel, ViewportCommand
+    include_image, menu, Align, Color32, Context, ImageButton, Layout, PointerButton, Sense,
+    TopBottomPanel, ViewportCommand,
 };
 
 use crate::msc::Msc;
 
-pub fn show_title_bar(app: &Msc, ctx: &Context) {
+pub fn show_title_bar(app: &mut Msc, ctx: &Context) {
     TopBottomPanel::top("title_bar").show(ctx, |ui| {
-        let response = ui.interact(ui.max_rect(), ui.id(), Sense::click_and_drag());
+        let res = ui.interact(ui.max_rect(), ui.id(), Sense::click_and_drag());
 
-        if response.drag_started_by(PointerButton::Primary) {
+        if res.drag_started_by(PointerButton::Primary) {
             ctx.send_viewport_cmd(ViewportCommand::StartDrag);
+            app.is_dragging = true;
         }
 
-        if response.double_clicked_by(PointerButton::Primary) {
-            ctx
-                .send_viewport_cmd(ViewportCommand::Maximized(!app.is_maximized));
+        if res.drag_stopped() {
+            app.is_dragging = false;
+        }
+
+        if res.double_clicked_by(PointerButton::Primary) {
+            ctx.send_viewport_cmd(ViewportCommand::Maximized(!app.is_maximized));
         }
 
         menu::bar(ui, |ui| {
             ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                ui.scope(|ui| {
+                    ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
+                        Color32::from_rgb(232, 17, 35);
+                    if ui
+                        .add_sized(
+                            [45., 50.],
+                            ImageButton::new(include_image!("../../assets/icons/x.png")),
+                        )
+                        .clicked()
+                    {
+                        ctx.send_viewport_cmd(ViewportCommand::Close);
+                    }
+                });
+
+                if app.is_maximized {
+                    if ui
+                        .add_sized(
+                            [45., 50.],
+                            ImageButton::new(include_image!("../../assets/icons/restore.png")),
+                        )
+                        .clicked()
+                    {
+                        ctx.send_viewport_cmd(ViewportCommand::Maximized(false));
+                    }
+                } else {
+                    if ui
+                        .add_sized(
+                            [45., 50.],
+                            ImageButton::new(include_image!("../../assets/icons/maximize.png")),
+                        )
+                        .clicked()
+                    {
+                        ctx.send_viewport_cmd(ViewportCommand::Maximized(true));
+                    }
+                }
+
                 if ui
-                    .add_enabled(
-                        true,
-                        Button::new(RichText::new("\u{1F5D9}").size(30.)).rounding(0.),
+                    .add_sized(
+                        [45., 50.],
+                        ImageButton::new(include_image!("../../assets/icons/minimize.png")),
                     )
-                    .on_hover_text("Close")
-                    .clicked()
-                {
-                    ctx.send_viewport_cmd(ViewportCommand::Close);
-                }
-
-                if ui
-                    .add(Button::new(RichText::new("\u{1F5D6}").size(30.)).rounding(0.))
-                    .on_hover_text(if ui.input(|i| i.viewport().maximized.unwrap_or(false)) {
-                        "Restore"
-                    } else {
-                        "Maximize"
-                    })
-                    .clicked()
-                {
-                    let is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
-                    ctx
-                        .send_viewport_cmd(ViewportCommand::Maximized(!is_maximized));
-                }
-
-                if ui
-                    .add(Button::new(RichText::new("\u{1F5D5}").size(30.)).rounding(0.))
-                    .on_hover_text("Minimize")
                     .clicked()
                 {
                     ctx.send_viewport_cmd(ViewportCommand::Minimized(true));

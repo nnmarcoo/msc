@@ -3,7 +3,7 @@ use eframe::egui::{Context, CursorIcon, Pos2, ResizeDirection, ViewportCommand};
 use crate::msc::Msc;
 
 pub fn handle_resize(app: &mut Msc, ctx: &Context) {
-    if app.is_maximized {
+    if app.is_maximized || app.is_dragging {
         return;
     }
 

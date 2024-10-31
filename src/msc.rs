@@ -2,12 +2,14 @@ use eframe::{
     egui::{CentralPanel, Context, ResizeDirection},
     App, CreationContext, Frame,
 };
+use egui_extras::install_image_loaders;
 
 use crate::{components::title_bar::show_title_bar, util::handle_resize};
 
 pub struct Msc {
     pub resizing: Option<ResizeDirection>,
     pub is_maximized: bool,
+    pub is_dragging: bool,
 }
 
 impl Default for Msc {
@@ -15,12 +17,14 @@ impl Default for Msc {
         Self {
             resizing: None,
             is_maximized: false,
+            is_dragging: false,
         }
     }
 }
 
 impl Msc {
-    pub fn new(_cc: &CreationContext<'_>) -> Self {
+    pub fn new(cc: &CreationContext<'_>) -> Self {
+        install_image_loaders(&cc.egui_ctx);
         Self::default()
     }
 }
