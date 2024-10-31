@@ -1,10 +1,13 @@
-use eframe::egui::{include_image, Context, ImageButton, Slider, SliderClamping, TopBottomPanel};
+use eframe::egui::{
+    include_image, Color32, Context, ImageButton, TopBottomPanel,
+};
 use rodio::{Decoder, OutputStream, Sink, Source};
 use std::fs::File;
 use std::io::BufReader;
 use std::time::Duration;
 
 use crate::util::duration_to_string;
+use crate::widgets::color_slider::color_slider;
 
 pub struct AudioControls {
     is_playing: bool,
@@ -30,7 +33,7 @@ impl AudioControls {
 
         AudioControls {
             is_playing: false,
-            volume: 1.0,
+            volume: 1.,
             sink,
             _stream: stream,
             track_length: duration,
@@ -43,7 +46,7 @@ impl AudioControls {
         }
 
         TopBottomPanel::bottom("audio_controls")
-            .exact_height(80.0)
+            .exact_height(80.)
             .show(ctx, |ui| {
                 let icon = if self.is_playing {
                     include_image!("../../assets/icons/pause.png")
@@ -52,18 +55,21 @@ impl AudioControls {
                 };
 
                 if ui
-                    .add_sized([40.0, 40.0], ImageButton::new(icon).rounding(100.))
+                    .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
                     .clicked()
                 {
                     self.toggle_playback();
                 }
 
                 if ui
-                    .add(
-                        Slider::new(&mut self.volume, 0.0..=2.0)
-                            .clamping(SliderClamping::Always)
-                            .show_value(false),
-                    )
+                    .add(color_slider(
+                        &mut self.volume,
+                        0.0..=2.0,
+                        100.,
+                        8.,
+                        6.,
+                        Color32::from_rgb(0, 92, 128),
+                    ))
                     .changed()
                 {
                     self.sink.set_volume(self.volume);
