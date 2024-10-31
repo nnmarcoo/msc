@@ -34,7 +34,7 @@ pub fn handle_resize(app: &mut Msc, ctx: &Context) {
     }
 }
 
-pub fn check_resize_direction(ctx: &Context, pos: Pos2) -> Option<ResizeDirection> {
+fn check_resize_direction(ctx: &Context, pos: Pos2) -> Option<ResizeDirection> {
     let margin = 10.;
     let window_rect = ctx.screen_rect();
 
