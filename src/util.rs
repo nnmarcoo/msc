@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 use eframe::egui::{Context, CursorIcon, Pos2, ResizeDirection, ViewportCommand};
 
 use crate::msc::Msc;
@@ -54,4 +56,12 @@ fn check_resize_direction(ctx: &Context, pos: Pos2) -> Option<ResizeDirection> {
         (false, false, false, true) => Some(ResizeDirection::South),
         _ => None,
     }
+}
+
+pub fn duration_to_string(duration: Duration) -> String {
+    let total_seconds = duration.as_secs();
+    let minutes = total_seconds / 60;
+    let seconds = total_seconds % 60;
+    
+    format!("{:02}:{:02}", minutes, seconds)
 }
