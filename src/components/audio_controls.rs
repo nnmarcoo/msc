@@ -1,12 +1,10 @@
-use eframe::egui::{
-    include_image, Color32, Context, ImageButton, TopBottomPanel,
-};
+use eframe::egui::{include_image, Color32, Context, ImageButton, TopBottomPanel};
 use rodio::{Decoder, OutputStream, Sink, Source};
 use std::fs::File;
 use std::io::BufReader;
 use std::time::Duration;
 
-use crate::util::duration_to_string;
+use crate::util::{duration_to_string, seconds_to_string};
 use crate::widgets::color_slider::color_slider;
 
 pub struct AudioControls {
@@ -14,6 +12,8 @@ pub struct AudioControls {
     volume: f32,
     sink: Sink,
     track_length: Duration,
+    handle_pos: f32,
+    is_timeline_dragged: bool,
     _stream: OutputStream,
 }
 
@@ -37,12 +37,17 @@ impl AudioControls {
             sink,
             _stream: stream,
             track_length: duration,
+            handle_pos: 0.,
+            is_timeline_dragged: false,
         }
     }
 
     pub fn show(&mut self, ctx: &Context) {
         if self.is_playing {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            if !self.is_timeline_dragged {
+                self.handle_pos = self.sink.get_pos().as_secs_f32();
+            }
         }
 
         TopBottomPanel::bottom("audio_controls")
@@ -61,23 +66,47 @@ impl AudioControls {
                     self.toggle_playback();
                 }
 
-                if ui
-                    .add(color_slider(
-                        &mut self.volume,
-                        0.0..=2.0,
-                        100.,
+                ui.horizontal(|ui| {
+                    ui.label(seconds_to_string(self.handle_pos));
+
+                    let timeline_res = ui.add(color_slider(
+                        &mut self.handle_pos,
+                        0.0..=self.track_length.as_secs_f32(),
+                        200.,
                         8.,
                         6.,
                         Color32::from_rgb(0, 92, 128),
-                    ))
-                    .changed()
-                {
-                    self.sink.set_volume(self.volume);
-                }
+                    ));
 
-                ui.horizontal(|ui| {
-                    ui.label(duration_to_string(self.sink.get_pos()));
+                    if timeline_res.drag_stopped() {
+                        self.sink
+                            .try_seek(Duration::new(self.handle_pos as u64, 0))
+                            .unwrap();
+                    }
+
+                    if timeline_res.is_pointer_button_down_on() || timeline_res.drag_stopped() {
+                        self.is_timeline_dragged = true;
+                    } else {
+                        self.is_timeline_dragged = false;
+                    }
+
                     ui.label(duration_to_string(self.track_length));
+
+                    ui.add_space(20.);
+
+                    if ui
+                        .add(color_slider(
+                            &mut self.volume,
+                            0.0..=2.0,
+                            100.,
+                            8.,
+                            6.,
+                            Color32::from_rgb(0, 92, 128),
+                        ))
+                        .changed()
+                    {
+                        self.sink.set_volume(self.volume);
+                    }
                 });
             });
     }

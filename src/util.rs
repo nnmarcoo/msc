@@ -65,3 +65,11 @@ pub fn duration_to_string(duration: Duration) -> String {
 
     format!("{:02}:{:02}", minutes, seconds)
 }
+
+pub fn seconds_to_string(seconds: f32) -> String {
+    let total_seconds = seconds.trunc() as u64;
+    let minutes = total_seconds / 60;
+    let seconds = total_seconds % 60;
+
+    format!("{:02}:{:02}", minutes, seconds)
+}
