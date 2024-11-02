@@ -22,7 +22,7 @@ impl AudioControls {
         let (stream, stream_handle) = OutputStream::try_default().unwrap();
         let sink = Sink::try_new(&stream_handle).unwrap();
 
-        let audio_file_path = "C:/hers.mp3";
+        let audio_file_path = "C:/bee.flac";
         let file = BufReader::new(File::open(audio_file_path).unwrap());
 
         let source = Decoder::new(file).unwrap();
