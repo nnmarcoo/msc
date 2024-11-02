@@ -26,7 +26,7 @@ pub fn color_slider_ui(
     let (rect, mut response) = ui.allocate_exact_size(desired_size, egui::Sense::click_and_drag());
 
     // 3. Handle interactions.
-    if response.dragged() || response.clicked() {
+    if response.dragged() || response.is_pointer_button_down_on() {
         // Immediately set the value to the position of the pointer within the track.
         if let Some(pointer_pos) = response.interact_pointer_pos() {
             let new_value = egui::lerp(

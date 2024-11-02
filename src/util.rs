@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use eframe::egui::{Context, CursorIcon, Pos2, ResizeDirection, ViewportCommand};
+use eframe::egui::{Color32, Context, CursorIcon, Pos2, ResizeDirection, ViewportCommand};
 
 use crate::msc::Msc;
 
@@ -72,4 +72,29 @@ pub fn seconds_to_string(seconds: f32) -> String {
     let seconds = total_seconds % 60;
 
     format!("{:02}:{:02}", minutes, seconds)
+}
+
+pub fn get_volume_color(value: f32) -> Color32 {
+    let green = Color32::from_rgb(23, 238, 100);
+    let blue = Color32::from_rgb(0, 92, 128);
+    let red = Color32::from_rgb(232, 17, 35);
+
+    // Clamp the value between 0 and 2
+    let clamped_value = value.clamp(0.0, 2.0);
+
+    if clamped_value <= 1.0 {
+        // Interpolate between green and blue
+        let t = clamped_value;
+        let r = (green.r() as f32 * (1.0 - t) + blue.r() as f32 * t) as u8;
+        let g = (green.g() as f32 * (1.0 - t) + blue.g() as f32 * t) as u8;
+        let b = (green.b() as f32 * (1.0 - t) + blue.b() as f32 * t) as u8;
+        Color32::from_rgb(r, g, b)
+    } else {
+        // Interpolate between blue and red
+        let t = clamped_value - 1.0;
+        let r = (blue.r() as f32 * (1.0 - t) + red.r() as f32 * t) as u8;
+        let g = (blue.g() as f32 * (1.0 - t) + red.g() as f32 * t) as u8;
+        let b = (blue.b() as f32 * (1.0 - t) + red.b() as f32 * t) as u8;
+        Color32::from_rgb(r, g, b)
+    }
 }

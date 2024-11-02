@@ -31,7 +31,7 @@ pub fn show_title_bar(app: &mut Msc, ctx: &Context) {
                             Color32::from_rgb(232, 17, 35);
                         if ui
                             .add_sized(
-                                [45., 50.],
+                                [48., 48.],
                                 ImageButton::new(include_image!("../../assets/icons/x.png")),
                             )
                             .clicked()
@@ -43,7 +43,7 @@ pub fn show_title_bar(app: &mut Msc, ctx: &Context) {
                     if app.is_maximized {
                         if ui
                             .add_sized(
-                                [45., 50.],
+                                [48., 48.],
                                 ImageButton::new(include_image!("../../assets/icons/restore.png")),
                             )
                             .clicked()
@@ -53,7 +53,7 @@ pub fn show_title_bar(app: &mut Msc, ctx: &Context) {
                     } else {
                         if ui
                             .add_sized(
-                                [45., 50.],
+                                [48., 48.],
                                 ImageButton::new(include_image!("../../assets/icons/maximize.png")),
                             )
                             .clicked()
@@ -64,7 +64,7 @@ pub fn show_title_bar(app: &mut Msc, ctx: &Context) {
 
                     if ui
                         .add_sized(
-                            [45., 50.],
+                            [48., 48.],
                             ImageButton::new(include_image!("../../assets/icons/minimize.png")),
                         )
                         .clicked()
