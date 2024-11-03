@@ -4,6 +4,7 @@ mod components;
 mod msc;
 mod util;
 mod widgets;
+mod audio;
 
 use eframe::{egui::ViewportBuilder, run_native, Error, NativeOptions, Result};
 use msc::Msc;
