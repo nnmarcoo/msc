@@ -1,5 +1,6 @@
 use crate::{util::get_volume_color, widgets::color_slider::color_slider};
 use eframe::egui::{include_image, Color32, Context, ImageButton, TopBottomPanel};
+use kira::sound::PlaybackState;
 use kira::tween::Tween;
 use kira::Volume;
 use kira::{
@@ -11,7 +12,6 @@ use kira::{
 };
 
 pub struct AudioControls {
-    is_playing: bool,
     volume: f32,
     handle_pos: f32,
     is_timeline_dragged: bool,
@@ -25,12 +25,11 @@ impl AudioControls {
         let mut manager =
             AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).unwrap();
 
-        let stream = StreamingSoundData::from_file("C:/hers.mp3").unwrap(); // change default audio
+        let stream = StreamingSoundData::from_file("C:/bee.flac").unwrap(); // change default audio
         let duration = stream.duration().as_secs_f32();
         let sound = manager.play(stream).unwrap();
 
         AudioControls {
-            is_playing: true, // change
             volume: 1.,
             handle_pos: 0.,
             is_timeline_dragged: false,
@@ -41,7 +40,10 @@ impl AudioControls {
     }
 
     pub fn show(&mut self, ctx: &Context) {
-        if self.is_playing {
+        let state = self.sound.state();
+        let is_playing = state == PlaybackState::Playing;
+
+        if is_playing {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
             if !self.is_timeline_dragged {
                 self.handle_pos = self.sound.position() as f32;
@@ -51,15 +53,8 @@ impl AudioControls {
         TopBottomPanel::bottom("audio_controls")
             .exact_height(80.)
             .show(ctx, |ui| {
-                if self.is_playing {
-                    ctx.request_repaint_after(std::time::Duration::from_millis(100));
-                    if !self.is_timeline_dragged {
-                        self.handle_pos = self.sound.position() as f32;
-                    }
-                }
 
-
-                let icon = if self.is_playing {
+                let icon = if is_playing {
                     include_image!("../../assets/icons/pause.png")
                 } else {
                     include_image!("../../assets/icons/play.png")
@@ -70,7 +65,7 @@ impl AudioControls {
                         .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
                         .clicked()
                     {
-                        if self.is_playing {
+                        if is_playing {
                             self.sound.pause(Tween::default());
                         } else {
                             self.sound.resume(Tween::default());
@@ -95,6 +90,7 @@ impl AudioControls {
                     if timeline_res.is_pointer_button_down_on() || timeline_res.dragged() {
                         self.is_timeline_dragged = true;
                     } else {
+                        self.handle_pos = self.sound.position() as f32;
                         self.is_timeline_dragged = false;
                     }
 
