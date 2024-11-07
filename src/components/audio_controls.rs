@@ -1,26 +1,20 @@
-use std::time::Duration;
-
+use crate::{util::get_volume_color, widgets::color_slider::color_slider};
 use eframe::egui::{include_image, Color32, Context, ImageButton, TopBottomPanel};
-use playback_rs::{Player, Song};
-use crate::widgets::color_slider::color_slider;
 
 pub struct AudioControls {
     is_playing: bool,
     volume: f32,
     handle_pos: f32,
     is_timeline_dragged: bool,
-    player: Player
 }
 
 impl AudioControls {
     pub fn new() -> Self {
-
         AudioControls {
             is_playing: false,
             volume: 1.,
             handle_pos: 0.,
             is_timeline_dragged: false,
-            player: Player::new(None),
         }
     }
 
@@ -28,7 +22,7 @@ impl AudioControls {
         if self.is_playing {
             ctx.request_repaint_after(std::time::Duration::from_millis(100));
             if !self.is_timeline_dragged {
-                self.handle_pos = self.sink.get_pos().as_secs_f32();
+                //self.handle_pos = self.sink.get_pos().as_secs_f32();
             }
         }
 
@@ -50,14 +44,14 @@ impl AudioControls {
                         )
                         .clicked()
                     {
-                        self.toggle_playback();
+                        //self.toggle_playback();
                     }
 
                     if ui
                         .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
                         .clicked()
                     {
-                        self.toggle_playback();
+                        //self.toggle_playback();
                     }
 
                     if ui
@@ -68,16 +62,16 @@ impl AudioControls {
                         )
                         .clicked()
                     {
-                        self.toggle_playback();
+                        //self.toggle_playback();
                     }
                 });
 
                 ui.horizontal(|ui| {
-                    ui.label(seconds_to_string(self.handle_pos));
+                    //ui.label(seconds_to_string(self.handle_pos));
 
                     let timeline_res = ui.add(color_slider(
                         &mut self.handle_pos,
-                        0.0..=self.track_length.as_secs_f32(),
+                        0.0..=1.0, //
                         200.,
                         8.,
                         6.,
@@ -85,9 +79,7 @@ impl AudioControls {
                     ));
 
                     if timeline_res.drag_stopped() || timeline_res.clicked() {
-                        self.sink
-                            .try_seek(Duration::new(self.handle_pos as u64, 0))
-                            .unwrap();
+                        //self.sink.try_seek(Duration::new(self.handle_pos as u64, 0)).unwrap();
                     }
 
                     if timeline_res.is_pointer_button_down_on() || timeline_res.dragged() {
@@ -96,9 +88,9 @@ impl AudioControls {
                         self.is_timeline_dragged = false;
                     }
 
-                    ui.label(duration_to_string(self.track_length));
+                    //ui.label(duration_to_string(self.track_length));
 
-                    let volume_color = get_volume_color(self.volume);
+                    let volume_color = get_volume_color(1.);
 
                     if ui
                         .add(color_slider(
@@ -111,7 +103,7 @@ impl AudioControls {
                         ))
                         .changed()
                     {
-                        self.sink.set_volume(self.volume);
+                        //self.sink.set_volume(self.volume);
                     }
                 });
             });
