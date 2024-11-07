@@ -1,6 +1,3 @@
-use std::io::Cursor;
-use std::time::Duration;
-
 use crate::{util::get_volume_color, widgets::color_slider::color_slider};
 use eframe::egui::{include_image, Color32, Context, ImageButton, TopBottomPanel};
 use kira::tween::Tween;
@@ -9,7 +6,7 @@ use kira::{
     manager::{AudioManager, AudioManagerSettings, DefaultBackend},
     sound::{
         streaming::{StreamingSoundData, StreamingSoundHandle},
-        FromFileError, PlaybackState,
+        FromFileError,
     },
 };
 
