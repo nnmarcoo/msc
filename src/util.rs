@@ -28,11 +28,15 @@ pub fn handle_resize(app: &mut Msc, ctx: &Context) {
             None => {}
         }
 
-        if ctx.input(|i| i.pointer.primary_down()) {
-            if let Some(direction) = app.resizing {
-                ctx.send_viewport_cmd(ViewportCommand::BeginResize(direction));
+        if let Some(pos) = ctx.input(|i| i.pointer.press_origin()) {
+            if check_resize_direction(ctx, pos) != None {
+                if ctx.input(|i| i.pointer.primary_down()) {
+                    if let Some(direction) = app.resizing {
+                        ctx.send_viewport_cmd(ViewportCommand::BeginResize(direction));
+                    }
+                }
             }
-        }
+        } 
     }
 }
 

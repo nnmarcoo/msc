@@ -67,18 +67,17 @@ impl AudioControls {
                 };
 
                 if ui
-                        .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
-                        .clicked()
-                    {
-                        if is_playing {
-                            self.sound.pause(Tween::default());
-                        } else {
-                            self.sound.resume(Tween::default());
-                        }
+                    .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
+                    .clicked()
+                {
+                    if is_playing {
+                        self.sound.pause(Tween::default());
+                    } else {
+                        self.sound.resume(Tween::default());
                     }
+                }
 
                 ui.horizontal(|ui| {
-                    
                     ui.label(format!("{}", seconds_to_string(self.timeline_pos)));
 
                     let timeline_res = ui.add(color_slider(
