@@ -35,6 +35,10 @@ impl Msc {
         install_image_loaders(&cc.egui_ctx);
         Self::default()
     }
+
+    pub fn get_context<'a>(&self, ctx: &'a Context) -> &'a Context {
+        ctx
+    }
 }
 
 impl App for Msc {

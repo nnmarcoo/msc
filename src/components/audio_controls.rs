@@ -1,6 +1,9 @@
-use crate::util::seconds_to_string;
+use crate::util::{get_audio_metadata, seconds_to_string, AudioMetadata};
 use crate::{util::get_volume_color, widgets::color_slider::color_slider};
-use eframe::egui::{include_image, Color32, Context, ImageButton, TopBottomPanel};
+use eframe::egui::{
+    include_image, vec2, Align, Color32, Context, Image, ImageButton, Layout, TextureHandle,
+    TextureOptions, TopBottomPanel,
+};
 use kira::sound::PlaybackState;
 use kira::tween::Tween;
 use kira::Volume;
@@ -13,13 +16,13 @@ use kira::{
 };
 
 pub struct AudioControls {
-    volume: f32,
+    volume_pos: f32,
     timeline_pos: f32,
     seek_pos: f32,
-    is_timeline_dragged: bool,
     manager: AudioManager,
     sound: StreamingSoundHandle<FromFileError>,
-    duration: f32,
+    track: AudioMetadata,
+    texture_handle: Option<TextureHandle>,
 }
 
 impl AudioControls {
@@ -27,35 +30,34 @@ impl AudioControls {
         let mut manager =
             AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).unwrap();
 
+        let track = get_audio_metadata("C:/bee.flac").unwrap();
+
         let stream = StreamingSoundData::from_file("C:/bee.flac").unwrap(); // change default audio
-        let duration = stream.duration().as_secs_f32();
         let sound = manager.play(stream).unwrap();
 
         AudioControls {
-            volume: 1.,
+            volume_pos: 1.,
             timeline_pos: 0.,
             seek_pos: -1.,
-            is_timeline_dragged: false,
             manager,
             sound,
-            duration,
+            track,
+            texture_handle: None,
         }
     }
 
     pub fn show(&mut self, ctx: &Context) {
+
+        if self.texture_handle.is_none() {
+            self.texture_handle = Some(ctx.load_texture(
+                "art",
+                self.track.image.clone(),
+                TextureOptions::default(),
+            ));
+        }
+
         let state = self.sound.state();
         let is_playing = state == PlaybackState::Playing;
-
-        if is_playing {
-            ctx.request_repaint_after(std::time::Duration::from_millis(10));
-            if !self.is_timeline_dragged && self.seek_pos == -1. {
-                self.timeline_pos = self.sound.position() as f32;
-            } else if self.seek_pos.round() == self.sound.position().round() as f32 {
-                self.seek_pos = -1.;
-                self.sound
-                    .set_volume(Volume::Amplitude(self.volume as f64), Tween::default());
-            }
-        }
 
         TopBottomPanel::bottom("audio_controls")
             .exact_height(80.)
@@ -66,23 +68,56 @@ impl AudioControls {
                     include_image!("../../assets/icons/play.png")
                 };
 
-                if ui
-                    .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
-                    .clicked()
-                {
-                    if is_playing {
-                        self.sound.pause(Tween::default());
-                    } else {
-                        self.sound.resume(Tween::default());
+                ui.horizontal(|ui| {
+                    if let Some(handle) = &self.texture_handle {
+                        let image = Image::new(handle).rounding(2.).max_size(vec2(60., 60.));
+                        ui.add(image);
                     }
-                }
+
+                    ui.label(&self.track.title);
+                    ui.label(&self.track.artist);
+                    
+
+                    if ui
+                        .add_sized(
+                            [25., 25.],
+                            ImageButton::new(include_image!("../../assets/icons/previous.png"))
+                                .rounding(100.),
+                        )
+                        .clicked()
+                    {
+                        // previous song in queue
+                    }
+
+                    if ui
+                        .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
+                        .clicked()
+                    {
+                        if is_playing {
+                            self.sound.pause(Tween::default());
+                        } else {
+                            self.sound.resume(Tween::default());
+                        }
+                    }
+
+                    if ui
+                        .add_sized(
+                            [25., 25.],
+                            ImageButton::new(include_image!("../../assets/icons/next.png"))
+                                .rounding(100.),
+                        )
+                        .clicked()
+                    {
+                        // next song in queue
+                    }
+                });
 
                 ui.horizontal(|ui| {
                     ui.label(format!("{}", seconds_to_string(self.timeline_pos)));
 
                     let timeline_res = ui.add(color_slider(
                         &mut self.timeline_pos,
-                        0.0..=self.duration,
+                        0.0..=self.track.duration,
                         ui.available_width() - 150.,
                         8.,
                         6.,
@@ -96,19 +131,28 @@ impl AudioControls {
                         self.sound.seek_to(self.timeline_pos as f64);
                     }
 
-                    if timeline_res.is_pointer_button_down_on() || timeline_res.dragged() {
-                        self.is_timeline_dragged = true;
-                    } else {
-                        self.is_timeline_dragged = false;
+                    if is_playing {
+                        ctx.request_repaint_after(std::time::Duration::from_millis(10));
+                        if !(timeline_res.is_pointer_button_down_on() || timeline_res.dragged())
+                            && self.seek_pos == -1.
+                        {
+                            self.timeline_pos = self.sound.position() as f32;
+                        } else if self.seek_pos.round() == self.sound.position().round() as f32 {
+                            self.seek_pos = -1.;
+                            self.sound.set_volume(
+                                Volume::Amplitude(self.volume_pos as f64),
+                                Tween::default(),
+                            );
+                        }
                     }
 
-                    ui.label(format!("{}", seconds_to_string(self.duration)));
+                    ui.label(format!("{}", seconds_to_string(self.track.duration)));
 
-                    let volume_color = get_volume_color(self.volume);
+                    let volume_color = get_volume_color(self.volume_pos);
 
                     if ui
                         .add(color_slider(
-                            &mut self.volume,
+                            &mut self.volume_pos,
                             0.0..=2.0,
                             100.,
                             8.,
@@ -117,8 +161,10 @@ impl AudioControls {
                         ))
                         .changed()
                     {
-                        self.sound
-                            .set_volume(Volume::Amplitude(self.volume as f64), Tween::default());
+                        self.sound.set_volume(
+                            Volume::Amplitude(self.volume_pos as f64),
+                            Tween::default(),
+                        );
                     }
                 });
             });

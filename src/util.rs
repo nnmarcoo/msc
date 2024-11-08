@@ -1,4 +1,20 @@
-use eframe::egui::{Color32, Context, CursorIcon, Pos2, ResizeDirection, ViewportCommand};
+use eframe::egui::{
+    Color32, ColorImage, Context, CursorIcon, Pos2, ResizeDirection, ViewportCommand,
+};
+use image::load_from_memory;
+
+use lofty::{
+    file::{AudioFile, TaggedFileExt},
+    probe::Probe,
+    tag::ItemKey,
+};
+
+pub struct AudioMetadata {
+    pub title: String,
+    pub artist: String,
+    pub image: ColorImage, // TODO: add place holder
+    pub duration: f32,
+}
 
 use crate::msc::Msc;
 
@@ -91,4 +107,47 @@ pub fn get_volume_color(value: f32) -> Color32 {
         let b = (blue.b() as f32 * (1.0 - t) + high_blue.b() as f32 * t) as u8;
         Color32::from_rgb(r, g, b)
     }
+}
+
+pub fn get_audio_metadata(file_path: &str) -> Result<AudioMetadata, Box<dyn std::error::Error>> {
+    let tagged_file = Probe::open(file_path)?.read()?;
+    let properties = tagged_file.properties();
+    let tag = tagged_file.primary_tag();
+
+    let title = tag
+        .and_then(|t| t.get_string(&ItemKey::TrackTitle).map(String::from))
+        .unwrap_or("NA".to_string());
+    let artist = tag
+        .and_then(|t| t.get_string(&ItemKey::AlbumArtist).map(String::from))
+        .unwrap_or("NA".to_string());
+
+    let duration = properties.duration().as_secs_f32();
+
+    let mut image = ColorImage::example();
+
+    if let Some(picture) = tagged_file
+        .primary_tag()
+        .and_then(|tag| tag.pictures().first())
+    {
+        let image_data = picture.data();
+        let img = load_from_memory(image_data).ok().unwrap();
+
+        let img = img.to_rgba8();
+        let size = [img.width() as usize, img.height() as usize];
+        let pixels = img.into_raw();
+
+        image = ColorImage::from_rgba_unmultiplied(size, &pixels) /* Some(ctx.load_texture(
+                                                                      "loaded_image",
+                                                                      ColorImage::from_rgba_unmultiplied(size, &pixels),
+                                                                      TextureOptions::default(),
+                                                                  ));
+                                                                  */
+    }
+
+    Ok(AudioMetadata {
+        title,
+        artist,
+        image,
+        duration,
+    })
 }
