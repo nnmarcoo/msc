@@ -67,7 +67,7 @@ pub fn seconds_to_string(seconds: f32) -> String {
 }
 
 pub fn get_volume_color(value: f32) -> Color32 {
-    let low_blue = Color32::from_rgb(0, 50, 80); 
+    let low_blue = Color32::from_rgb(0, 50, 80);
     let blue = Color32::from_rgb(0, 92, 128);
     let high_blue = Color32::from_rgb(0, 200, 255);
 

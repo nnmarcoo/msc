@@ -27,7 +27,7 @@ impl AudioControls {
         let mut manager =
             AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).unwrap();
 
-        let stream = StreamingSoundData::from_file("C:/hers.mp3").unwrap(); // change default audio
+        let stream = StreamingSoundData::from_file("C:/bee.flac").unwrap(); // change default audio
         let duration = stream.duration().as_secs_f32();
         let sound = manager.play(stream).unwrap();
 
@@ -47,27 +47,26 @@ impl AudioControls {
         let is_playing = state == PlaybackState::Playing;
 
         if is_playing {
-            ctx.request_repaint_after(std::time::Duration::from_millis(100));
+            ctx.request_repaint_after(std::time::Duration::from_millis(10));
             if !self.is_timeline_dragged && self.seek_pos == -1. {
                 self.timeline_pos = self.sound.position() as f32;
-            } else if self.seek_pos.round() == self.sound.position().round() as f32  {
+            } else if self.seek_pos.round() == self.sound.position().round() as f32 {
                 self.seek_pos = -1.;
-                self.sound.set_volume(Volume::Amplitude(self.volume as f64), Tween::default());
+                self.sound
+                    .set_volume(Volume::Amplitude(self.volume as f64), Tween::default());
             }
         }
 
         TopBottomPanel::bottom("audio_controls")
             .exact_height(80.)
             .show(ctx, |ui| {
-
                 let icon = if is_playing {
                     include_image!("../../assets/icons/pause.png")
                 } else {
                     include_image!("../../assets/icons/play.png")
                 };
 
-                ui.horizontal(|ui| {
-                    if ui
+                if ui
                         .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
                         .clicked()
                     {
@@ -78,12 +77,14 @@ impl AudioControls {
                         }
                     }
 
+                ui.horizontal(|ui| {
+                    
                     ui.label(format!("{}", seconds_to_string(self.timeline_pos)));
 
                     let timeline_res = ui.add(color_slider(
                         &mut self.timeline_pos,
                         0.0..=self.duration,
-                        200.,
+                        ui.available_width() - 150.,
                         8.,
                         6.,
                         Color32::from_rgb(0, 92, 128),
@@ -91,14 +92,14 @@ impl AudioControls {
 
                     if timeline_res.drag_stopped() || timeline_res.clicked() {
                         self.seek_pos = self.timeline_pos;
-                        self.sound.set_volume(Volume::Amplitude(0.), Tween::default());
+                        self.sound
+                            .set_volume(Volume::Amplitude(0.), Tween::default());
                         self.sound.seek_to(self.timeline_pos as f64);
-                    } 
+                    }
 
                     if timeline_res.is_pointer_button_down_on() || timeline_res.dragged() {
                         self.is_timeline_dragged = true;
                     } else {
-                        //self.timeline_pos = self.sound.position() as f32;
                         self.is_timeline_dragged = false;
                     }
 
