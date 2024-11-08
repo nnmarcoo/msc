@@ -1,5 +1,3 @@
-use std::time::Duration;
-
 use eframe::egui::{Color32, Context, CursorIcon, Pos2, ResizeDirection, ViewportCommand};
 
 use crate::msc::Msc;
@@ -36,7 +34,7 @@ pub fn handle_resize(app: &mut Msc, ctx: &Context) {
                     }
                 }
             }
-        } 
+        }
     }
 }
 
