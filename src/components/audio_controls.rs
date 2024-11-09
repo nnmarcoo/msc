@@ -1,8 +1,10 @@
+use std::io::Cursor;
+
 use crate::util::{get_audio_metadata, seconds_to_string, AudioMetadata};
 use crate::{util::get_volume_color, widgets::color_slider::color_slider};
 use eframe::egui::{
-    include_image, vec2, Align, Color32, Context, Image, ImageButton, Layout, TextureHandle,
-    TextureOptions, TopBottomPanel,
+    include_image, vec2, Color32, Context, Image, ImageButton, TextureHandle, TextureOptions,
+    TopBottomPanel,
 };
 use kira::sound::PlaybackState;
 use kira::tween::Tween;
@@ -30,9 +32,12 @@ impl AudioControls {
         let mut manager =
             AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).unwrap();
 
-        let track = get_audio_metadata("C:/bee.flac").unwrap();
+        let track = get_audio_metadata("C:/bee.flac").unwrap(); // change
 
-        let stream = StreamingSoundData::from_file("C:/bee.flac").unwrap(); // change default audio
+        let bytes = include_bytes!("../../assets/setup/placeholder.mp3");
+        let cursor = Cursor::new(bytes);
+
+        let stream = StreamingSoundData::from_cursor(cursor).unwrap();
         let sound = manager.play(stream).unwrap();
 
         AudioControls {
@@ -47,13 +52,9 @@ impl AudioControls {
     }
 
     pub fn show(&mut self, ctx: &Context) {
-
         if self.texture_handle.is_none() {
-            self.texture_handle = Some(ctx.load_texture(
-                "art",
-                self.track.image.clone(),
-                TextureOptions::default(),
-            ));
+            self.texture_handle =
+                Some(ctx.load_texture("art", self.track.image.clone(), TextureOptions::default()));
         }
 
         let state = self.sound.state();
@@ -70,13 +71,12 @@ impl AudioControls {
 
                 ui.horizontal(|ui| {
                     if let Some(handle) = &self.texture_handle {
-                        let image = Image::new(handle).rounding(2.).max_size(vec2(60., 60.));
+                        let image = Image::new(handle).rounding(5.).max_size(vec2(50., 50.));
                         ui.add(image);
                     }
 
                     ui.label(&self.track.title);
                     ui.label(&self.track.artist);
-                    
 
                     if ui
                         .add_sized(
