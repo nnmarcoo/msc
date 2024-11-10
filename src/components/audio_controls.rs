@@ -3,8 +3,8 @@ use std::io::Cursor;
 use crate::util::{get_audio_metadata, seconds_to_string, AudioMetadata};
 use crate::{util::get_volume_color, widgets::color_slider::color_slider};
 use eframe::egui::{
-    include_image, vec2, Color32, Context, Image, ImageButton, TextureHandle, TextureOptions,
-    TopBottomPanel,
+    include_image, vec2, Align, Color32, Context, Image, ImageButton, Layout, RichText,
+    TextureHandle, TextureOptions, TopBottomPanel,
 };
 use kira::sound::PlaybackState;
 use kira::tween::Tween;
@@ -24,7 +24,7 @@ pub struct AudioControls {
     manager: AudioManager,
     sound: StreamingSoundHandle<FromFileError>,
     track: AudioMetadata,
-    texture_handle: Option<TextureHandle>,
+    texture_handle: Option<TextureHandle>, // the texture handle can probably be stored in the track struct if it's constructed in audio_column, idk
 }
 
 impl AudioControls {
@@ -70,102 +70,116 @@ impl AudioControls {
                 };
 
                 ui.horizontal(|ui| {
-                    if let Some(handle) = &self.texture_handle {
-                        let image = Image::new(handle).rounding(5.).max_size(vec2(50., 50.));
-                        ui.add(image);
-                    }
-
-                    ui.label(&self.track.title);
-                    ui.label(&self.track.artist);
-
-                    if ui
-                        .add_sized(
-                            [25., 25.],
-                            ImageButton::new(include_image!("../../assets/icons/previous.png"))
-                                .rounding(100.),
-                        )
-                        .clicked()
-                    {
-                        // previous song in queue
-                    }
-
-                    if ui
-                        .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
-                        .clicked()
-                    {
-                        if is_playing {
-                            self.sound.pause(Tween::default());
-                        } else {
-                            self.sound.resume(Tween::default());
+                    ui.horizontal(|ui| {
+                        if let Some(handle) = &self.texture_handle {
+                            let image = Image::new(handle).rounding(5.).max_size(vec2(50., 50.));
+                            ui.add(image);
                         }
-                    }
 
-                    if ui
-                        .add_sized(
-                            [25., 25.],
-                            ImageButton::new(include_image!("../../assets/icons/next.png"))
-                                .rounding(100.),
-                        )
-                        .clicked()
-                    {
-                        // next song in queue
-                    }
-                });
+                        ui.vertical(|ui| {
+                            ui.add_space(10.);
+                            ui.label(RichText::from(&self.track.title).size(16.).strong());
+                            ui.label(&self.track.artist);
+                        });
+                    });
 
-                ui.horizontal(|ui| {
-                    ui.label(format!("{}", seconds_to_string(self.timeline_pos)));
+                    ui.vertical(|ui| {
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add_sized(
+                                    [25., 25.],
+                                    ImageButton::new(include_image!(
+                                        "../../assets/icons/previous.png"
+                                    ))
+                                    .rounding(100.),
+                                )
+                                .clicked()
+                            {
+                                // previous song in queue
+                            }
 
-                    let timeline_res = ui.add(color_slider(
-                        &mut self.timeline_pos,
-                        0.0..=self.track.duration,
-                        ui.available_width() - 150.,
-                        8.,
-                        6.,
-                        Color32::from_rgb(0, 92, 128),
-                    ));
+                            if ui
+                                .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
+                                .clicked()
+                            {
+                                if is_playing {
+                                    self.sound.pause(Tween::default());
+                                } else {
+                                    self.sound.resume(Tween::default());
+                                }
+                            }
 
-                    if timeline_res.drag_stopped() || timeline_res.clicked() {
-                        self.seek_pos = self.timeline_pos;
-                        self.sound
-                            .set_volume(Volume::Amplitude(0.), Tween::default());
-                        self.sound.seek_to(self.timeline_pos as f64);
-                    }
+                            if ui
+                                .add_sized(
+                                    [25., 25.],
+                                    ImageButton::new(include_image!("../../assets/icons/next.png"))
+                                        .rounding(100.),
+                                )
+                                .clicked()
+                            {
+                                // next song in queue
+                            }
+                        });
 
-                    if is_playing {
-                        ctx.request_repaint_after(std::time::Duration::from_millis(10));
-                        if !(timeline_res.is_pointer_button_down_on() || timeline_res.dragged())
-                            && self.seek_pos == -1.
-                        {
-                            self.timeline_pos = self.sound.position() as f32;
-                        } else if self.seek_pos.round() == self.sound.position().round() as f32 {
-                            self.seek_pos = -1.;
-                            self.sound.set_volume(
-                                Volume::Amplitude(self.volume_pos as f64),
-                                Tween::default(),
-                            );
-                        }
-                    }
+                        ui.horizontal(|ui| {
+                            ui.label(format!("{}", seconds_to_string(self.timeline_pos)));
 
-                    ui.label(format!("{}", seconds_to_string(self.track.duration)));
+                            let timeline_res = ui.add(color_slider(
+                                &mut self.timeline_pos,
+                                0.0..=self.track.duration,
+                                ui.available_width() - 150.,
+                                8.,
+                                6.,
+                                Color32::from_rgb(0, 92, 128),
+                            ));
 
-                    let volume_color = get_volume_color(self.volume_pos);
+                            if timeline_res.drag_stopped() || timeline_res.clicked() {
+                                self.seek_pos = self.timeline_pos;
+                                self.sound
+                                    .set_volume(Volume::Amplitude(0.), Tween::default());
+                                self.sound.seek_to(self.timeline_pos as f64);
+                            }
 
-                    if ui
-                        .add(color_slider(
-                            &mut self.volume_pos,
-                            0.0..=2.0,
-                            100.,
-                            8.,
-                            6.,
-                            volume_color,
-                        ))
-                        .changed()
-                    {
-                        self.sound.set_volume(
-                            Volume::Amplitude(self.volume_pos as f64),
-                            Tween::default(),
-                        );
-                    }
+                            if is_playing {
+                                ctx.request_repaint_after(std::time::Duration::from_millis(10));
+                                if !(timeline_res.is_pointer_button_down_on()
+                                    || timeline_res.dragged())
+                                    && self.seek_pos == -1.
+                                {
+                                    self.timeline_pos = self.sound.position() as f32;
+                                } else if self.seek_pos.round()
+                                    == self.sound.position().round() as f32
+                                {
+                                    self.seek_pos = -1.;
+                                    self.sound.set_volume(
+                                        Volume::Amplitude(self.volume_pos as f64),
+                                        Tween::default(),
+                                    );
+                                }
+                            }
+
+                            ui.label(format!("{}", seconds_to_string(self.track.duration)));
+
+                            let volume_color = get_volume_color(self.volume_pos);
+
+                            if ui
+                                .add(color_slider(
+                                    &mut self.volume_pos,
+                                    0.0..=2.0,
+                                    100.,
+                                    8.,
+                                    6.,
+                                    volume_color,
+                                ))
+                                .changed()
+                            {
+                                self.sound.set_volume(
+                                    Volume::Amplitude(self.volume_pos as f64),
+                                    Tween::default(),
+                                );
+                            }
+                        });
+                    });
                 });
             });
     }
