@@ -3,8 +3,8 @@ use std::io::Cursor;
 use crate::util::{get_audio_metadata, seconds_to_string, AudioMetadata};
 use crate::{util::get_volume_color, widgets::color_slider::color_slider};
 use eframe::egui::{
-    include_image, vec2, Align, Color32, Context, Direction, Grid, Image, ImageButton, Layout,
-    RichText, TextureHandle, TextureOptions, TopBottomPanel, Vec2,
+    include_image, vec2, Color32, Context, Direction, Image, ImageButton, Layout,
+    RichText, TextureHandle, TextureOptions, TopBottomPanel,
 };
 use kira::sound::PlaybackState;
 use kira::tween::Tween;
