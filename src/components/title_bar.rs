@@ -1,6 +1,8 @@
 use eframe::egui::{
-    include_image, menu, Align, Color32, Context, Frame, ImageButton, Layout, Margin,
-    PointerButton, Sense, TopBottomPanel, ViewportCommand,
+    include_image,
+    menu::{self, menu_custom_button},
+    vec2, Align, Color32, Context, Frame, ImageButton, Layout, Margin, PointerButton, Sense,
+    TopBottomPanel, ViewportCommand,
 };
 
 use crate::msc::Msc;
@@ -25,6 +27,24 @@ pub fn show_title_bar(app: &mut Msc, ctx: &Context) {
             }
 
             menu::bar(ui, |ui| {
+                ui.vertical(|ui| {
+                    ui.add_space(12.);
+                    ui.horizontal(|ui| {
+                        ui.add_space(20.);
+                        ui.allocate_ui(vec2(28., 28.), |ui| {
+                            ui.menu_image_button(
+                                include_image!("../../assets/icons/settings.png"),
+                                |ui| {
+                                    if ui.button("Settings").clicked() {}
+                                    if ui.button("Help").clicked() {}
+                                    if ui.button("About").clicked() {}
+                                    if ui.button("Update").clicked() {}
+                                },
+                            );
+                        });
+                    });
+                });
+
                 ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                     ui.scope(|ui| {
                         ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
