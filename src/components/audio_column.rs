@@ -13,9 +13,9 @@ impl AudioColumn {
     pub fn show(&mut self, ctx: &Context) {
         SidePanel::left("audio_column")
             .resizable(false)
-            .exact_width(60.)
+            .exact_width(64.)
             .show(ctx, |ui| {
-                ui.add(Button::new("").min_size(vec2(50., 50.)).rounding(3.));
+                ui.add(Button::new("").min_size(vec2(48., 48.)).rounding(3.));
                 ui.separator();
 
                 ScrollArea::vertical()
@@ -24,13 +24,13 @@ impl AudioColumn {
                     .show(ui, |ui| {
                         for _ in 0..10 {
                             // test
-                            ui.add(Button::new("").min_size(vec2(50., 50.)).rounding(3.));
+                            ui.add(Button::new("").min_size(vec2(48., 48.)).rounding(3.));
                         }
                     });
 
                 ui.separator();
                 ui.add_sized(
-                    [50., 50.],
+                    [48., 48.],
                     ImageButton::new(include_image!("../../assets/icons/add.png")).rounding(3.),
                 )
                 .on_hover_text("Create Playlist");
