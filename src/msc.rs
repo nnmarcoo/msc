@@ -18,6 +18,7 @@ pub struct Msc {
     pub is_dragging: bool,
     pub audio_column: AudioColumn,
     pub audio_controls: AudioControls,
+    pub song_search: String,
 }
 
 impl Default for Msc {
@@ -28,6 +29,7 @@ impl Default for Msc {
             is_dragging: false,
             audio_column: AudioColumn::new(),
             audio_controls: AudioControls::new(),
+            song_search: String::new(),
         }
     }
 }
