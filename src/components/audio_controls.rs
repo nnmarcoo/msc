@@ -1,5 +1,4 @@
 use std::io::Cursor;
-use std::time::{Duration, Instant};
 
 use crate::util::{get_audio_metadata, seconds_to_string, AudioMetadata};
 use crate::{util::get_volume_color, widgets::color_slider::color_slider};
