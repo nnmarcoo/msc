@@ -15,7 +15,13 @@ impl AudioColumn {
             .resizable(false)
             .exact_width(64.)
             .show(ctx, |ui| {
-                ui.add(Button::new("").min_size(vec2(48., 48.)).rounding(3.));
+
+                ui.add_sized(
+                    [48., 48.],
+                    ImageButton::new(include_image!("../../assets/icons/library.png")).rounding(3.),
+                )
+                .on_hover_text("Audio Library");
+
                 ui.separator();
 
                 ScrollArea::vertical()
