@@ -1,5 +1,7 @@
+use std::sync::Arc;
+
 use eframe::{
-    egui::{CentralPanel, Context, Frame as gFrame, Margin, ResizeDirection},
+    egui::{mutex::Mutex, CentralPanel, Context, Frame as gFrame, Margin, ResizeDirection},
     App, CreationContext, Frame,
 };
 use egui_extras::install_image_loaders;
@@ -12,7 +14,27 @@ use crate::{
     },
 };
 
+enum View {
+    Playlist,
+    Settings,
+    Search,
+
+}
+
+pub struct State {
+    view: View,
+}
+
+impl State {
+    fn new() -> Self {
+        State {
+            view: View::Search,
+        }
+    }
+}
+
 pub struct Msc {
+    pub state: Arc<Mutex<State>>,
     pub resizing: Option<ResizeDirection>,
     pub audio_column: AudioColumn,
     pub audio_controls: AudioControls,
@@ -22,6 +44,7 @@ pub struct Msc {
 impl Default for Msc {
     fn default() -> Self {
         Self {
+            state: Arc::new(Mutex::new(State::new())),
             resizing: None,
             audio_column: AudioColumn::new(),
             audio_controls: AudioControls::new(),
