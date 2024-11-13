@@ -5,11 +5,11 @@ use eframe::{
 use egui_extras::install_image_loaders;
 
 use crate::{
+    backend::resize::handle_resize,
     components::{
         audio_column::AudioColumn, audio_controls::AudioControls, main_area::show_main_area,
         title_bar::show_title_bar,
     },
-    util::handle_resize,
 };
 
 pub struct Msc {
