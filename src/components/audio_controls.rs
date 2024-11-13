@@ -21,7 +21,7 @@ pub struct AudioControls {
     volume_pos: f32,
     timeline_pos: f32,
     seek_pos: f32,
-    manager: AudioManager,
+    _manager: AudioManager,
     sound: StreamingSoundHandle<FromFileError>,
     track: AudioMetadata,
     texture_handle: Option<TextureHandle>, // the texture handle can probably be stored in the track struct if it's constructed in audio_column, idk
@@ -44,7 +44,7 @@ impl AudioControls {
             volume_pos: 1.,
             timeline_pos: 0.,
             seek_pos: -1.,
-            manager,
+            _manager: manager,
             sound,
             track,
             texture_handle: None,

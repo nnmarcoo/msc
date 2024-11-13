@@ -8,28 +8,24 @@ use crate::{
     backend::resize::handle_resize,
     components::{
         audio_column::AudioColumn, audio_controls::AudioControls, main_area::show_main_area,
-        title_bar::show_title_bar,
+        title_bar::TitleBar,
     },
 };
 
 pub struct Msc {
     pub resizing: Option<ResizeDirection>,
-    pub is_maximized: bool,
-    pub is_dragging: bool,
     pub audio_column: AudioColumn,
     pub audio_controls: AudioControls,
-    pub song_search: String,
+    pub title_bar: TitleBar,
 }
 
 impl Default for Msc {
     fn default() -> Self {
         Self {
             resizing: None,
-            is_maximized: false,
-            is_dragging: false,
             audio_column: AudioColumn::new(),
             audio_controls: AudioControls::new(),
-            song_search: String::new(),
+            title_bar: TitleBar::new(),
         }
     }
 }
@@ -49,11 +45,10 @@ impl App for Msc {
                     .inner_margin(Margin::ZERO)
                     .fill(ctx.style().visuals.panel_fill),
             )
-            .show(ctx, |ui| {
-                self.is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+            .show(ctx, |_ui| {
                 handle_resize(self, ctx);
 
-                show_title_bar(self, ctx);
+                self.title_bar.show(ctx);
                 self.audio_controls.show(ctx);
                 self.audio_column.show(ctx);
                 show_main_area(self, ctx);

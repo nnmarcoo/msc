@@ -5,96 +5,116 @@ use eframe::egui::{
     TextEdit, TopBottomPanel, ViewportCommand,
 };
 
-use crate::msc::Msc;
+pub struct TitleBar {
+    pub query: String,
+    pub is_dragging: bool,
+    pub is_maximized: bool,
+}
 
-pub fn show_title_bar(app: &mut Msc, ctx: &Context) {
-    TopBottomPanel::top("title_bar")
-        .frame(Frame::default().inner_margin(Margin::ZERO))
-        .show(ctx, |ui| {
-            let res = ui.interact(ui.max_rect(), ui.id(), Sense::click_and_drag());
+impl TitleBar {
+    pub fn new() -> Self {
+        TitleBar {
+            query: String::new(),
+            is_dragging: false,
+            is_maximized: false,
+        }
+    }
 
-            if res.drag_started_by(PointerButton::Primary) {
-                ctx.send_viewport_cmd(ViewportCommand::StartDrag);
-                app.is_dragging = true;
-            }
+    pub fn show(&mut self, ctx: &Context) {
+        TopBottomPanel::top("title_bar")
+            .frame(Frame::default().inner_margin(Margin::ZERO))
+            .show(ctx, |ui| {
+                self.is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
 
-            if res.drag_stopped() {
-                app.is_dragging = false;
-            }
+                let res = ui.interact(ui.max_rect(), ui.id(), Sense::click_and_drag());
 
-            if res.double_clicked_by(PointerButton::Primary) {
-                ctx.send_viewport_cmd(ViewportCommand::Maximized(!app.is_maximized));
-            }
+                if res.drag_started_by(PointerButton::Primary) {
+                    ctx.send_viewport_cmd(ViewportCommand::StartDrag);
+                    self.is_dragging = true;
+                }
 
-            menu::bar(ui, |ui| {
-                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                    ui.scope(|ui| {
-                        ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
-                            Color32::from_rgb(232, 17, 35);
+                if res.drag_stopped() {
+                    self.is_dragging = false;
+                }
+
+                if res.double_clicked_by(PointerButton::Primary) {
+                    ctx.send_viewport_cmd(ViewportCommand::Maximized(!self.is_maximized));
+                }
+
+                menu::bar(ui, |ui| {
+                    ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                        ui.scope(|ui| {
+                            ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
+                                Color32::from_rgb(232, 17, 35);
+                            if ui
+                                .add_sized(
+                                    [48., 48.],
+                                    ImageButton::new(include_image!("../../assets/icons/x.png")),
+                                )
+                                .clicked()
+                            {
+                                ctx.send_viewport_cmd(ViewportCommand::Close);
+                            }
+                        });
+
+                        if self.is_maximized {
+                            if ui
+                                .add_sized(
+                                    [48., 48.],
+                                    ImageButton::new(include_image!(
+                                        "../../assets/icons/restore.png"
+                                    )),
+                                )
+                                .clicked()
+                            {
+                                ctx.send_viewport_cmd(ViewportCommand::Maximized(false));
+                            }
+                        } else {
+                            if ui
+                                .add_sized(
+                                    [48., 48.],
+                                    ImageButton::new(include_image!(
+                                        "../../assets/icons/maximize.png"
+                                    )),
+                                )
+                                .clicked()
+                            {
+                                ctx.send_viewport_cmd(ViewportCommand::Maximized(true));
+                            }
+                        }
+
                         if ui
                             .add_sized(
                                 [48., 48.],
-                                ImageButton::new(include_image!("../../assets/icons/x.png")),
+                                ImageButton::new(include_image!("../../assets/icons/minimize.png")),
                             )
                             .clicked()
                         {
-                            ctx.send_viewport_cmd(ViewportCommand::Close);
+                            ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
                         }
-                    });
 
-                    if app.is_maximized {
-                        if ui
-                            .add_sized(
-                                [48., 48.],
-                                ImageButton::new(include_image!("../../assets/icons/restore.png")),
-                            )
-                            .clicked()
-                        {
-                            ctx.send_viewport_cmd(ViewportCommand::Maximized(false));
-                        }
-                    } else {
-                        if ui
-                            .add_sized(
-                                [48., 48.],
-                                ImageButton::new(include_image!("../../assets/icons/maximize.png")),
-                            )
-                            .clicked()
-                        {
-                            ctx.send_viewport_cmd(ViewportCommand::Maximized(true));
-                        }
-                    }
-
-                    if ui
-                        .add_sized(
-                            [48., 48.],
-                            ImageButton::new(include_image!("../../assets/icons/minimize.png")),
-                        )
-                        .clicked()
-                    {
-                        ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
-                    }
-
-                    ui.add(
-                        TextEdit::singleline(&mut app.song_search)
-                            .hint_text("🔍 Search a song")
-                            .desired_width(150.),
-                    );
-
-                    ui.add_space(ui.available_width() - 47.);
-
-                    ui.allocate_ui(vec2(28., 28.), |ui| {
-                        ui.menu_image_button(
-                            include_image!("../../assets/icons/settings.png"),
-                            |ui| {
-                                if ui.button("About").clicked() {}
-                                if ui.button("Help").clicked() {}
-                                if ui.button("Update").clicked() {}
-                                ui.separator();
-                                if ui.button("Settings").clicked() {}
-                            },
+                        ui.add(
+                            TextEdit::singleline(&mut self.query)
+                                .hint_text("🔍 Search a song")
+                                .desired_width(150.),
                         );
+
+                        ui.add_space(ui.available_width() - 47.);
+
+                        ui.allocate_ui(vec2(28., 28.), |ui| {
+                            ui.menu_image_button(
+                                include_image!("../../assets/icons/settings.png"),
+                                |ui| {
+                                    if ui.button("About").clicked() {}
+                                    if ui.button("Help").clicked() {}
+                                    if ui.button("Update").clicked() {}
+                                    ui.separator();
+                                    if ui.button("Settings").clicked() {}
+                                },
+                            );
+                        });
                     });
                 });
             });
-        });
+    }
 }

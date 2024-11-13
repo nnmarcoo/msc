@@ -15,7 +15,6 @@ impl AudioColumn {
             .resizable(false)
             .exact_width(64.)
             .show(ctx, |ui| {
-
                 ui.add_sized(
                     [48., 48.],
                     ImageButton::new(include_image!("../../assets/icons/library.png")).rounding(3.),
