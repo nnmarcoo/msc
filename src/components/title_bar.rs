@@ -86,10 +86,11 @@ pub fn show_title_bar(app: &mut Msc, ctx: &Context) {
                         ui.menu_image_button(
                             include_image!("../../assets/icons/settings.png"),
                             |ui| {
-                                if ui.button("Settings").clicked() {}
-                                if ui.button("Help").clicked() {}
                                 if ui.button("About").clicked() {}
+                                if ui.button("Help").clicked() {}
                                 if ui.button("Update").clicked() {}
+                                ui.separator();
+                                if ui.button("Settings").clicked() {}
                             },
                         );
                     });
