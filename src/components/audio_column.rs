@@ -3,6 +3,8 @@ use eframe::egui::{
     ScrollArea, SidePanel,
 };
 
+use crate::msc::{State, View};
+
 pub struct AudioColumn {}
 
 impl AudioColumn {
@@ -10,16 +12,22 @@ impl AudioColumn {
         AudioColumn {}
     }
 
-    pub fn show(&mut self, ctx: &Context) {
+    pub fn show(&mut self, ctx: &Context, state: &mut State) {
         SidePanel::left("audio_column")
             .resizable(false)
             .exact_width(64.)
             .show(ctx, |ui| {
-                ui.add_sized(
-                    [48., 48.],
-                    ImageButton::new(include_image!("../../assets/icons/library.png")).rounding(3.),
-                )
-                .on_hover_text("Audio Library");
+                if ui
+                    .add_sized(
+                        [48., 48.],
+                        ImageButton::new(include_image!("../../assets/icons/library.png"))
+                            .rounding(3.),
+                    )
+                    .on_hover_text("Library")
+                    .clicked()
+                {
+                    state.view = View::Library;
+                }
 
                 ui.separator();
 
@@ -29,7 +37,12 @@ impl AudioColumn {
                     .show(ui, |ui| {
                         for _ in 0..10 {
                             // test
-                            ui.add(Button::new("").min_size(vec2(48., 48.)).rounding(3.));
+                            if ui
+                                .add(Button::new("").min_size(vec2(48., 48.)).rounding(3.))
+                                .clicked()
+                            {
+                                state.view = View::Playlist;
+                            }
                         }
                     });
 

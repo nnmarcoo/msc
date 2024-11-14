@@ -1,7 +1,8 @@
 use std::io::Cursor;
 
-use crate::util::{get_audio_metadata, seconds_to_string, AudioMetadata};
-use crate::{util::get_volume_color, widgets::color_slider::color_slider};
+use crate::backend::ui::{format_seconds, get_volume_color};
+use crate::util::{get_audio_metadata, AudioMetadata};
+use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
     include_image, vec2, Color32, Context, Direction, Image, ImageButton, Layout, RichText,
     TextureHandle, TextureOptions, TopBottomPanel,
@@ -133,7 +134,7 @@ impl AudioControls {
                             });
 
                             ui.horizontal(|ui| {
-                                ui.label(format!("{}", seconds_to_string(self.timeline_pos)));
+                                ui.label(format!("{}", format_seconds(self.timeline_pos)));
 
                                 let timeline_res = ui.add(color_slider(
                                     &mut self.timeline_pos,
@@ -169,7 +170,7 @@ impl AudioControls {
                                     }
                                 }
 
-                                ui.label(format!("{}", seconds_to_string(self.track.duration)));
+                                ui.label(format!("{}", format_seconds(self.track.duration)));
 
                                 ui.allocate_ui(ui.available_size(), |ui| {
                                     let volume_color = get_volume_color(self.volume_pos);

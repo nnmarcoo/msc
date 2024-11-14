@@ -5,6 +5,8 @@ use eframe::egui::{
     TextEdit, TopBottomPanel, ViewportCommand,
 };
 
+use crate::msc::{State, View};
+
 pub struct TitleBar {
     pub query: String,
     pub is_dragging: bool,
@@ -20,7 +22,7 @@ impl TitleBar {
         }
     }
 
-    pub fn show(&mut self, ctx: &Context) {
+    pub fn show(&mut self, ctx: &Context, state: &mut State) {
         TopBottomPanel::top("title_bar")
             .frame(Frame::default().inner_margin(Margin::ZERO))
             .show(ctx, |ui| {
@@ -93,11 +95,16 @@ impl TitleBar {
                             ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
                         }
 
-                        ui.add(
-                            TextEdit::singleline(&mut self.query)
-                                .hint_text("🔍 Search a song")
-                                .desired_width(150.),
-                        );
+                        if ui
+                            .add(
+                                TextEdit::singleline(&mut self.query)
+                                    .hint_text("🔍 Search a song")
+                                    .desired_width(150.),
+                            )
+                            .has_focus()
+                        {
+                            state.view = View::Search;
+                        }
 
                         ui.add_space(ui.available_width() - 47.);
 
@@ -109,7 +116,10 @@ impl TitleBar {
                                     if ui.button("Help").clicked() {}
                                     if ui.button("Update").clicked() {}
                                     ui.separator();
-                                    if ui.button("Settings").clicked() {}
+                                    if ui.button("Settings").clicked() {
+                                        state.view = View::Settings;
+                                        ui.close_menu();
+                                    }
                                 },
                             );
                         });
