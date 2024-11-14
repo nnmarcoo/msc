@@ -1,4 +1,4 @@
-use eframe::egui::{Color32, ColorImage};
+use eframe::egui::ColorImage;
 use image::{imageops::FilterType, load_from_memory};
 
 use lofty::{
