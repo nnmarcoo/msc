@@ -29,7 +29,7 @@ pub fn get_audio_metadata(file_path: &str) -> Result<AudioMetadata, Box<dyn std:
 
     let duration = properties.duration().as_secs_f32();
 
-    let mut image = ColorImage::example(); // change
+    let mut image = ColorImage::example(); // load default image
 
     if let Some(picture) = tagged_file
         .primary_tag()
