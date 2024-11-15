@@ -1,9 +1,6 @@
-use std::{io::Cursor, sync::Arc};
+use std::{fs::read_dir, io::Cursor};
 
-use eframe::{
-    egui::{mutex::RwLock, ColorImage, Context, TextureHandle, TextureId, TextureOptions},
-    epaint::TextureManager,
-};
+use eframe::egui::{ColorImage, Context, TextureHandle, TextureOptions};
 
 use image::{imageops::FilterType, load_from_memory};
 use lofty::{
@@ -21,6 +18,16 @@ pub struct Track {
 }
 
 impl Track {
+    pub fn default() -> Self {
+        Track {
+            file_path: String::from("-"),
+            title: String::new(),
+            artist: String::new(),
+            image: None,
+            duration: 0.,
+        }
+    }
+
     pub fn new(path: &str, ctx: &Context) -> Self {
         let tagged_file = Probe::open(path).unwrap().read().unwrap();
         let properties = tagged_file.properties();
@@ -81,13 +88,29 @@ impl Track {
         }
     }
 
-    pub fn default() -> Self {
-        Track {
-            file_path: String::from("-"),
-            title: String::new(),
-            artist: String::new(),
-            image: None,
-            duration: -1.,
+    pub fn from_directory(path: &str, ctx: &Context) -> Vec<Track> {
+        let mut tracks = Vec::new();
+
+        if let Ok(entries) = read_dir(path) {
+            for entry in entries {
+                if let Ok(entry) = entry {
+                    let file_path = entry.path();
+
+                    if file_path.is_file() {
+                        if let Some(extension) = file_path.extension() {
+                            let ext = extension.to_string_lossy().to_lowercase();
+                            if ["mp3", "flac", "wav", "m4a", "ogg"].contains(&ext.as_str()) {
+                                if let Some(path_str) = file_path.to_str() {
+                                    match Track::new(path_str, ctx) {
+                                        track => tracks.push(track),
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
+        tracks
     }
 }
