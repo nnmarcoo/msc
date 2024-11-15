@@ -3,7 +3,6 @@
 mod backend;
 mod components;
 mod msc;
-mod util;
 mod widgets;
 
 use eframe::{egui::ViewportBuilder, run_native, Error, NativeOptions, Result};

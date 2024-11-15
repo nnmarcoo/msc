@@ -1,11 +1,11 @@
 use std::io::Cursor;
 
+use crate::backend::track::Track;
 use crate::backend::ui::{format_seconds, get_volume_color};
-use crate::util::{get_audio_metadata, AudioMetadata};
 use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
     include_image, vec2, Color32, Context, Direction, Image, ImageButton, Layout, RichText,
-    TextureHandle, TextureOptions, TopBottomPanel,
+    TopBottomPanel,
 };
 use kira::sound::PlaybackState;
 use kira::tween::Tween;
@@ -24,8 +24,7 @@ pub struct AudioControls {
     seek_pos: f32,
     _manager: AudioManager,
     sound: StreamingSoundHandle<FromFileError>,
-    track: AudioMetadata,
-    texture_handle: Option<TextureHandle>, // the texture handle can probably be stored in the track struct if it's constructed in audio_column, idk
+    track: Track,
 }
 
 impl AudioControls {
@@ -33,7 +32,7 @@ impl AudioControls {
         let mut manager =
             AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).unwrap();
 
-        let track = get_audio_metadata("C:/bee.flac").unwrap(); // change
+        let track = Track::default();
 
         let bytes = include_bytes!("../../assets/setup/placeholder.mp3");
         let cursor = Cursor::new(bytes);
@@ -48,16 +47,10 @@ impl AudioControls {
             _manager: manager,
             sound,
             track,
-            texture_handle: None,
         }
     }
 
     pub fn show(&mut self, ctx: &Context) {
-        if self.texture_handle.is_none() {
-            self.texture_handle =
-                Some(ctx.load_texture("art", self.track.image.clone(), TextureOptions::default()));
-        }
-
         let state = self.sound.state();
         let is_playing = state == PlaybackState::Playing;
 
@@ -75,7 +68,7 @@ impl AudioControls {
                         ui.vertical(|ui| {
                             ui.add_space(10.);
                             ui.horizontal(|ui| {
-                                if let Some(handle) = &self.texture_handle {
+                                if let Some(handle) = &self.track.image {
                                     let image =
                                         Image::new(handle).rounding(5.).max_size(vec2(50., 50.));
                                     ui.add(image);
