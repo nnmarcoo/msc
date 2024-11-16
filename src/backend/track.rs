@@ -1,4 +1,4 @@
-use std::{fs::read_dir, io::Cursor};
+use std::{fs::read_dir, io::Cursor, path::Path};
 
 use eframe::egui::{ColorImage, Context, TextureHandle, TextureOptions};
 
@@ -35,10 +35,18 @@ impl Track {
 
         let title = tag
             .and_then(|t| t.get_string(&ItemKey::TrackTitle).map(String::from))
-            .unwrap_or("NA".to_string());
+            .unwrap_or(
+                // change this
+                Path::new(path)
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .to_string(),
+            );
         let artist = tag
             .and_then(|t| t.get_string(&ItemKey::AlbumArtist).map(String::from))
-            .unwrap_or("NA".to_string());
+            .unwrap_or(String::new());
 
         let duration = properties.duration().as_secs_f32();
 
