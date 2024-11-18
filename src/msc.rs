@@ -5,7 +5,7 @@ use eframe::{
 use egui_extras::install_image_loaders;
 
 use crate::{
-    backend::resize::handle_resize,
+    backend::{playlist::Playlist, resize::handle_resize, track::Track},
     components::{
         audio_column::AudioColumn, audio_controls::AudioControls, main_area::MainArea,
         title_bar::TitleBar,
@@ -21,14 +21,7 @@ pub enum View {
 
 pub struct State {
     pub view: View,
-}
-
-impl State {
-    fn new() -> Self {
-        State {
-            view: View::Library,
-        }
-    }
+    pub library: Playlist,
 }
 
 pub struct Msc {
@@ -40,23 +33,24 @@ pub struct Msc {
     pub main_area: MainArea,
 }
 
-impl Default for Msc {
-    fn default() -> Self {
+impl Msc {
+    pub fn new(cc: &CreationContext<'_>) -> Self {
+        install_image_loaders(&cc.egui_ctx);
+
+        let test = Track::from_directory("C:/Users/marco/Downloads/Tyler, The Creator - CHROMAKOPIA (2024)", &cc.egui_ctx);
+        println!("{}", test.to_string());
+
+        let state = State {view: View::Library, library: test};
+
+        
         Self {
-            state: State::new(),
+            state,
             resizing: None,
             audio_column: AudioColumn::new(),
             audio_controls: AudioControls::new(),
             title_bar: TitleBar::new(),
             main_area: MainArea::new(),
         }
-    }
-}
-
-impl Msc {
-    pub fn new(cc: &CreationContext<'_>) -> Self {
-        install_image_loaders(&cc.egui_ctx);
-        Self::default()
     }
 }
 

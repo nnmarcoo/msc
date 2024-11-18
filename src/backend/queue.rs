@@ -6,9 +6,7 @@ pub struct Queue {
 
 impl Queue {
     pub fn new() -> Self {
-        Queue {
-            tracks: Vec::new(),
-        }
+        Queue { tracks: Vec::new() }
     }
 
     pub fn iter(&self) -> impl Iterator<Item = &Track> {

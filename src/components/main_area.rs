@@ -1,4 +1,4 @@
-use eframe::egui::{CentralPanel, Context, Ui};
+use eframe::egui::{CentralPanel, Context, Image, ScrollArea, Ui};
 
 use crate::msc::{State, View};
 
@@ -32,5 +32,14 @@ impl MainArea {
 
     fn show_library(&mut self, ui: &mut Ui, state: &mut State) {
         ui.heading("Library View");
+        ScrollArea::vertical().show(ui, |ui| {
+            //ui.label(state.library.to_string());
+            for s in state.library.tracks.iter_mut() {
+                if let Some(handle) = &s.image {
+                    let img = Image::new(handle);
+                    ui.add(img);
+                }
+            }
+        });
     }
 }

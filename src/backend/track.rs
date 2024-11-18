@@ -9,6 +9,8 @@ use lofty::{
     tag::ItemKey,
 };
 
+use super::playlist::Playlist;
+
 pub struct Track {
     pub file_path: String,
     pub title: String,
@@ -96,7 +98,7 @@ impl Track {
         }
     }
 
-    pub fn from_directory(path: &str, ctx: &Context) -> Vec<Track> {
+    pub fn from_directory(path: &str, ctx: &Context) -> Playlist {
         let mut tracks = Vec::new();
 
         if let Ok(entries) = read_dir(path) {
@@ -119,6 +121,39 @@ impl Track {
                 }
             }
         }
-        tracks
+        Playlist { tracks }
+    }
+
+    pub fn to_string(&self) -> String {
+        format!(
+            "Track {{\n    file_path: {},\n    title: {},\n    artist: {},\n    duration: {:.2} seconds,\n    image: {}\n}}",
+            self.file_path,
+            self.title,
+            self.artist,
+            self.duration,
+            if self.image.is_some() { "Yes" } else { "No" }
+        )
+    }
+
+    fn count_audio_files(path: &str) -> Result<usize, std::io::Error> { // do I need this
+        let extensions = ["mp3", "flac", "wav", "m4a", "ogg"];
+        let mut count = 0;
+        
+        for entry in read_dir(path)? {
+            let entry = entry?;
+            let file_path = entry.path();
+
+            if file_path.is_file() {
+                if let Some(extension) = file_path.extension() {
+                    if let Some(ext) = extension.to_str() {
+                        if extensions.contains(&ext.to_lowercase().as_str()) {
+                            count += 1;
+                        }
+                    }
+                }
+            }
+        }
+        
+        Ok(count)
     }
 }
