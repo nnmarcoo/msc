@@ -37,12 +37,14 @@ impl Msc {
     pub fn new(cc: &CreationContext<'_>) -> Self {
         install_image_loaders(&cc.egui_ctx);
 
-        let test = Track::from_directory("C:/Users/marco/Downloads/Tyler, The Creator - CHROMAKOPIA (2024)", &cc.egui_ctx);
+        let test = Track::from_directory("C:/", &cc.egui_ctx);
         println!("{}", test.to_string());
 
-        let state = State {view: View::Library, library: test};
+        let state = State {
+            view: View::Library,
+            library: test,
+        };
 
-        
         Self {
             state,
             resizing: None,

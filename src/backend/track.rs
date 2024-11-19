@@ -15,6 +15,7 @@ pub struct Track {
     pub file_path: String,
     pub title: String,
     pub artist: String,
+    pub album: String,
     pub image: Option<TextureHandle>,
     pub duration: f32,
 }
@@ -25,6 +26,7 @@ impl Track {
             file_path: String::from("-"),
             title: String::new(),
             artist: String::new(),
+            album: String::new(),
             image: None,
             duration: 0.,
         }
@@ -48,6 +50,10 @@ impl Track {
             );
         let artist = tag
             .and_then(|t| t.get_string(&ItemKey::AlbumArtist).map(String::from))
+            .unwrap_or(String::new());
+
+        let album = tag
+            .and_then(|t| t.get_string(&ItemKey::AlbumTitle).map(String::from))
             .unwrap_or(String::new());
 
         let duration = properties.duration().as_secs_f32();
@@ -93,6 +99,7 @@ impl Track {
             file_path: path.to_string(),
             title,
             artist,
+            album,
             image,
             duration,
         }
@@ -135,10 +142,11 @@ impl Track {
         )
     }
 
-    fn count_audio_files(path: &str) -> Result<usize, std::io::Error> { // do I need this
+    fn count_audio_files(path: &str) -> Result<usize, std::io::Error> {
+        // do I need this
         let extensions = ["mp3", "flac", "wav", "m4a", "ogg"];
         let mut count = 0;
-        
+
         for entry in read_dir(path)? {
             let entry = entry?;
             let file_path = entry.path();
@@ -153,7 +161,7 @@ impl Track {
                 }
             }
         }
-        
+
         Ok(count)
     }
 }

@@ -31,9 +31,8 @@ impl MainArea {
     }
 
     fn show_library(&mut self, ui: &mut Ui, state: &mut State) {
-        ui.heading("Library View");
         ScrollArea::vertical().show(ui, |ui| {
-            ui.label(state.library.to_string());
+            state.library.display(ui);
         });
     }
 }
