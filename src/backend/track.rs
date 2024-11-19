@@ -74,6 +74,7 @@ impl Track {
             let size = [rgba_img.width() as usize, rgba_img.height() as usize];
             let pixels = rgba_img.into_raw();
 
+
             Some(ctx.load_texture(
                 title.clone(),
                 ColorImage::from_rgba_unmultiplied(size, &pixels),

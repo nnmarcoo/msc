@@ -16,6 +16,7 @@ impl AudioColumn {
         SidePanel::left("audio_column")
             .resizable(false)
             .exact_width(64.)
+            .show_separator_line(false)
             .show(ctx, |ui| {
                 if ui
                     .add_sized(

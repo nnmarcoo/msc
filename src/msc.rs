@@ -37,7 +37,7 @@ impl Msc {
     pub fn new(cc: &CreationContext<'_>) -> Self {
         install_image_loaders(&cc.egui_ctx);
 
-        let test = Playlist::from_directory("C:/audio/", &cc.egui_ctx);
+        let test = Playlist::from_directory("C:/audio/trndytrndy - Virtua (2024)", &cc.egui_ctx);
 
         let state = State {
             view: View::Library,
