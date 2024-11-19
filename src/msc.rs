@@ -5,7 +5,7 @@ use eframe::{
 use egui_extras::install_image_loaders;
 
 use crate::{
-    backend::{playlist::Playlist, resize::handle_resize, track::Track},
+    backend::{playlist::Playlist, resize::handle_resize},
     components::{
         audio_column::AudioColumn, audio_controls::AudioControls, main_area::MainArea,
         title_bar::TitleBar,
@@ -37,8 +37,7 @@ impl Msc {
     pub fn new(cc: &CreationContext<'_>) -> Self {
         install_image_loaders(&cc.egui_ctx);
 
-        let test = Track::from_directory("C:/", &cc.egui_ctx);
-        println!("{}", test.to_string());
+        let test = Playlist::from_directory("C:/audio/", &cc.egui_ctx);
 
         let state = State {
             view: View::Library,

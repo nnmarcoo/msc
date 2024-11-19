@@ -9,8 +9,6 @@ use lofty::{
     tag::ItemKey,
 };
 
-use super::playlist::Playlist;
-
 pub struct Track {
     pub file_path: String,
     pub title: String,
@@ -48,6 +46,9 @@ impl Track {
                     .unwrap()
                     .to_string(),
             );
+
+        println!("{}", title);
+
         let artist = tag
             .and_then(|t| t.get_string(&ItemKey::AlbumArtist).map(String::from))
             .unwrap_or(String::new());
@@ -103,32 +104,6 @@ impl Track {
             image,
             duration,
         }
-    }
-
-    pub fn from_directory(path: &str, ctx: &Context) -> Playlist {
-        let mut tracks = Vec::new();
-
-        if let Ok(entries) = read_dir(path) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let file_path = entry.path();
-
-                    if file_path.is_file() {
-                        if let Some(extension) = file_path.extension() {
-                            let ext = extension.to_string_lossy().to_lowercase();
-                            if ["mp3", "flac", "wav", "m4a", "ogg"].contains(&ext.as_str()) {
-                                if let Some(path_str) = file_path.to_str() {
-                                    match Track::new(path_str, ctx) {
-                                        track => tracks.push(track),
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        Playlist { tracks }
     }
 
     pub fn to_string(&self) -> String {
