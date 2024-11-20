@@ -10,6 +10,7 @@ kira = "0.9.5"
 lofty = "0.21.1"
 image = "0.25.5"
 serde = "1.0.215"
+rayon = "1.10.0"
 
 [profile.release]
 panic = "abort" # Strip expensive panic clean-up logic

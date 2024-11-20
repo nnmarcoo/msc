@@ -2181,6 +2181,7 @@ dependencies = [
  "image",
  "kira",
  "lofty",
+ "rayon",
  "serde",
 ]
 
