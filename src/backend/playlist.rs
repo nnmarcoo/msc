@@ -53,25 +53,23 @@ impl Playlist {
     }
 
     pub fn display(&self, ui: &mut Ui) {
-        let column_width = ui.available_width() / 4.0;
-        let row_height = 30.0;
+        let column_width = ui.available_width() / 4.;
+        let row_height = 40.;
 
-        ScrollArea::vertical().show_rows(ui, row_height, self.tracks.len(), |ui, row_range| {
+        ScrollArea::vertical().show(ui, |ui| {
             Grid::new("playlist")
                 .striped(true)
                 .min_col_width(column_width)
                 .max_col_width(column_width)
-                .spacing(vec2(30.0, 30.0))
+                .spacing(vec2(30., 30.))
                 .show(ui, |ui| {
-                    if row_range.start == 0 {
-                        ui.heading("      Title");
-                        ui.heading("Artist");
-                        ui.heading("Album");
-                        ui.heading("Duration");
-                        ui.end_row();
-                    }
+                    ui.heading("      Title");
+                    ui.heading("Artist");
+                    ui.heading("Album");
+                    ui.heading("Duration");
+                    ui.end_row();
 
-                    for track in &self.tracks[row_range] {
+                    for track in &self.tracks {
                         ui.horizontal(|ui| {
                             if ui
                                 .add_sized(
