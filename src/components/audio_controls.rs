@@ -4,8 +4,8 @@ use crate::backend::track::Track;
 use crate::backend::ui::{format_seconds, get_volume_color};
 use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
-    include_image, vec2, Color32, Context, Direction, Image, ImageButton, Layout, RichText,
-    TopBottomPanel,
+    include_image, vec2, Color32, ColorImage, Context, Direction, Image, ImageButton, Layout,
+    RichText, TextureHandle, TextureOptions, TopBottomPanel,
 };
 use kira::sound::PlaybackState;
 use kira::tween::Tween;
@@ -25,10 +25,11 @@ pub struct AudioControls {
     _manager: AudioManager,
     sound: StreamingSoundHandle<FromFileError>,
     track: Track,
+    texture_handle: TextureHandle,
 }
 
 impl AudioControls {
-    pub fn new() -> Self {
+    pub fn new(ctx: &Context) -> Self {
         let mut manager =
             AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).unwrap();
 
@@ -40,6 +41,8 @@ impl AudioControls {
         let stream = StreamingSoundData::from_cursor(cursor).unwrap();
         let sound = manager.play(stream).unwrap();
 
+        let pixels = vec![0u8; 48 * 48 * 4];
+
         AudioControls {
             volume_pos: 1.,
             timeline_pos: 0.,
@@ -47,6 +50,11 @@ impl AudioControls {
             _manager: manager,
             sound,
             track,
+            texture_handle: ctx.load_texture(
+                "control_image",
+                ColorImage::from_rgba_unmultiplied([48, 48], &pixels),
+                TextureOptions::LINEAR,
+            ),
         }
     }
 
@@ -68,12 +76,11 @@ impl AudioControls {
                         ui.vertical(|ui| {
                             ui.add_space(10.);
                             ui.horizontal(|ui| {
-                                if let Some(handle) = &self.track.image {
-                                    let image =
-                                        Image::new(handle).rounding(5.).max_size(vec2(50., 50.));
-                                    ui.add(image);
-                                }
-
+                                ui.add(
+                                    Image::new(&self.texture_handle)
+                                        .max_size(vec2(48., 48.))
+                                        .rounding(5.),
+                                );
                                 ui.vertical(|ui| {
                                     ui.add_space(10.);
                                     ui.label(RichText::from(&self.track.title).size(16.).strong());

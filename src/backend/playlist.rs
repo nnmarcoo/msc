@@ -1,8 +1,10 @@
-use std::{fs::read_dir, path::Path};
-
-use eframe::egui::{
-    include_image, vec2, Context, Grid, ImageButton, Label, ScrollArea, TextWrapMode, Ui,
+use std::{
+    fs::read_dir,
+    path::{Path, PathBuf},
 };
+
+use eframe::egui::{include_image, vec2, Grid, ImageButton, Label, ScrollArea, TextWrapMode, Ui};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
 use super::{track::Track, ui::format_seconds};
 
@@ -15,43 +17,39 @@ impl Playlist {
         Playlist { tracks: Vec::new() }
     }
 
-    pub fn from_directory(path: &str, ctx: &Context) -> Playlist {
-        let mut tracks = Vec::new();
-        Self::collect_audio_files(Path::new(path), &mut tracks, ctx);
+    pub fn from_directory(path: &str) -> Playlist {
+        let tracks = Self::collect_audio_files(Path::new(path));
         Playlist { tracks }
     }
 
-    fn collect_audio_files(dir: &Path, tracks: &mut Vec<Track>, ctx: &Context) {
+    fn collect_audio_files(dir: &Path) -> Vec<Track> {
         if let Ok(entries) = read_dir(dir) {
-            for entry in entries {
-                if let Ok(entry) = entry {
-                    let path = entry.path();
+            let entries: Vec<PathBuf> = entries
+                .filter_map(Result::ok)
+                .map(|entry| entry.path())
+                .collect();
+
+            entries
+                .par_iter()
+                .flat_map(|path| {
                     if path.is_file() {
                         if let Some(extension) = path.extension() {
                             let ext = extension.to_string_lossy().to_lowercase();
                             if ["mp3", "flac", "m4a", "ogg"].contains(&ext.as_str()) {
                                 if let Some(path_str) = path.to_str() {
-                                    match Track::new(path_str, ctx) {
-                                        track => tracks.push(track),
-                                    }
+                                    return vec![Track::new(path_str)].into_par_iter();
                                 }
                             }
                         }
                     } else if path.is_dir() {
-                        // Recurse into subdirectory
-                        Self::collect_audio_files(&path, tracks, ctx);
+                        return Self::collect_audio_files(path).into_par_iter();
                     }
-                }
-            }
+                    Vec::new().into_par_iter()
+                })
+                .collect()
+        } else {
+            Vec::new()
         }
-    }
-
-    pub fn to_string(&self) -> String {
-        self.tracks
-            .iter()
-            .map(|track| track.to_string())
-            .collect::<Vec<String>>()
-            .join("\n\n")
     }
 
     pub fn display(&self, ui: &mut Ui) {

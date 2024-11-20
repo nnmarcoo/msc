@@ -1,6 +1,6 @@
 use std::{fs::read_dir, io::Cursor, path::Path};
 
-use eframe::egui::{ColorImage, Context, TextureHandle, TextureOptions};
+use eframe::egui::ColorImage;
 
 use image::{imageops::FilterType, load_from_memory};
 use lofty::{
@@ -14,7 +14,7 @@ pub struct Track {
     pub title: String,
     pub artist: String,
     pub album: String,
-    pub image: Option<TextureHandle>,
+    pub image: ColorImage,
     pub duration: f32,
 }
 
@@ -25,12 +25,12 @@ impl Track {
             title: String::new(),
             artist: String::new(),
             album: String::new(),
-            image: None,
+            image: ColorImage::example(),
             duration: 0.,
         }
     }
 
-    pub fn new(path: &str, ctx: &Context) -> Self {
+    pub fn new(path: &str) -> Self {
         let tagged_file = Probe::open(path).unwrap().read().unwrap();
         let properties = tagged_file.properties();
         let tag = tagged_file.primary_tag();
@@ -47,8 +47,6 @@ impl Track {
                     .to_string(),
             );
 
-        println!("{}", title);
-
         let artist = tag
             .and_then(|t| t.get_string(&ItemKey::AlbumArtist).map(String::from))
             .unwrap_or(String::new());
@@ -64,22 +62,18 @@ impl Track {
             .and_then(|tag| tag.pictures().first())
         {
             let image_data = picture.data();
-            let img = load_from_memory(image_data).ok().unwrap().resize_exact(
-                48,
-                48,
-                FilterType::Lanczos3,
-            );
+
+            let img =
+                load_from_memory(image_data)
+                    .ok()
+                    .unwrap()
+                    .resize(48, 48, FilterType::Lanczos3);
 
             let rgba_img = img.to_rgba8();
             let size = [rgba_img.width() as usize, rgba_img.height() as usize];
             let pixels = rgba_img.into_raw();
 
-
-            Some(ctx.load_texture(
-                title.clone(),
-                ColorImage::from_rgba_unmultiplied(size, &pixels),
-                TextureOptions::LINEAR,
-            ))
+            ColorImage::from_rgba_unmultiplied(size, &pixels)
         } else {
             let img = image::load(
                 Cursor::new(include_bytes!("../../assets/icons/defaultborder.png")),
@@ -90,11 +84,7 @@ impl Track {
             let img = img.to_rgba8();
             let (width, height) = img.dimensions();
 
-            Some(ctx.load_texture(
-                "default_image",
-                ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &img),
-                TextureOptions::LINEAR,
-            ))
+            ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &img)
         };
 
         Track {
@@ -105,17 +95,6 @@ impl Track {
             image,
             duration,
         }
-    }
-
-    pub fn to_string(&self) -> String {
-        format!(
-            "Track {{\n    file_path: {},\n    title: {},\n    artist: {},\n    duration: {:.2} seconds,\n    image: {}\n}}",
-            self.file_path,
-            self.title,
-            self.artist,
-            self.duration,
-            if self.image.is_some() { "Yes" } else { "No" }
-        )
     }
 
     fn count_audio_files(path: &str) -> Result<usize, std::io::Error> {
