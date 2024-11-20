@@ -22,7 +22,7 @@ impl AudioColumn {
                     .add_sized(
                         [48., 48.],
                         ImageButton::new(include_image!("../../assets/icons/library.png"))
-                            .rounding(3.),
+                            .rounding(5.),
                     )
                     .on_hover_text("Library")
                     .clicked()
@@ -39,7 +39,7 @@ impl AudioColumn {
                         for _ in 0..10 {
                             // test
                             if ui
-                                .add(Button::new("").min_size(vec2(48., 48.)).rounding(3.))
+                                .add(Button::new("").min_size(vec2(48., 48.)).rounding(5.))
                                 .clicked()
                             {
                                 state.view = View::Playlist;
@@ -50,7 +50,7 @@ impl AudioColumn {
                 ui.separator();
                 ui.add_sized(
                     [48., 48.],
-                    ImageButton::new(include_image!("../../assets/icons/add.png")).rounding(3.),
+                    ImageButton::new(include_image!("../../assets/icons/add.png")).rounding(5.),
                 )
                 .on_hover_text("Create Playlist");
             });
