@@ -38,7 +38,6 @@ impl Track {
         let title = tag
             .and_then(|t| t.get_string(&ItemKey::TrackTitle).map(String::from))
             .unwrap_or(
-                // change this
                 Path::new(path)
                     .file_name()
                     .unwrap()
