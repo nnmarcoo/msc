@@ -1,4 +1,4 @@
-use eframe::egui::{CentralPanel, Context, ScrollArea, Ui};
+use eframe::egui::{CentralPanel, Context, Ui};
 
 use crate::msc::{State, View};
 

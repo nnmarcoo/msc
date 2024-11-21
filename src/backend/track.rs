@@ -98,7 +98,7 @@ impl Track {
 
     fn count_audio_files(path: &str) -> Result<usize, std::io::Error> {
         // do I need this
-        let extensions = ["mp3", "flac", "wav", "m4a", "ogg"];
+        let extensions = ["mp3", "flac", "m4a", "ogg"];
         let mut count = 0;
 
         for entry in read_dir(path)? {

@@ -55,6 +55,7 @@ impl TitleBar {
                                 )
                                 .clicked()
                             {
+                                let _ = state.config.save();
                                 ctx.send_viewport_cmd(ViewportCommand::Close);
                             }
                         });

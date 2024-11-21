@@ -54,7 +54,6 @@ impl Playlist {
 
     pub fn display(&self, ui: &mut Ui) {
         let column_width = ui.available_width() / 4.;
-        let row_height = 40.;
 
         ScrollArea::vertical().show(ui, |ui| {
             Grid::new("playlist")

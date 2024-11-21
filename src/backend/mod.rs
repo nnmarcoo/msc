@@ -1,3 +1,4 @@
+pub mod config;
 pub mod playlist;
 pub mod queue;
 pub mod resize;

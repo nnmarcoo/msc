@@ -5,7 +5,7 @@ use eframe::{
 use egui_extras::install_image_loaders;
 
 use crate::{
-    backend::{playlist::Playlist, resize::handle_resize},
+    backend::{config::Config, playlist::Playlist, resize::handle_resize},
     components::{
         audio_column::AudioColumn, audio_controls::AudioControls, main_area::MainArea,
         title_bar::TitleBar,
@@ -20,6 +20,7 @@ pub enum View {
 }
 
 pub struct State {
+    pub config: Config,
     pub view: View,
     pub library: Playlist,
 }
@@ -37,9 +38,12 @@ impl Msc {
     pub fn new(cc: &CreationContext<'_>) -> Self {
         install_image_loaders(&cc.egui_ctx);
 
-        let test = Playlist::from_directory("C:/audio/");
+        let config = Config::get();
+
+        let test = Playlist::from_directory(&config.audio_directory);
 
         let state = State {
+            config: Config::get(),
             view: View::Library,
             library: test,
         };
@@ -67,7 +71,7 @@ impl App for Msc {
                 handle_resize(self, ctx);
 
                 self.title_bar.show(ctx, &mut self.state);
-                self.audio_controls.show(ctx);
+                self.audio_controls.show(ctx, &mut self.state);
                 self.audio_column.show(ctx, &mut self.state);
                 self.main_area.show(ctx, &mut self.state);
             });

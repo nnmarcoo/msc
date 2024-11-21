@@ -2,6 +2,7 @@ use std::io::Cursor;
 
 use crate::backend::track::Track;
 use crate::backend::ui::{format_seconds, get_volume_color};
+use crate::msc::State;
 use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
     include_image, vec2, Color32, ColorImage, Context, Direction, Image, ImageButton, Layout,
@@ -19,7 +20,6 @@ use kira::{
 };
 
 pub struct AudioControls {
-    volume_pos: f32,
     timeline_pos: f32,
     seek_pos: f32,
     _manager: AudioManager,
@@ -44,7 +44,6 @@ impl AudioControls {
         let pixels = vec![0u8; 48 * 48 * 4];
 
         AudioControls {
-            volume_pos: 1.,
             timeline_pos: 0.,
             seek_pos: -1.,
             _manager: manager,
@@ -58,9 +57,9 @@ impl AudioControls {
         }
     }
 
-    pub fn show(&mut self, ctx: &Context) {
-        let state = self.sound.state();
-        let is_playing = state == PlaybackState::Playing;
+    pub fn show(&mut self, ctx: &Context, state: &mut State) {
+        let sound_state = self.sound.state();
+        let is_playing = sound_state == PlaybackState::Playing;
 
         TopBottomPanel::bottom("audio_controls")
             .exact_height(80.)
@@ -164,7 +163,7 @@ impl AudioControls {
                                     {
                                         self.seek_pos = -1.;
                                         self.sound.set_volume(
-                                            Volume::Amplitude(self.volume_pos as f64),
+                                            Volume::Amplitude(state.config.volume as f64),
                                             Tween::default(),
                                         );
                                     }
@@ -173,11 +172,11 @@ impl AudioControls {
                                 ui.label(format!("{}", format_seconds(self.track.duration)));
 
                                 ui.allocate_ui(ui.available_size(), |ui| {
-                                    let volume_color = get_volume_color(self.volume_pos);
+                                    let volume_color = get_volume_color(state.config.volume);
 
                                     if ui
                                         .add(color_slider(
-                                            &mut self.volume_pos,
+                                            &mut state.config.volume,
                                             0.0..=2.0,
                                             100.,
                                             8.,
@@ -187,7 +186,7 @@ impl AudioControls {
                                         .changed()
                                     {
                                         self.sound.set_volume(
-                                            Volume::Amplitude(self.volume_pos as f64),
+                                            Volume::Amplitude(state.config.volume as f64),
                                             Tween::default(),
                                         );
                                     }
