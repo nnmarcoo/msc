@@ -1,4 +1,4 @@
-pub mod config;
+pub mod cfg;
 pub mod playlist;
 pub mod queue;
 pub mod resize;

@@ -9,6 +9,8 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     pub audio_directory: String,
     pub volume: f32,
+    pub redraw: bool,
+    pub redraw_time: f32,
 }
 
 impl Config {
@@ -33,6 +35,8 @@ impl Config {
                 let default_config = Config {
                     audio_directory: String::from("audio"),
                     volume: 1.0,
+                    redraw: true,
+                    redraw_time: 0.1,
                 };
                 if let Err(e) = default_config.save() {
                     eprintln!("Failed to save default config: {}", e);

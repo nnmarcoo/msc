@@ -1,4 +1,5 @@
 use std::io::Cursor;
+use std::time::Duration;
 
 use crate::backend::track::Track;
 use crate::backend::ui::{format_seconds, get_volume_color};
@@ -152,7 +153,11 @@ impl AudioControls {
                                 }
 
                                 if is_playing {
-                                    ctx.request_repaint_after(std::time::Duration::from_millis(10));
+                                    if state.config.redraw {
+                                        ctx.request_repaint_after(Duration::from_secs_f32(
+                                            state.config.redraw_time,
+                                        ));
+                                    }
                                     if !(timeline_res.is_pointer_button_down_on()
                                         || timeline_res.dragged())
                                         && self.seek_pos == -1.
