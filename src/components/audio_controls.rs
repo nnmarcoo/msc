@@ -179,17 +179,20 @@ impl AudioControls {
                                 ui.allocate_ui(ui.available_size(), |ui| {
                                     let volume_color = get_volume_color(state.config.volume);
 
-                                    if ui
-                                        .add(color_slider(
-                                            &mut state.config.volume,
-                                            0.0..=2.0,
-                                            100.,
-                                            8.,
-                                            6.,
-                                            volume_color,
-                                        ))
-                                        .changed()
-                                    {
+                                    let volume_slider = ui.add(color_slider(
+                                        &mut state.config.volume,
+                                        0.0..=2.0,
+                                        100.,
+                                        8.,
+                                        6.,
+                                        volume_color,
+                                    ));
+
+                                    if volume_slider.double_clicked() {
+                                        state.config.volume = 1.;
+                                    }
+
+                                    if volume_slider.changed() {
                                         self.sound.set_volume(
                                             Volume::Amplitude(state.config.volume as f64),
                                             Tween::default(),
