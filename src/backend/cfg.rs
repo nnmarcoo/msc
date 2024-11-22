@@ -1,6 +1,5 @@
 use std::{
-    fs::{read_to_string, write},
-    io::Result,
+    env::current_dir, fs::{read_to_string, write}, io::Result
 };
 
 use serde::{Deserialize, Serialize};
@@ -32,8 +31,11 @@ impl Config {
         match Config::load() {
             Ok(config) => config,
             Err(_) => {
+                let mut current_dir = current_dir().unwrap();
+                current_dir.push("audio");
+
                 let default_config = Config {
-                    audio_directory: String::from("audio"),
+                    audio_directory: current_dir.to_string_lossy().to_string(),
                     volume: 1.0,
                     redraw: true,
                     redraw_time: 0.1,

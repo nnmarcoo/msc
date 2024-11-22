@@ -1,4 +1,5 @@
 use eframe::egui::{vec2, CentralPanel, Checkbox, Color32, Context, DragValue, Grid, RichText, Ui};
+use rfd::FileDialog;
 
 use crate::msc::{State, View};
 
@@ -53,7 +54,16 @@ impl MainArea {
                     ui.label(RichText::new("Audio Folder").color(Color32::WHITE))
                         .on_hover_text("Folder containing all audio files");
                     ui.vertical_centered(|ui| {
-                        let _ = ui.button("test");
+                        if ui
+                            .button("🗁")
+                            .on_hover_text(&state.config.audio_directory)
+                            .clicked()
+                        {
+                            if let Some(folder_path) = FileDialog::new().pick_folder() {
+                                state.config.audio_directory =
+                                    folder_path.to_string_lossy().to_string();
+                            }
+                        }
                     });
 
                     ui.end_row();
