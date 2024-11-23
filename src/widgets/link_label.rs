@@ -16,7 +16,6 @@ pub fn link_label_ui(ui: &mut Ui, text: RichText, underline_color: Color32) -> R
 
         // Draw an underline
         let rect = response.rect;
-        let underline_y = rect.bottom() - 1.; // Adjust underline position
         ui.painter().line_segment(
             [rect.left_bottom(), rect.right_bottom()],
             (2., underline_color), // Width and color of the underline
