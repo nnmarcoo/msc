@@ -3,10 +3,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use eframe::egui::{include_image, vec2, Grid, ImageButton, Label, ScrollArea, TextWrapMode, Ui};
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 
-use super::{track::Track, ui::format_seconds};
+use super::track::Track;
 
 pub struct Playlist {
     pub tracks: Vec<Track>,
@@ -50,43 +49,5 @@ impl Playlist {
         } else {
             Vec::new()
         }
-    }
-
-    pub fn display(&self, ui: &mut Ui) {
-        let column_width = ui.available_width() / 4.;
-
-        ScrollArea::vertical().show(ui, |ui| {
-            Grid::new("playlist")
-                .striped(true)
-                .min_col_width(column_width)
-                .max_col_width(column_width)
-                .spacing(vec2(30., 30.))
-                .show(ui, |ui| {
-                    ui.heading("      Title");
-                    ui.heading("Artist");
-                    ui.heading("Album");
-                    ui.heading("Duration");
-                    ui.end_row();
-
-                    for track in &self.tracks {
-                        ui.horizontal(|ui| {
-                            if ui
-                                .add_sized(
-                                    [20.0, 20.0],
-                                    ImageButton::new(include_image!("../../assets/icons/play.png"))
-                                        .rounding(3.0),
-                                )
-                                .clicked()
-                            {}
-                            ui.add(Label::new(&track.title).wrap_mode(TextWrapMode::Truncate));
-                        });
-
-                        ui.add(Label::new(&track.artist).wrap_mode(TextWrapMode::Truncate));
-                        ui.add(Label::new(&track.album).wrap_mode(TextWrapMode::Truncate));
-                        ui.label(format_seconds(track.duration));
-                        ui.end_row();
-                    }
-                });
-        });
     }
 }

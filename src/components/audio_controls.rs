@@ -76,11 +76,13 @@ impl AudioControls {
                         ui.vertical(|ui| {
                             ui.add_space(10.);
                             ui.horizontal(|ui| {
-                                ui.add(
-                                    Image::new(&self.texture_handle)
-                                        .max_size(vec2(48., 48.))
-                                        .rounding(5.),
-                                );
+                                if state.config.show_image {
+                                    ui.add(
+                                        Image::new(&self.texture_handle)
+                                            .max_size(vec2(48., 48.))
+                                            .rounding(5.),
+                                    );
+                                }
                                 ui.vertical(|ui| {
                                     ui.add_space(10.);
                                     ui.label(RichText::from(&self.track.title).size(16.).strong());

@@ -14,7 +14,6 @@ pub struct Track {
     pub title: String,
     pub artist: String,
     pub album: String,
-    pub image: ColorImage,
     pub duration: f32,
 }
 
@@ -25,7 +24,6 @@ impl Track {
             title: String::new(),
             artist: String::new(),
             album: String::new(),
-            image: ColorImage::example(),
             duration: 0.,
         }
     }
@@ -56,6 +54,18 @@ impl Track {
 
         let duration = properties.duration().as_secs_f32();
 
+        Track {
+            file_path: path.to_string(),
+            title,
+            artist,
+            album,
+            duration,
+        }
+    }
+
+    pub fn get_image(&self) -> ColorImage {
+        let tagged_file = Probe::open(&self.file_path).unwrap().read().unwrap();
+
         let image = if let Some(picture) = tagged_file
             .primary_tag()
             .and_then(|tag| tag.pictures().first())
@@ -85,15 +95,7 @@ impl Track {
 
             ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &img)
         };
-
-        Track {
-            file_path: path.to_string(),
-            title,
-            artist,
-            album,
-            image,
-            duration,
-        }
+        image
     }
 
     fn count_audio_files(path: &str) -> Result<usize, std::io::Error> {

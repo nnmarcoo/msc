@@ -1,5 +1,7 @@
 use std::{
-    env::current_dir, fs::{read_to_string, write}, io::Result
+    env::current_dir,
+    fs::{read_to_string, write},
+    io::Result,
 };
 
 use serde::{Deserialize, Serialize};
@@ -10,6 +12,7 @@ pub struct Config {
     pub volume: f32,
     pub redraw: bool,
     pub redraw_time: f32,
+    pub show_image: bool,
 }
 
 impl Config {
@@ -39,6 +42,7 @@ impl Config {
                     volume: 1.0,
                     redraw: true,
                     redraw_time: 0.1,
+                    show_image: true,
                 };
                 if let Err(e) = default_config.save() {
                     eprintln!("Failed to save default config: {}", e);

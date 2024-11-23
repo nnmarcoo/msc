@@ -1,7 +1,13 @@
-use eframe::egui::{vec2, CentralPanel, Checkbox, Color32, Context, DragValue, Grid, RichText, Ui};
+use eframe::egui::{
+    include_image, vec2, CentralPanel, Checkbox, Color32, Context, CursorIcon, DragValue, Grid,
+    ImageButton, Label, RichText, ScrollArea, TextWrapMode, Ui,
+};
 use rfd::FileDialog;
 
-use crate::msc::{State, View};
+use crate::{
+    backend::{playlist::Playlist, ui::format_seconds},
+    msc::{State, View},
+};
 
 pub struct MainArea {}
 
@@ -49,8 +55,8 @@ impl MainArea {
                             .on_hover_text("seconds");
                         });
                     });
-
                     ui.end_row();
+
                     ui.label(RichText::new("Audio Folder").color(Color32::WHITE))
                         .on_hover_text("Folder containing all audio files");
                     ui.vertical_centered(|ui| {
@@ -62,16 +68,81 @@ impl MainArea {
                             if let Some(folder_path) = FileDialog::new().pick_folder() {
                                 state.config.audio_directory =
                                     folder_path.to_string_lossy().to_string();
+                                state.library =
+                                    Playlist::from_directory(&state.config.audio_directory);
                             }
                         }
                     });
-
                     ui.end_row();
+
+                    ui.label(RichText::new("Show Images").color(Color32::WHITE))
+                        .on_hover_text("Display image metadata in the audio control bar");
+                    ui.vertical_centered(|ui| {
+                        ui.add(Checkbox::new(&mut state.config.show_image, ""));
+                    });
                 });
         });
     }
 
     fn show_library(&mut self, ui: &mut Ui, state: &mut State) {
-        state.library.display(ui);
+        if state.library.tracks.is_empty() {
+            ui.vertical(|ui| {
+                ui.add_space(ui.available_height() / 2. - 20.);
+                ui.horizontal(|ui| {
+                    ui.add_space(ui.available_width() / 2. - 60.);
+                    ui.add(Label::new("Audio folder empty!"));
+                });
+                ui.add_space(10.);
+                ui.horizontal(|ui| {
+                    ui.add_space(ui.available_width() / 2. - 30.);
+                    let settings_res =
+                        ui.add(Label::new(RichText::new("Settings").color(Color32::WHITE)));
+
+                    if settings_res.clicked() {
+                        state.view = View::Settings;
+                    }
+
+                    settings_res.on_hover_cursor(CursorIcon::PointingHand);
+                });
+            });
+
+            return;
+        }
+
+        let column_width = ui.available_width() / 4.;
+
+        ScrollArea::vertical().show(ui, |ui| {
+            Grid::new("playlist")
+                .striped(true)
+                .min_col_width(column_width)
+                .max_col_width(column_width)
+                .spacing(vec2(30., 30.))
+                .show(ui, |ui| {
+                    ui.heading("      Title");
+                    ui.heading("Artist");
+                    ui.heading("Album");
+                    ui.heading("Duration");
+                    ui.end_row();
+
+                    for track in &state.library.tracks {
+                        ui.horizontal(|ui| {
+                            if ui
+                                .add_sized(
+                                    [20.0, 20.0],
+                                    ImageButton::new(include_image!("../../assets/icons/play.png"))
+                                        .rounding(3.0),
+                                )
+                                .clicked()
+                            {}
+                            ui.add(Label::new(&track.title).wrap_mode(TextWrapMode::Truncate));
+                        });
+
+                        ui.add(Label::new(&track.artist).wrap_mode(TextWrapMode::Truncate));
+                        ui.add(Label::new(&track.album).wrap_mode(TextWrapMode::Truncate));
+                        ui.label(format_seconds(track.duration));
+                        ui.end_row();
+                    }
+                });
+        });
     }
 }
