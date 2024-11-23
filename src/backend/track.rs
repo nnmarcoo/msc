@@ -8,7 +8,9 @@ use lofty::{
     probe::Probe,
     tag::ItemKey,
 };
+use serde::{Deserialize, Serialize};
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Track {
     pub file_path: String,
     pub title: String,

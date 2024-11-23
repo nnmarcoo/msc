@@ -3,7 +3,10 @@ use eframe::egui::{
     ScrollArea, SidePanel,
 };
 
-use crate::msc::{State, View};
+use crate::{
+    backend::playlist::Playlist,
+    msc::{State, View},
+};
 
 pub struct AudioColumn {}
 
@@ -36,23 +39,44 @@ impl AudioColumn {
                     .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
                     .max_height(ui.available_height() - 64.)
                     .show(ui, |ui| {
-                        for _ in 0..10 {
-                            // test
-                            if ui
-                                .add(Button::new("").min_size(vec2(48., 48.)).rounding(5.))
-                                .clicked()
-                            {
+                        let mut to_remove = None;
+
+                        for (i, _playlist) in state.config.playlists.iter().enumerate() {
+                            let playlist_button_res = ui.add_sized(
+                                [48., 48.],
+                                ImageButton::new(include_image!("../../assets/icons/default.png"))
+                                    .rounding(5.),
+                            );
+
+                            if playlist_button_res.clicked() {
+                                // set selected playlist in state
                                 state.view = View::Playlist;
                             }
+
+                            playlist_button_res.context_menu(|ui| {
+                                if ui.button("Delete").clicked() {
+                                    to_remove = Some(i);
+                                    ui.close_menu();
+                                }
+                            });
+                        }
+
+                        if let Some(i) = to_remove {
+                            state.config.playlists.remove(i);
                         }
                     });
 
                 ui.separator();
-                ui.add_sized(
-                    [48., 48.],
-                    ImageButton::new(include_image!("../../assets/icons/add.png")).rounding(5.),
-                )
-                .on_hover_text("Create Playlist");
+                if ui
+                    .add_sized(
+                        [48., 48.],
+                        ImageButton::new(include_image!("../../assets/icons/add.png")).rounding(5.),
+                    )
+                    .on_hover_text("Create Playlist")
+                    .clicked()
+                {
+                    state.config.playlists.insert(0, Playlist::new());
+                }
             });
     }
 }

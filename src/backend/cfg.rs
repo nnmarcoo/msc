@@ -6,6 +6,8 @@ use std::{
 
 use serde::{Deserialize, Serialize};
 
+use super::playlist::Playlist;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Config {
     pub audio_directory: String,
@@ -13,6 +15,7 @@ pub struct Config {
     pub redraw: bool,
     pub redraw_time: f32,
     pub show_image: bool,
+    pub playlists: Vec<Playlist>,
 }
 
 impl Config {
@@ -43,6 +46,7 @@ impl Config {
                     redraw: true,
                     redraw_time: 0.1,
                     show_image: true,
+                    playlists: Vec::new(),
                 };
                 if let Err(e) = default_config.save() {
                     eprintln!("Failed to save default config: {}", e);

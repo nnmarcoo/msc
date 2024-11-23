@@ -39,7 +39,7 @@ impl Msc {
         install_image_loaders(&cc.egui_ctx);
 
         let config = Config::get();
-        let test = Playlist::from_directory(&config.audio_directory);
+        let test: Playlist = Playlist::from_directory(&config.audio_directory);
 
         let state = State {
             config: Config::get(),

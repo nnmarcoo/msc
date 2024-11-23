@@ -4,21 +4,30 @@ use std::{
 };
 
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use serde::{Deserialize, Serialize};
 
 use super::track::Track;
 
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Playlist {
     pub tracks: Vec<Track>,
+    pub name: String,
 }
 
 impl Playlist {
     pub fn new() -> Self {
-        Playlist { tracks: Vec::new() }
+        Playlist {
+            tracks: Vec::new(),
+            name: String::from(""),
+        }
     }
 
     pub fn from_directory(path: &str) -> Playlist {
         let tracks = Self::collect_audio_files(Path::new(path));
-        Playlist { tracks }
+        Playlist {
+            tracks,
+            name: String::from(""),
+        }
     }
 
     fn collect_audio_files(dir: &Path) -> Vec<Track> {
