@@ -1,6 +1,5 @@
 use eframe::egui::{
-    include_image, scroll_area::ScrollBarVisibility, vec2, Button, Context, ImageButton,
-    ScrollArea, SidePanel,
+    include_image, scroll_area::ScrollBarVisibility, Context, ImageButton, ScrollArea, SidePanel,
 };
 
 use crate::{
@@ -33,7 +32,11 @@ impl AudioColumn {
                     state.view = View::Library;
                 }
 
-                ui.separator();
+                let has_playlists = !state.config.playlists.is_empty();
+
+                if has_playlists {
+                    ui.add_space(10.);
+                }
 
                 ScrollArea::vertical()
                     .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
@@ -65,8 +68,10 @@ impl AudioColumn {
                             state.config.playlists.remove(i);
                         }
                     });
+                if has_playlists {
+                    ui.add_space(10.);
+                }
 
-                ui.separator();
                 if ui
                     .add_sized(
                         [48., 48.],
