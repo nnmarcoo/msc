@@ -1,5 +1,5 @@
 use eframe::egui::{
-    include_image, vec2, CentralPanel, Checkbox, Color32, Context, CursorIcon, DragValue, Grid,
+    include_image, vec2, CentralPanel, Checkbox, Color32, Context, DragValue, Grid,
     ImageButton, Label, RichText, ScrollArea, TextWrapMode, Ui,
 };
 use rfd::FileDialog;
@@ -7,6 +7,7 @@ use rfd::FileDialog;
 use crate::{
     backend::{playlist::Playlist, ui::format_seconds},
     msc::{State, View},
+    widgets::link_label::link_label,
 };
 
 pub struct MainArea {}
@@ -95,14 +96,14 @@ impl MainArea {
                 ui.add_space(10.);
                 ui.horizontal(|ui| {
                     ui.add_space(ui.available_width() / 2. - 30.);
-                    let settings_res =
-                        ui.add(Label::new(RichText::new("Settings").color(Color32::WHITE)));
 
+                    let settings_res = ui.add(link_label(
+                        RichText::new("Settings").color(Color32::WHITE),
+                        Color32::WHITE,
+                    ));
                     if settings_res.clicked() {
                         state.view = View::Settings;
                     }
-
-                    settings_res.on_hover_cursor(CursorIcon::PointingHand);
                 });
             });
 
