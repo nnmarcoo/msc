@@ -114,10 +114,9 @@ impl MainArea {
 
         ScrollArea::vertical().show(ui, |ui| {
             Grid::new("playlist")
-                .striped(true)
                 .min_col_width(column_width)
                 .max_col_width(column_width)
-                .spacing(vec2(30., 30.))
+                .spacing(vec2(30., 0.))
                 .show(ui, |ui| {
                     ui.heading("      Title");
                     ui.heading("Artist");
@@ -129,9 +128,9 @@ impl MainArea {
                         ui.horizontal(|ui| {
                             if ui
                                 .add_sized(
-                                    [20.0, 20.0],
+                                    [15., 15.],
                                     ImageButton::new(include_image!("../../assets/icons/play.png"))
-                                        .rounding(3.0),
+                                        .rounding(5.),
                                 )
                                 .clicked()
                             {}
