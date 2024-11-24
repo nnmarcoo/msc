@@ -26,9 +26,6 @@ pub fn link_label_ui(ui: &mut Ui, text: RichText, underline_color: Color32) -> R
 }
 
 /// Usage: Allows for idiomatic use with `ui.add(hover_underline_label(...))`.
-pub fn link_label<'a>(
-    text: RichText,
-    underline_color: Color32,
-) -> impl egui::Widget + 'a {
+pub fn link_label<'a>(text: RichText, underline_color: Color32) -> impl egui::Widget + 'a {
     move |ui: &mut Ui| link_label_ui(ui, text, underline_color)
 }

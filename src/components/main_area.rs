@@ -1,6 +1,5 @@
 use eframe::egui::{
-    include_image, vec2, CentralPanel, Checkbox, Color32, Context, DragValue, Grid,
-    ImageButton, Label, RichText, ScrollArea, TextWrapMode, Ui,
+    include_image, scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue, Grid, ImageButton, Label, RichText, ScrollArea, TextWrapMode, Ui
 };
 use rfd::FileDialog;
 
@@ -110,32 +109,23 @@ impl MainArea {
             return;
         }
 
-        let column_width = ui.available_width() / 4.;
+        let column_width = ui.available_width() / 5.;
 
-        ScrollArea::vertical().show(ui, |ui| {
+        ScrollArea::vertical().scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden).show(ui, |ui| {
             Grid::new("playlist")
-                .min_col_width(column_width)
                 .max_col_width(column_width)
-                .spacing(vec2(30., 0.))
+                .min_col_width(column_width)
                 .show(ui, |ui| {
-                    ui.heading("      Title");
+                    ui.heading("#");
+                    ui.heading("Title");
                     ui.heading("Artist");
                     ui.heading("Album");
                     ui.heading("Duration");
                     ui.end_row();
 
-                    for track in &state.library.tracks {
-                        ui.horizontal(|ui| {
-                            if ui
-                                .add_sized(
-                                    [15., 15.],
-                                    ImageButton::new(include_image!("../../assets/icons/play.png"))
-                                        .rounding(5.),
-                                )
-                                .clicked()
-                            {}
-                            ui.add(Label::new(&track.title).wrap_mode(TextWrapMode::Truncate));
-                        });
+                    for (i, track) in state.library.tracks.iter().enumerate() {
+                        ui.add(Label::new(format!("{}", i)));
+                        ui.add(Label::new(&track.title).wrap_mode(TextWrapMode::Truncate));
 
                         ui.add(Label::new(&track.artist).wrap_mode(TextWrapMode::Truncate));
                         ui.add(Label::new(&track.album).wrap_mode(TextWrapMode::Truncate));
