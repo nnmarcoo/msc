@@ -8,7 +8,6 @@ use eframe::egui::{
 use crate::msc::{State, View};
 
 pub struct TitleBar {
-    pub query: String,
     pub is_dragging: bool,
     pub is_maximized: bool,
 }
@@ -16,7 +15,6 @@ pub struct TitleBar {
 impl TitleBar {
     pub fn new() -> Self {
         TitleBar {
-            query: String::new(),
             is_dragging: false,
             is_maximized: false,
         }
@@ -98,13 +96,13 @@ impl TitleBar {
 
                         if ui
                             .add(
-                                TextEdit::singleline(&mut self.query)
+                                TextEdit::singleline(&mut state.query)
                                     .hint_text("🔍 Search a song")
                                     .desired_width(150.),
                             )
                             .has_focus()
                         {
-                            state.view = View::Search;
+                            state.view = View::Library;
                         }
 
                         ui.add_space(ui.available_width() - 47.);

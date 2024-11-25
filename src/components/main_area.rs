@@ -1,5 +1,6 @@
 use eframe::egui::{
-    include_image, scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue, Grid, ImageButton, Label, RichText, ScrollArea, TextWrapMode, Ui
+    include_image, scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32,
+    Context, DragValue, Grid, ImageButton, Label, RichText, ScrollArea, TextWrapMode, Ui,
 };
 use rfd::FileDialog;
 
@@ -111,28 +112,46 @@ impl MainArea {
 
         let column_width = ui.available_width() / 5.;
 
-        ScrollArea::vertical().scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden).show(ui, |ui| {
-            Grid::new("playlist")
-                .max_col_width(column_width)
-                .min_col_width(column_width)
-                .show(ui, |ui| {
-                    ui.heading("#");
-                    ui.heading("Title");
-                    ui.heading("Artist");
-                    ui.heading("Album");
-                    ui.heading("Duration");
-                    ui.end_row();
-
-                    for (i, track) in state.library.tracks.iter().enumerate() {
-                        ui.add(Label::new(format!("{}", i)));
-                        ui.add(Label::new(&track.title).wrap_mode(TextWrapMode::Truncate));
-
-                        ui.add(Label::new(&track.artist).wrap_mode(TextWrapMode::Truncate));
-                        ui.add(Label::new(&track.album).wrap_mode(TextWrapMode::Truncate));
-                        ui.label(format_seconds(track.duration));
+        ScrollArea::vertical()
+            .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
+            .show(ui, |ui| {
+                Grid::new("playlist")
+                    .max_col_width(column_width)
+                    .min_col_width(column_width)
+                    .show(ui, |ui| {
+                        ui.heading("#");
+                        ui.heading("Title");
+                        ui.heading("Artist");
+                        ui.heading("Album");
+                        ui.heading("Duration");
                         ui.end_row();
-                    }
-                });
-        });
+
+                        let query = state.query.to_lowercase();
+
+                        let filtered_tracks = if !query.is_empty() {
+                            state
+                                .library
+                                .tracks
+                                .iter()
+                                .filter(|track| {
+                                    track.title.to_lowercase().contains(&query)
+                                        || track.artist.to_lowercase().contains(&query)
+                                        || track.album.to_lowercase().contains(&query)
+                                })
+                                .collect::<Vec<_>>()
+                        } else {
+                            state.library.tracks.iter().collect::<Vec<_>>()
+                        };
+
+                        for (i, track) in filtered_tracks.iter().enumerate() {
+                            ui.add(Label::new(format!("{}", i)));
+                            ui.add(Label::new(&track.title).wrap_mode(TextWrapMode::Truncate));
+                            ui.add(Label::new(&track.artist).wrap_mode(TextWrapMode::Truncate));
+                            ui.add(Label::new(&track.album).wrap_mode(TextWrapMode::Truncate));
+                            ui.label(format_seconds(track.duration));
+                            ui.end_row();
+                        }
+                    });
+            });
     }
 }

@@ -23,6 +23,7 @@ pub struct State {
     pub config: Config,
     pub view: View,
     pub library: Playlist,
+    pub query: String,
 }
 
 pub struct Msc {
@@ -45,6 +46,7 @@ impl Msc {
             config: Config::get(),
             view: View::Library,
             library: test,
+            query: String::new(),
         };
 
         Self {
