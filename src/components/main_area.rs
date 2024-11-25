@@ -1,6 +1,6 @@
 use eframe::egui::{
-    include_image, scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32,
-    Context, DragValue, Grid, ImageButton, Label, RichText, ScrollArea, TextWrapMode, Ui,
+    scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue,
+    Grid, Label, RichText, ScrollArea, TextWrapMode, Ui,
 };
 use rfd::FileDialog;
 

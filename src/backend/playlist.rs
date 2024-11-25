@@ -18,7 +18,7 @@ impl Playlist {
     pub fn new() -> Self {
         Playlist {
             tracks: Vec::new(),
-            name: String::from(""),
+            name: String::from("New Playlist"),
         }
     }
 
