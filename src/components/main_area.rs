@@ -20,7 +20,7 @@ impl MainArea {
     pub fn show(&mut self, ctx: &Context, state: &mut State) {
         CentralPanel::default().show(ctx, |ui| match state.view {
             View::Playlist => self.show_playlist(ui, state),
-            View::Search => self.show_search(ui, state),
+            View::_Search => self.show_search(ui, state),
             View::Settings => self.show_settings(ui, state),
             View::Library => self.show_library(ui, state),
         });

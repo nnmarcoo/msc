@@ -15,7 +15,7 @@ use crate::{
 pub enum View {
     Playlist,
     Settings,
-    Search,
+    _Search, // unused
     Library,
 }
 
