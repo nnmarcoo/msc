@@ -24,6 +24,7 @@ pub struct State {
     pub view: View,
     pub library: Playlist,
     pub query: String,
+    pub selected_playlist: usize,
 }
 
 pub struct Msc {
@@ -47,6 +48,7 @@ impl Msc {
             view: View::Library,
             library: test,
             query: String::new(),
+            selected_playlist: 0,
         };
 
         Self {

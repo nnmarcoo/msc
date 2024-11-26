@@ -45,13 +45,18 @@ impl AudioColumn {
                         let mut to_remove = None;
 
                         for (i, playlist) in state.config.playlists.iter().enumerate() {
-                            let playlist_button_res = ui.add_sized(
-                                [48., 48.],
-                                ImageButton::new(include_image!("../../assets/icons/default.png"))
+                            let playlist_button_res = ui
+                                .add_sized(
+                                    [48., 48.],
+                                    ImageButton::new(include_image!(
+                                        "../../assets/icons/default.png"
+                                    ))
                                     .rounding(5.),
-                            ).on_hover_text(&playlist.name);
+                                )
+                                .on_hover_text(&playlist.name);
 
                             if playlist_button_res.clicked() {
+                                state.selected_playlist = i;
                                 // set selected playlist in state
                                 state.view = View::Playlist;
                             }
@@ -66,6 +71,13 @@ impl AudioColumn {
 
                         if let Some(i) = to_remove {
                             state.config.playlists.remove(i);
+                            if state.selected_playlist == i {
+                                if !state.config.playlists.is_empty() {
+                                    state.selected_playlist = 0;
+                                } else {
+                                    state.view = View::Library;
+                                }
+                            }
                         }
                     });
                 if has_playlists {

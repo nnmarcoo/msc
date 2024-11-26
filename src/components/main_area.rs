@@ -1,6 +1,6 @@
 use eframe::egui::{
     scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue,
-    Grid, Label, RichText, ScrollArea, TextWrapMode, Ui,
+    Grid, Label, RichText, ScrollArea, TextWrapMode, Ui, Window,
 };
 use rfd::FileDialog;
 
@@ -19,15 +19,26 @@ impl MainArea {
 
     pub fn show(&mut self, ctx: &Context, state: &mut State) {
         CentralPanel::default().show(ctx, |ui| match state.view {
-            View::Playlist => self.show_playlist(ui, state),
+            View::Playlist => self.show_playlist(ctx, ui, state),
             View::_Search => self.show_search(ui, state),
             View::Settings => self.show_settings(ui, state),
             View::Library => self.show_library(ui, state),
         });
     }
 
-    fn show_playlist(&mut self, ui: &mut Ui, state: &mut State) {
-        ui.heading("Playlist View");
+    fn show_playlist(&mut self, ctx: &Context, ui: &mut Ui, state: &mut State) {
+        let playlist = state.config.playlists.get(state.selected_playlist).unwrap();
+        let playlist_name_res = ui.heading(&playlist.name);
+
+        if playlist_name_res.clicked() {
+            Window::new("Change Playlist Name")
+                .resizable(false)
+                .title_bar(false)
+                .default_open(true)
+                .show(ctx, |ui| {
+                    ui.label("test");
+                });
+        }
     }
 
     fn show_search(&mut self, ui: &mut Ui, state: &mut State) {
