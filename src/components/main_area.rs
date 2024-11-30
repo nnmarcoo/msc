@@ -1,6 +1,6 @@
 use eframe::egui::{
     scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue,
-    Grid, Label, RichText, ScrollArea, TextWrapMode, Ui, Window,
+    Grid, Image, Label, RichText, ScrollArea, TextWrapMode, Ui, Window,
 };
 use rfd::FileDialog;
 
@@ -28,9 +28,15 @@ impl MainArea {
 
     fn show_playlist(&mut self, ctx: &Context, ui: &mut Ui, state: &mut State) {
         let playlist = state.config.playlists.get(state.selected_playlist).unwrap();
+
+        if let Some(texture) = &playlist.texture {
+            ui.image(texture);
+        }
+
         let playlist_name_res = ui.heading(&playlist.name);
 
         if playlist_name_res.clicked() {
+            // doesn't work
             Window::new("Change Playlist Name")
                 .resizable(false)
                 .title_bar(false)

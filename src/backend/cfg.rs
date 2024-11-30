@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use super::playlist::Playlist;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Config {
     pub audio_directory: String,
     pub volume: f32,

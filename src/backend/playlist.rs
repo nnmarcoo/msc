@@ -3,15 +3,19 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use eframe::egui::{ColorImage, Context, TextureHandle, TextureOptions};
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
-use super::track::Track;
+use super::{image::SerialImage, track::Track};
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Playlist {
     pub tracks: Vec<Track>,
     pub name: String,
+    pub image: SerialImage,
+    #[serde(skip)]
+    pub texture: Option<TextureHandle>,
 }
 
 impl Playlist {
@@ -19,6 +23,8 @@ impl Playlist {
         Playlist {
             tracks: Vec::new(),
             name: String::from("New Playlist"),
+            image: Self::default_image(),
+            texture: None,
         }
     }
 
@@ -27,6 +33,8 @@ impl Playlist {
         Playlist {
             tracks,
             name: String::from(""),
+            image: Self::default_image(),
+            texture: None,
         }
     }
 
@@ -57,6 +65,35 @@ impl Playlist {
                 .collect()
         } else {
             Vec::new()
+        }
+    }
+
+    fn default_image() -> SerialImage {
+        let image = image::load_from_memory(include_bytes!("../../assets/icons/default.png"))
+            .expect("Failed to load default image")
+            .to_rgba8();
+
+        let size = [image.width() as usize, image.height() as usize];
+        let pixels = image
+            .pixels()
+            .map(|p| {
+                let [r, g, b, a] = p.0;
+                ((r as u32) << 24) | ((g as u32) << 16) | ((b as u32) << 8) | (a as u32)
+            })
+            .collect();
+
+        SerialImage { size, pixels }
+    }
+
+    pub fn load_texture(ctx: &Context, playlist: &mut Playlist) {
+        if playlist.texture.is_none() {
+            let color_image: ColorImage = playlist.image.clone().into();
+            let texture = ctx.load_texture(
+                "playlist_image_temp",
+                color_image,
+                TextureOptions::default(),
+            );
+            playlist.texture = Some(texture);
         }
     }
 }

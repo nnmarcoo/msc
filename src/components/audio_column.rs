@@ -1,5 +1,6 @@
 use eframe::egui::{
-    include_image, scroll_area::ScrollBarVisibility, Context, ImageButton, ScrollArea, SidePanel,
+    include_image, scroll_area::ScrollBarVisibility, vec2, Context, Image, ImageButton, ScrollArea,
+    SidePanel,
 };
 
 use crate::{
@@ -44,29 +45,32 @@ impl AudioColumn {
                     .show(ui, |ui| {
                         let mut to_remove = None;
 
-                        for (i, playlist) in state.config.playlists.iter().enumerate() {
-                            let playlist_button_res = ui
-                                .add_sized(
-                                    [48., 48.],
-                                    ImageButton::new(include_image!(
-                                        "../../assets/icons/default.png"
-                                    ))
-                                    .rounding(5.),
-                                )
-                                .on_hover_text(&playlist.name);
+                        for (i, playlist) in state.config.playlists.iter_mut().enumerate() {
+                            Playlist::load_texture(ctx, playlist);
 
-                            if playlist_button_res.clicked() {
-                                state.selected_playlist = i;
-                                // set selected playlist in state
-                                state.view = View::Playlist;
-                            }
+                            if let Some(texture) = &playlist.texture {
+                                let playlist_button_res = ui
+                                    .add(
+                                        ImageButton::new(
+                                            Image::new(texture).max_size(vec2(40., 40.)),
+                                        )
+                                        .rounding(5.),
+                                    )
+                                    .on_hover_text(&playlist.name);
 
-                            playlist_button_res.context_menu(|ui| {
-                                if ui.button("Delete").clicked() {
-                                    to_remove = Some(i);
-                                    ui.close_menu();
+                                if playlist_button_res.clicked() {
+                                    state.selected_playlist = i;
+                                    // set selected playlist in state
+                                    state.view = View::Playlist;
                                 }
-                            });
+
+                                playlist_button_res.context_menu(|ui| {
+                                    if ui.button("Delete").clicked() {
+                                        to_remove = Some(i);
+                                        ui.close_menu();
+                                    }
+                                });
+                            }
                         }
 
                         if let Some(i) = to_remove {
