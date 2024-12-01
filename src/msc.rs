@@ -5,7 +5,7 @@ use eframe::{
 use egui_extras::install_image_loaders;
 
 use crate::{
-    backend::{cfg::Config, playlist::Playlist, resize::handle_resize},
+    backend::{cfg::Config, playlist::Playlist, queue::Queue, resize::handle_resize},
     components::{
         audio_column::AudioColumn, audio_controls::AudioControls, main_area::MainArea,
         title_bar::TitleBar,
@@ -25,6 +25,7 @@ pub struct State {
     pub library: Playlist,
     pub query: String,
     pub selected_playlist: usize,
+    pub queue: Queue,
 }
 
 pub struct Msc {
@@ -42,6 +43,7 @@ impl Msc {
 
         let config = Config::get();
         let test: Playlist = Playlist::from_directory(&config.audio_directory);
+        let test2: Playlist = Playlist::from_directory(&config.audio_directory);
 
         let state = State {
             config: Config::get(),
@@ -49,6 +51,7 @@ impl Msc {
             library: test,
             query: String::new(),
             selected_playlist: 0,
+            queue: Queue::from_playlist(test2),
         };
 
         Self {
