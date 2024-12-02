@@ -10,6 +10,8 @@ use lofty::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::constants::DEFAULT_IMAGE_BORDER_BYTES;
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Track {
     pub file_path: String,
@@ -87,7 +89,7 @@ impl Track {
             ColorImage::from_rgba_unmultiplied(size, &pixels)
         } else {
             let img = image::load(
-                Cursor::new(include_bytes!("../../assets/icons/defaultborder.png")),
+                Cursor::new(DEFAULT_IMAGE_BORDER_BYTES),
                 image::ImageFormat::Png,
             )
             .unwrap();
@@ -98,28 +100,5 @@ impl Track {
             ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &img)
         };
         image
-    }
-
-    fn count_audio_files(path: &str) -> Result<usize, std::io::Error> {
-        // do I need this
-        let extensions = ["mp3", "flac", "m4a", "ogg"];
-        let mut count = 0;
-
-        for entry in read_dir(path)? {
-            let entry = entry?;
-            let file_path = entry.path();
-
-            if file_path.is_file() {
-                if let Some(extension) = file_path.extension() {
-                    if let Some(ext) = extension.to_str() {
-                        if extensions.contains(&ext.to_lowercase().as_str()) {
-                            count += 1;
-                        }
-                    }
-                }
-            }
-        }
-
-        Ok(count)
     }
 }

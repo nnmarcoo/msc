@@ -7,6 +7,8 @@ use eframe::egui::{ColorImage, Context, TextureHandle, TextureOptions};
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
+use crate::constants::DEFAULT_IMAGE_BYTES;
+
 use super::{image::SerialImage, track::Track};
 
 #[derive(Serialize, Deserialize)]
@@ -69,7 +71,7 @@ impl Playlist {
     }
 
     fn default_image() -> SerialImage {
-        let image = image::load_from_memory(include_bytes!("../../assets/icons/default.png"))
+        let image = image::load_from_memory(DEFAULT_IMAGE_BYTES)
             .expect("Failed to load default image")
             .to_rgba8();
 

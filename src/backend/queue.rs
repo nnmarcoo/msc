@@ -6,8 +6,9 @@ use kira::{
         streaming::{StreamingSoundData, StreamingSoundHandle},
         FromFileError, PlaybackState,
     },
-    tween::Tween,
 };
+
+use crate::constants::{DEFALT_AUDIO_BYTES, TWEEN_DEFAULT, TWEEN_INSTANT};
 
 use super::{playlist::Playlist, track::Track};
 
@@ -23,8 +24,7 @@ impl Queue {
         let mut manager =
             AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).unwrap();
 
-        let bytes = include_bytes!("../../assets/setup/placeholder.mp3");
-        let cursor = Cursor::new(bytes);
+        let cursor = Cursor::new(DEFALT_AUDIO_BYTES);
 
         let stream = StreamingSoundData::from_cursor(cursor).unwrap();
         let sound = manager.play(stream).unwrap();
@@ -45,13 +45,12 @@ impl Queue {
             let stream = StreamingSoundData::from_file(&first_track.file_path).unwrap();
             manager.play(stream).unwrap()
         } else {
-            let bytes = include_bytes!("../../assets/setup/placeholder.mp3");
-            let cursor = Cursor::new(bytes);
+            let cursor = Cursor::new(DEFALT_AUDIO_BYTES);
             let stream = StreamingSoundData::from_cursor(cursor).unwrap();
             manager.play(stream).unwrap()
         };
 
-        sound.pause(Tween::default());
+        sound.pause(TWEEN_INSTANT);
 
         Queue {
             tracks: playlist.tracks,
@@ -64,10 +63,10 @@ impl Queue {
     pub fn toggle_playback(&mut self) {
         match self.sound.state() {
             PlaybackState::Playing => {
-                self.sound.pause(Default::default());
+                self.sound.pause(TWEEN_DEFAULT);
             }
             PlaybackState::Paused | PlaybackState::Stopped => {
-                self.sound.resume(Default::default());
+                self.sound.resume(TWEEN_DEFAULT);
             }
             _ => {}
         }
@@ -116,12 +115,12 @@ impl Queue {
     }
 
     pub fn start(&mut self, volume: f64) {
-        self.sound.stop(Tween::default());
+        self.sound.stop(TWEEN_DEFAULT);
         if let Some(index) = self.current_index {
             let stream =
                 StreamingSoundData::from_file(&self.tracks.get(index).unwrap().file_path).unwrap();
             self.sound = self.manager.play(stream).unwrap();
-            self.sound.set_volume(volume, Tween::default());
+            self.sound.set_volume(volume, TWEEN_DEFAULT);
         }
     }
 
@@ -134,7 +133,7 @@ impl Queue {
     }
 
     pub fn set_volume(&mut self, volume: f32) {
-        self.sound.set_volume(volume as f64, Tween::default());
+        self.sound.set_volume(volume as f64, TWEEN_DEFAULT);
     }
 
     pub fn is_playing(&self) -> bool {
