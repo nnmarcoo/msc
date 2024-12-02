@@ -120,7 +120,7 @@ impl AudioControls {
                                 if timeline_res.drag_stopped() || timeline_res.clicked() {
                                     self.seek_pos = self.timeline_pos;
                                     state.queue.set_volume(0.);
-                                    state.queue.seek(self.timeline_pos as f64);
+                                    state.queue.seek(self.timeline_pos);
                                 }
 
                                 if is_playing {
@@ -133,12 +133,12 @@ impl AudioControls {
                                         || timeline_res.dragged())
                                         && self.seek_pos == -1.
                                     {
-                                        self.timeline_pos = state.queue.position() as f32;
+                                        self.timeline_pos = state.queue.position();
                                     } else if self.seek_pos.round()
-                                        == state.queue.position().round() as f32
+                                        == state.queue.position().round()
                                     {
                                         self.seek_pos = -1.;
-                                        state.queue.set_volume(state.config.volume as f64);
+                                        state.queue.set_volume(state.config.volume);
                                     }
                                 }
 
@@ -161,10 +161,11 @@ impl AudioControls {
 
                                     if volume_slider.double_clicked() {
                                         state.config.volume = 1.;
+                                        state.queue.set_volume(state.config.volume);
                                     }
 
                                     if volume_slider.changed() {
-                                        state.queue.set_volume(state.config.volume as f64);
+                                        state.queue.set_volume(state.config.volume);
                                     }
                                 });
                             });

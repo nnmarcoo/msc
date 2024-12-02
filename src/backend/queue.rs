@@ -73,14 +73,6 @@ impl Queue {
         }
     }
 
-    pub fn set_volume(&mut self, volume: f64) {
-        self.sound.set_volume(volume, Tween::default());
-    }
-
-    pub fn is_playing(&self) -> bool {
-        self.sound.state() == PlaybackState::Playing
-    }
-
     pub fn queue_playlist(&mut self, playlist: Playlist) {
         self.tracks.extend(playlist.tracks);
     }
@@ -102,50 +94,50 @@ impl Queue {
     }
 
     pub fn play_next_track(&mut self, volume: f64) {
-        self.increment_index();
-        self.start(volume);
+        self.play_adjacent_track(true, volume);
     }
 
     pub fn play_previous_track(&mut self, volume: f64) {
-        self.decrement_index();
+        self.play_adjacent_track(false, volume);
+    }
+
+    fn play_adjacent_track(&mut self, forward: bool, volume: f64) {
+        if self.tracks.is_empty() {
+            return;
+        }
+        self.current_index = self.current_index.map(|i| {
+            if forward {
+                (i + 1) % self.tracks.len()
+            } else {
+                (i + self.tracks.len() - 1) % self.tracks.len()
+            }
+        });
         self.start(volume);
-    }
-
-    pub fn seek(&mut self, pos: f64) {
-        self.sound.seek_to(pos);
-    }
-
-    pub fn position(&self) -> f64 {
-        self.sound.position()
     }
 
     pub fn start(&mut self, volume: f64) {
         self.sound.stop(Tween::default());
-        if let Some(i) = self.current_index {
+        if let Some(index) = self.current_index {
             let stream =
-                StreamingSoundData::from_file(&self.tracks.get(i).unwrap().file_path).unwrap();
+                StreamingSoundData::from_file(&self.tracks.get(index).unwrap().file_path).unwrap();
             self.sound = self.manager.play(stream).unwrap();
             self.sound.set_volume(volume, Tween::default());
         }
     }
 
-    fn increment_index(&mut self) {
-        if let Some(i) = self.current_index {
-            if i < self.tracks.len() {
-                self.current_index = Some(i + 1);
-            } else {
-                self.current_index = Some(0);
-            }
-        }
+    pub fn seek(&mut self, pos: f32) {
+        self.sound.seek_to(pos as f64);
     }
 
-    fn decrement_index(&mut self) {
-        if let Some(i) = self.current_index {
-            if i > 0 {
-                self.current_index = Some(i - 1);
-            } else {
-                self.current_index = Some(self.tracks.len() - 1);
-            }
-        }
+    pub fn position(&self) -> f32 {
+        self.sound.position() as f32
+    }
+
+    pub fn set_volume(&mut self, volume: f32) {
+        self.sound.set_volume(volume as f64, Tween::default());
+    }
+
+    pub fn is_playing(&self) -> bool {
+        self.sound.state() == PlaybackState::Playing
     }
 }
