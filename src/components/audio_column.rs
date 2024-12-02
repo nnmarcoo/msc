@@ -46,7 +46,7 @@ impl AudioColumn {
                         let mut to_remove = None;
 
                         for (i, playlist) in state.config.playlists.iter_mut().enumerate() {
-                            Playlist::load_texture(ctx, playlist);
+                            playlist.load_texture(ctx);
 
                             if let Some(texture) = &playlist.texture {
                                 let playlist_button_res = ui
@@ -60,7 +60,6 @@ impl AudioColumn {
 
                                 if playlist_button_res.clicked() {
                                     state.selected_playlist = i;
-                                    // set selected playlist in state
                                     state.view = View::Playlist;
                                 }
 

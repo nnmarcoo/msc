@@ -87,15 +87,12 @@ impl Playlist {
         SerialImage { size, pixels }
     }
 
-    pub fn load_texture(ctx: &Context, playlist: &mut Playlist) {
-        if playlist.texture.is_none() {
-            let color_image: ColorImage = playlist.image.clone().into();
-            let texture = ctx.load_texture(
-                "playlist_image_temp",
-                color_image,
-                TextureOptions::default(),
-            );
-            playlist.texture = Some(texture);
+    pub fn load_texture(&mut self, ctx: &Context) {
+        if self.texture.is_none() {
+            let color_image: ColorImage = self.image.clone().into();
+            let texture =
+                ctx.load_texture("playlist_texture", color_image, TextureOptions::default());
+            self.texture = Some(texture);
         }
     }
 }

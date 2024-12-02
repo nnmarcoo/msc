@@ -1,6 +1,6 @@
-use std::{fs::read_dir, io::Cursor, path::Path};
+use std::{io::Cursor, path::Path};
 
-use eframe::egui::ColorImage;
+use eframe::egui::{ColorImage, Context, TextureHandle, TextureOptions};
 
 use image::{imageops::FilterType, load_from_memory};
 use lofty::{
@@ -12,26 +12,31 @@ use serde::{Deserialize, Serialize};
 
 use crate::constants::DEFAULT_IMAGE_BORDER_BYTES;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct Track {
     pub file_path: String,
     pub title: String,
     pub artist: String,
     pub album: String,
     pub duration: f32,
+    #[serde(skip)]
+    pub texture: Option<TextureHandle>,
 }
 
-impl Track {
-    pub fn default() -> Self {
+impl Default for Track {
+    fn default() -> Self {
         Track {
             file_path: String::from("-"),
             title: String::new(),
             artist: String::new(),
             album: String::new(),
             duration: 0.,
+            texture: None,
         }
     }
+}
 
+impl Track {
     pub fn new(path: &str) -> Self {
         let tagged_file = Probe::open(path).unwrap().read().unwrap();
         let properties = tagged_file.properties();
@@ -64,6 +69,15 @@ impl Track {
             artist,
             album,
             duration,
+            texture: None,
+        }
+    }
+
+    pub fn load_texture(&mut self, ctx: &Context) {
+        if self.texture.is_none() {
+            let color_image: ColorImage = self.get_image();
+            let texture = ctx.load_texture("track_texture", color_image, TextureOptions::default());
+            self.texture = Some(texture);
         }
     }
 

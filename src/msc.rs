@@ -58,7 +58,7 @@ impl Msc {
             state,
             resizing: None,
             audio_column: AudioColumn::new(),
-            audio_controls: AudioControls::new(&cc.egui_ctx),
+            audio_controls: AudioControls::new(),
             title_bar: TitleBar::new(),
             main_area: MainArea::new(),
         }

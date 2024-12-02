@@ -65,7 +65,7 @@ impl Queue {
             PlaybackState::Playing => {
                 self.sound.pause(TWEEN_DEFAULT);
             }
-            PlaybackState::Paused | PlaybackState::Stopped => {
+            PlaybackState::Paused => {
                 self.sound.resume(TWEEN_DEFAULT);
             }
             _ => {}
@@ -88,8 +88,9 @@ impl Queue {
         }
     }
 
-    pub fn current_track(&self) -> Option<&Track> {
-        self.current_index.and_then(|index| self.tracks.get(index))
+    pub fn current_track(&mut self) -> Option<&mut Track> {
+        self.current_index
+            .and_then(|index| self.tracks.get_mut(index))
     }
 
     pub fn play_next_track(&mut self, volume: f64) {

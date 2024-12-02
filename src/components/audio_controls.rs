@@ -4,28 +4,20 @@ use crate::backend::ui::{format_seconds, get_volume_color};
 use crate::msc::State;
 use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
-    include_image, vec2, Color32, ColorImage, Context, Direction, Image, ImageButton, Layout,
-    RichText, TextureHandle, TextureOptions, TopBottomPanel,
+    include_image, vec2, Color32, Context, Direction, Image, ImageButton, Layout, RichText,
+    TopBottomPanel,
 };
 
 pub struct AudioControls {
     timeline_pos: f32,
     seek_pos: f32,
-    texture_handle: TextureHandle,
 }
 
 impl AudioControls {
-    pub fn new(ctx: &Context) -> Self {
-        let pixels = vec![0u8; 48 * 48 * 4];
-
+    pub fn new() -> Self {
         AudioControls {
             timeline_pos: 0.,
             seek_pos: -1.,
-            texture_handle: ctx.load_texture(
-                "control_image",
-                ColorImage::from_rgba_unmultiplied([48, 48], &pixels),
-                TextureOptions::LINEAR,
-            ),
         }
     }
 
@@ -47,11 +39,17 @@ impl AudioControls {
                             ui.add_space(10.);
                             ui.horizontal(|ui| {
                                 if state.config.show_image {
-                                    ui.add(
-                                        Image::new(&self.texture_handle)
-                                            .max_size(vec2(48., 48.))
-                                            .rounding(5.),
-                                    );
+                                    if let Some(track) = state.queue.current_track() {
+                                        track.load_texture(ctx);
+
+                                        if let Some(texture) = &track.texture {
+                                            ui.add(
+                                                Image::new(texture)
+                                                    .max_size(vec2(48., 48.))
+                                                    .rounding(5.),
+                                            );
+                                        }
+                                    }
                                 }
                                 ui.vertical(|ui| {
                                     ui.add_space(10.);
