@@ -117,7 +117,6 @@ impl AudioControls {
 
                                 if timeline_res.drag_stopped() || timeline_res.clicked() {
                                     self.seek_pos = self.timeline_pos;
-                                    state.queue.set_volume(0.);
                                     state.queue.seek(self.timeline_pos);
                                 }
 
