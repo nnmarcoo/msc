@@ -14,6 +14,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::constants::DEFAULT_IMAGE_BORDER_BYTES;
 
+use super::image::image_loader::ImageLoader;
+
+
 #[derive(Serialize, Deserialize)]
 pub struct Track {
     pub file_path: String,
@@ -78,7 +81,7 @@ impl Track {
         }
     }
 
-    pub fn load_texture_async(&mut self, ctx: Context) {
+    pub fn load_texture_async(&mut self, ctx: Context, loader: Arc<ImageLoader>) {
         if !self.texture.lock().unwrap().is_none() || self.loading {
             return;
         }
@@ -88,7 +91,7 @@ impl Track {
         let file_path = self.file_path.clone();
         let texture_handle = Arc::clone(&self.texture);
 
-        std::thread::spawn(move || {
+        loader.queue_image_load(move || {
             let tagged_file = Probe::open(&file_path).unwrap().read().unwrap();
 
             let image = if let Some(picture) = tagged_file
@@ -101,7 +104,7 @@ impl Track {
                     load_from_memory(image_data)
                         .ok()
                         .unwrap()
-                        .resize(48, 48, FilterType::Nearest);
+                        .resize(48, 48, FilterType::Lanczos3);
 
                 let rgba_img = img.to_rgba8();
                 let size = [rgba_img.width() as usize, rgba_img.height() as usize];
@@ -127,42 +130,7 @@ impl Track {
         });
     }
 
-    pub fn texture_ref(&self) -> Option<TextureHandle> {
+    pub fn get_texture(&self) -> Option<TextureHandle> {
         self.texture.lock().ok()?.clone()
-    }
-
-    pub fn get_image(&self) -> ColorImage {
-        let tagged_file = Probe::open(&self.file_path).unwrap().read().unwrap();
-
-        let image = if let Some(picture) = tagged_file
-            .primary_tag()
-            .and_then(|tag| tag.pictures().first())
-        {
-            let image_data = picture.data();
-
-            let img =
-                load_from_memory(image_data)
-                    .ok()
-                    .unwrap()
-                    .resize(48, 48, FilterType::Lanczos3);
-
-            let rgba_img = img.to_rgba8();
-            let size = [rgba_img.width() as usize, rgba_img.height() as usize];
-            let pixels = rgba_img.into_raw();
-
-            ColorImage::from_rgba_unmultiplied(size, &pixels)
-        } else {
-            let img = image::load(
-                Cursor::new(DEFAULT_IMAGE_BORDER_BYTES),
-                image::ImageFormat::Png,
-            )
-            .unwrap();
-
-            let img = img.to_rgba8();
-            let (width, height) = img.dimensions();
-
-            ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &img)
-        };
-        image
     }
 }

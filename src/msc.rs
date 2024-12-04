@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use eframe::{
     egui::{CentralPanel, Context, Frame as gFrame, Margin, ResizeDirection},
     App, CreationContext, Frame,
@@ -5,7 +7,9 @@ use eframe::{
 use egui_extras::install_image_loaders;
 
 use crate::{
-    backend::{cfg::Config, playlist::Playlist, queue::Queue, resize::handle_resize},
+    backend::{
+        cfg::Config, image::image_loader::ImageLoader, playlist::Playlist, queue::Queue, resize::handle_resize
+    },
     components::{
         audio_column::AudioColumn, audio_controls::AudioControls, main_area::MainArea,
         title_bar::TitleBar,
@@ -26,6 +30,7 @@ pub struct State {
     pub query: String,
     pub selected_playlist: usize,
     pub queue: Queue,
+    pub image_loader: Arc<ImageLoader>,
 }
 
 pub struct Msc {
@@ -52,6 +57,7 @@ impl Msc {
             query: String::new(),
             selected_playlist: 0,
             queue: Queue::from_playlist(test2),
+            image_loader: ImageLoader::new(),
         };
 
         Self {

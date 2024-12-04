@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::time::Duration;
 
 use crate::backend::ui::{format_seconds, get_volume_color};
@@ -5,7 +6,7 @@ use crate::constants::DEFAULT_IMAGE_BORDER_IMAGE;
 use crate::msc::State;
 use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
-    include_image, vec2, Color32, Context, Direction, Image, ImageButton, Layout, RichText,
+    include_image, vec2, Color32, Context, Direction, Image, ImageButton, Layout,
     TopBottomPanel,
 };
 
@@ -41,9 +42,12 @@ impl AudioControls {
                             ui.horizontal(|ui| {
                                 if state.config.show_image {
                                     if let Some(track) = state.queue.current_track() {
-                                        track.load_texture_async(ctx.clone());
+                                        track.load_texture_async(
+                                            ctx.clone(),
+                                            Arc::clone(&state.image_loader),
+                                        );
 
-                                        let image = match &track.texture_ref() {
+                                        let image = match &track.get_texture() {
                                             Some(texture) => Image::new(texture),
                                             None => Image::new(DEFAULT_IMAGE_BORDER_IMAGE),
                                         };
@@ -56,12 +60,7 @@ impl AudioControls {
                                 }
                                 ui.vertical(|ui| {
                                     ui.add_space(10.);
-                                    ui.label(
-                                        RichText::from(&state.queue.current_track().unwrap().title)
-                                            .size(16.)
-                                            .strong(),
-                                    );
-                                    ui.label(&state.queue.current_track().unwrap().artist);
+                                    
                                 });
                             });
                         });

@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::constants::DEFAULT_IMAGE_BYTES;
 
-use super::{image::SerialImage, track::Track};
+use super::{image::serial_image::SerialImage, track::Track};
 
 #[derive(Serialize, Deserialize)]
 pub struct Playlist {
