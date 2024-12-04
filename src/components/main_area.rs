@@ -47,7 +47,7 @@ impl MainArea {
         }
     }
 
-    fn show_search(&mut self, ui: &mut Ui, state: &mut State) {
+    fn show_search(&mut self, ui: &mut Ui, _state: &mut State) {
         ui.heading("Search View");
     }
 
