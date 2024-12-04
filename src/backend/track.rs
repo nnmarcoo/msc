@@ -16,7 +16,6 @@ use crate::constants::DEFAULT_IMAGE_BORDER_BYTES;
 
 use super::image::image_loader::ImageLoader;
 
-
 #[derive(Serialize, Deserialize)]
 pub struct Track {
     pub file_path: String,

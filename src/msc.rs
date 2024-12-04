@@ -8,7 +8,8 @@ use egui_extras::install_image_loaders;
 
 use crate::{
     backend::{
-        cfg::Config, image::image_loader::ImageLoader, playlist::Playlist, queue::Queue, resize::handle_resize
+        cfg::Config, image::image_loader::ImageLoader, playlist::Playlist, queue::Queue,
+        resize::handle_resize,
     },
     components::{
         audio_column::AudioColumn, audio_controls::AudioControls, main_area::MainArea,

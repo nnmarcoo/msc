@@ -1,6 +1,8 @@
 use eframe::egui::{Color32, ColorImage};
 use serde::{Deserialize, Serialize};
 
+// TODO: THIS SHOULD BE REMOVED
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SerialImage {
     pub size: [usize; 2],
