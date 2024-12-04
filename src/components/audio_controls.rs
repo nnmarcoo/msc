@@ -6,7 +6,7 @@ use crate::constants::DEFAULT_IMAGE_BORDER_IMAGE;
 use crate::msc::State;
 use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
-    include_image, vec2, Color32, Context, Direction, Image, ImageButton, Layout,
+    include_image, vec2, Color32, Context, Direction, Image, ImageButton, Layout, RichText,
     TopBottomPanel,
 };
 
@@ -60,7 +60,12 @@ impl AudioControls {
                                 }
                                 ui.vertical(|ui| {
                                     ui.add_space(10.);
-                                    
+                                    ui.label(
+                                        RichText::from(&state.queue.current_track().unwrap().title)
+                                            .size(16.)
+                                            .strong(),
+                                    );
+                                    ui.label(&state.queue.current_track().unwrap().artist);
                                 });
                             });
                         });
