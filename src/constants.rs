@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use eframe::egui::{include_image, ImageSource};
 use kira::{
     tween::{Easing, Tween},
     StartTime,
@@ -20,3 +21,6 @@ pub const TWEEN_DEFAULT: Tween = Tween {
 pub const DEFAULT_IMAGE_BYTES: &[u8] = include_bytes!("../assets/icons/default.png");
 pub const DEFAULT_IMAGE_BORDER_BYTES: &[u8] = include_bytes!("../assets/icons/defaultborder.png");
 pub const DEFALT_AUDIO_BYTES: &[u8] = include_bytes!("../assets/setup/placeholder.mp3");
+
+pub const DEFAULT_IMAGE_BORDER_IMAGE: ImageSource =
+    include_image!("../assets/icons/defaultborder.png");

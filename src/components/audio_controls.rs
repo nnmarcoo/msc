@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use crate::backend::ui::{format_seconds, get_volume_color};
+use crate::constants::DEFAULT_IMAGE_BORDER_IMAGE;
 use crate::msc::State;
 use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
@@ -40,15 +41,17 @@ impl AudioControls {
                             ui.horizontal(|ui| {
                                 if state.config.show_image {
                                     if let Some(track) = state.queue.current_track() {
-                                        track.load_texture(ctx);
+                                        track.load_texture_async(ctx.clone());
 
-                                        if let Some(texture) = &track.texture {
-                                            ui.add(
-                                                Image::new(texture)
-                                                    .max_size(vec2(48., 48.))
-                                                    .rounding(5.),
-                                            );
-                                        }
+                                        let image = match &track.texture_ref() {
+                                            Some(texture) => Image::new(texture),
+                                            None => Image::new(DEFAULT_IMAGE_BORDER_IMAGE),
+                                        };
+
+                                        ui.add_sized(
+                                            [48., 48.],
+                                            image.max_size(vec2(48., 48.)).rounding(5.),
+                                        );
                                     }
                                 }
                                 ui.vertical(|ui| {

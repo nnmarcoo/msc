@@ -10,6 +10,8 @@ use lofty::{
 };
 use serde::{Deserialize, Serialize};
 
+use std::sync::{Arc, Mutex};
+
 use crate::constants::DEFAULT_IMAGE_BORDER_BYTES;
 
 #[derive(Serialize, Deserialize)]
@@ -20,7 +22,8 @@ pub struct Track {
     pub album: String,
     pub duration: f32,
     #[serde(skip)]
-    pub texture: Option<TextureHandle>,
+    pub texture: Arc<Mutex<Option<TextureHandle>>>,
+    pub loading: bool,
 }
 
 impl Default for Track {
@@ -31,7 +34,8 @@ impl Default for Track {
             artist: String::new(),
             album: String::new(),
             duration: 0.,
-            texture: None,
+            texture: Arc::new(Mutex::new(None)),
+            loading: false,
         }
     }
 }
@@ -69,16 +73,62 @@ impl Track {
             artist,
             album,
             duration,
-            texture: None,
+            texture: Arc::new(Mutex::new(None)),
+            loading: false,
         }
     }
 
-    pub fn load_texture(&mut self, ctx: &Context) {
-        if self.texture.is_none() {
-            let color_image: ColorImage = self.get_image();
-            let texture = ctx.load_texture("track_texture", color_image, TextureOptions::default());
-            self.texture = Some(texture);
+    pub fn load_texture_async(&mut self, ctx: Context) {
+        if !self.texture.lock().unwrap().is_none() || self.loading {
+            return;
         }
+
+        self.loading = true;
+
+        let file_path = self.file_path.clone();
+        let texture_handle = Arc::clone(&self.texture);
+
+        std::thread::spawn(move || {
+            let tagged_file = Probe::open(&file_path).unwrap().read().unwrap();
+
+            let image = if let Some(picture) = tagged_file
+                .primary_tag()
+                .and_then(|tag| tag.pictures().first())
+            {
+                let image_data = picture.data();
+
+                let img =
+                    load_from_memory(image_data)
+                        .ok()
+                        .unwrap()
+                        .resize(48, 48, FilterType::Nearest);
+
+                let rgba_img = img.to_rgba8();
+                let size = [rgba_img.width() as usize, rgba_img.height() as usize];
+                let pixels = rgba_img.into_raw();
+
+                ColorImage::from_rgba_unmultiplied(size, &pixels)
+            } else {
+                let img = image::load(
+                    Cursor::new(DEFAULT_IMAGE_BORDER_BYTES),
+                    image::ImageFormat::Png,
+                )
+                .unwrap();
+
+                let img = img.to_rgba8();
+                let (width, height) = img.dimensions();
+
+                ColorImage::from_rgba_unmultiplied([width as usize, height as usize], &img)
+            };
+
+            let texture = ctx.load_texture("track_texture", image, TextureOptions::default());
+
+            *texture_handle.lock().unwrap() = Some(texture);
+        });
+    }
+
+    pub fn texture_ref(&self) -> Option<TextureHandle> {
+        self.texture.lock().ok()?.clone()
     }
 
     pub fn get_image(&self) -> ColorImage {
