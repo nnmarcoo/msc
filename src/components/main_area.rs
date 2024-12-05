@@ -127,14 +127,11 @@ impl MainArea {
             return;
         }
 
-        let column_width = ui.available_width() / 5.;
-
         ScrollArea::vertical()
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
+                
                 Grid::new("playlist")
-                    .max_col_width(column_width)
-                    .min_col_width(column_width)
                     .show(ui, |ui| {
                         ui.heading("#");
                         ui.heading("Title");
@@ -161,7 +158,7 @@ impl MainArea {
                         };
 
                         for (i, track) in filtered_tracks.iter().enumerate() {
-                            ui.add(Label::new(format!("{}", i)));
+                            ui.add(Label::new(format!("{}.", i)));
                             ui.add(Label::new(&track.title).wrap_mode(TextWrapMode::Truncate));
                             ui.add(Label::new(&track.artist).wrap_mode(TextWrapMode::Truncate));
                             ui.add(Label::new(&track.album).wrap_mode(TextWrapMode::Truncate));
