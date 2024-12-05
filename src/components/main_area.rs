@@ -1,6 +1,6 @@
 use eframe::egui::{
-    scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue,
-    Grid, Label, RichText, TextStyle, TextWrapMode, Ui, Window,
+    scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context,
+    DragValue, Grid, Label, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
@@ -11,11 +11,15 @@ use crate::{
     widgets::link_label::link_label,
 };
 
-pub struct MainArea {}
+pub struct MainArea {
+    selection: std::collections::HashSet<usize>,
+}
 
 impl MainArea {
     pub fn new() -> Self {
-        MainArea {}
+        MainArea {
+            selection: Default::default(),
+        }
     }
 
     pub fn show(&mut self, ctx: &Context, state: &mut State) {
@@ -144,24 +148,21 @@ impl MainArea {
             state.library.tracks.iter().collect::<Vec<_>>()
         };
 
-        let (track_num_width, duration_width) = ui.fonts(|fonts| {
+        let track_num_width = ui.fonts(|fonts| {
             let font_id = ui.style().text_styles[&TextStyle::Body].clone();
-            (
-                fonts
-                    .layout_no_wrap(
-                        format!("{}.", filtered_tracks.len()),
-                        font_id.clone(),
-                        Color32::TRANSPARENT,
-                    )
-                    .size()
-                    .x,
-                // this is so dumb
-                fonts
-                    .layout_no_wrap("0000000000000".to_string(), font_id, Color32::TRANSPARENT)
-                    .size()
-                    .x,
-            )
+
+            fonts
+                .layout_no_wrap(
+                    format!("{}.", filtered_tracks.len()),
+                    font_id.clone(),
+                    Color32::TRANSPARENT,
+                )
+                .size()
+                .x
         });
+
+        // this is not correct
+        let duration_width = 112. - track_num_width;
 
         let available_width = (ui.available_width() - track_num_width - duration_width) / 3.;
 
@@ -172,6 +173,7 @@ impl MainArea {
             .column(Column::exact(available_width))
             .column(Column::exact(available_width))
             .column(Column::exact(duration_width))
+            .sense(Sense::click())
             .header(20., |mut header| {
                 header.col(|ui| {
                     ui.strong("#");
@@ -193,6 +195,8 @@ impl MainArea {
                 body.rows(16., filtered_tracks.len(), |mut row| {
                     let index = row.index();
                     let track = &filtered_tracks[index];
+                    row.set_selected(self.selection.contains(&index));
+
                     row.col(|ui| {
                         ui.label(format!("{}.", index));
                     });
@@ -208,7 +212,19 @@ impl MainArea {
                     row.col(|ui| {
                         ui.label(format_seconds(track.duration));
                     });
+
+                    self.toggle_row_selection(index, &row.response());
                 });
             });
+    }
+
+    fn toggle_row_selection(&mut self, index: usize, row_response: &Response) {
+        if row_response.clicked() {
+            if self.selection.contains(&index) {
+                self.selection.remove(&index);
+            } else {
+                self.selection.insert(index);
+            }
+        }
     }
 }
