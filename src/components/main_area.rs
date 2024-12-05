@@ -6,9 +6,7 @@ use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
 use crate::{
-    backend::{playlist::Playlist, ui::format_seconds},
-    msc::{State, View},
-    widgets::link_label::link_label,
+    backend::{playlist::Playlist, ui::format_seconds}, constants::HEADERS, msc::{State, View}, widgets::link_label::link_label
 };
 
 pub struct MainArea {
@@ -175,21 +173,11 @@ impl MainArea {
             .column(Column::exact(duration_width))
             .sense(Sense::click())
             .header(20., |mut header| {
-                header.col(|ui| {
-                    ui.strong("#");
-                });
-                header.col(|ui| {
-                    ui.strong("Title");
-                });
-                header.col(|ui| {
-                    ui.strong("Artist");
-                });
-                header.col(|ui| {
-                    ui.strong("Album");
-                });
-                header.col(|ui| {
-                    ui.strong("Duration");
-                });
+                for text in HEADERS {
+                    header.col(|ui| {
+                        ui.strong(text);
+                    });
+                }
             })
             .body(|body| {
                 body.rows(16., filtered_tracks.len(), |mut row| {

@@ -24,3 +24,5 @@ pub const DEFALT_AUDIO_BYTES: &[u8] = include_bytes!("../assets/setup/placeholde
 
 pub const DEFAULT_IMAGE_BORDER_IMAGE: ImageSource =
     include_image!("../assets/icons/defaultborder.png");
+
+pub const HEADERS: [&str; 5] = ["#", "Title", "Artist", "Album", "Duration"];
