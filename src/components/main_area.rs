@@ -1,7 +1,8 @@
 use eframe::egui::{
     scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue,
-    Grid, Label, RichText, ScrollArea, TextWrapMode, Ui, Window,
+    Grid, Label, RichText, TextWrapMode, Ui, Window,
 };
+use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
 use crate::{
@@ -123,49 +124,72 @@ impl MainArea {
                     }
                 });
             });
-
             return;
         }
 
-        ScrollArea::vertical()
+        let query = state.query.to_lowercase();
+
+        let filtered_tracks = if !query.is_empty() {
+            state
+                .library
+                .tracks
+                .iter()
+                .filter(|track| {
+                    track.title.to_lowercase().contains(&query)
+                        || track.artist.to_lowercase().contains(&query)
+                        || track.album.to_lowercase().contains(&query)
+                })
+                .collect::<Vec<_>>()
+        } else {
+            state.library.tracks.iter().collect::<Vec<_>>()
+        };
+
+        let available_width = (ui.available_width() - 96.) / 3.;
+
+        TableBuilder::new(ui)
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
-            .show(ui, |ui| {
-                
-                Grid::new("playlist")
-                    .show(ui, |ui| {
-                        ui.heading("#");
-                        ui.heading("Title");
-                        ui.heading("Artist");
-                        ui.heading("Album");
-                        ui.heading("Duration");
-                        ui.end_row();
-
-                        let query = state.query.to_lowercase();
-
-                        let filtered_tracks = if !query.is_empty() {
-                            state
-                                .library
-                                .tracks
-                                .iter()
-                                .filter(|track| {
-                                    track.title.to_lowercase().contains(&query)
-                                        || track.artist.to_lowercase().contains(&query)
-                                        || track.album.to_lowercase().contains(&query)
-                                })
-                                .collect::<Vec<_>>()
-                        } else {
-                            state.library.tracks.iter().collect::<Vec<_>>()
-                        };
-
-                        for (i, track) in filtered_tracks.iter().enumerate() {
-                            ui.add(Label::new(format!("{}.", i)));
-                            ui.add(Label::new(&track.title).wrap_mode(TextWrapMode::Truncate));
-                            ui.add(Label::new(&track.artist).wrap_mode(TextWrapMode::Truncate));
-                            ui.add(Label::new(&track.album).wrap_mode(TextWrapMode::Truncate));
-                            ui.label(format_seconds(track.duration));
-                            ui.end_row();
-                        }
+            .column(Column::auto())
+            .column(Column::exact(available_width))
+            .column(Column::exact(available_width))
+            .column(Column::exact(available_width))
+            .column(Column::auto())
+            .header(20., |mut header| {
+                header.col(|ui| {
+                    ui.strong("#");
+                });
+                header.col(|ui| {
+                    ui.strong("Title");
+                });
+                header.col(|ui| {
+                    ui.strong("Artist");
+                });
+                header.col(|ui| {
+                    ui.strong("Album");
+                });
+                header.col(|ui| {
+                    ui.strong("Duration");
+                });
+            })
+            .body(|body| {
+                body.rows(16., filtered_tracks.len(), |mut row| {
+                    let index = row.index();
+                    let track = &filtered_tracks[index];
+                    row.col(|ui| {
+                        ui.label(format!("{}.", index));
                     });
+                    row.col(|ui| {
+                        ui.add(Label::new(&track.title).wrap_mode(TextWrapMode::Truncate));
+                    });
+                    row.col(|ui| {
+                        ui.add(Label::new(&track.artist).wrap_mode(TextWrapMode::Truncate));
+                    });
+                    row.col(|ui| {
+                        ui.add(Label::new(&track.album).wrap_mode(TextWrapMode::Truncate));
+                    });
+                    row.col(|ui| {
+                        ui.label(format_seconds(track.duration));
+                    });
+                });
             });
     }
 }

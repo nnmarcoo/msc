@@ -80,7 +80,7 @@ impl App for Msc {
                     .inner_margin(Margin::ZERO)
                     .fill(ctx.style().visuals.panel_fill),
             )
-            .show(ctx, |_ui| {
+            .show(ctx, |ui| {
                 handle_resize(self, ctx);
 
                 self.title_bar.show(ctx, &mut self.state);
