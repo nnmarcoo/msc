@@ -117,8 +117,8 @@ impl AudioControls {
                                     &mut self.timeline_pos,
                                     0.0..=state.queue.current_track().unwrap().duration,
                                     ui.available_width(),
-                                    8.,
-                                    6.,
+                                    4.,
+                                    4.,
                                     Color32::from_rgb(0, 92, 128),
                                 ));
 
@@ -158,8 +158,8 @@ impl AudioControls {
                                         &mut state.config.volume,
                                         0.0..=2.0,
                                         100.,
-                                        8.,
-                                        6.,
+                                        4.,
+                                        4.,
                                         volume_color,
                                     ));
 
