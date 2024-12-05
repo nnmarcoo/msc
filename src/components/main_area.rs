@@ -162,7 +162,7 @@ impl MainArea {
         // this is not correct
         let duration_width = 112. - track_num_width;
 
-        let available_width = (ui.available_width() - track_num_width - duration_width) / 3.;
+        let available_width = ((ui.available_width() - track_num_width - duration_width) / 3.).max(0.);
 
         TableBuilder::new(ui)
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
@@ -201,7 +201,17 @@ impl MainArea {
                         ui.label(format_seconds(track.duration));
                     });
 
-                    self.toggle_row_selection(index, &row.response());
+                    let response = row.response();
+
+                    response.context_menu(|ui| {
+                        ui.label("TODO");
+                    });
+
+                    if response.double_clicked() {
+                        println!("hi");
+                    }
+
+                    self.toggle_row_selection(index, &response);
                 });
             });
     }
