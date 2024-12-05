@@ -118,10 +118,10 @@ impl Queue {
     pub fn start(&mut self, volume: f64) {
         self.sound.stop(TWEEN_DEFAULT);
         if let Some(index) = self.current_index {
-            let stream =
-                StreamingSoundData::from_file(&self.tracks.get(index).unwrap().file_path).unwrap();
+            let stream = StreamingSoundData::from_file(&self.tracks.get(index).unwrap().file_path)
+                .unwrap()
+                .volume(volume);
             self.sound = self.manager.play(stream).unwrap();
-            self.sound.set_volume(volume, TWEEN_DEFAULT);
         }
     }
 
