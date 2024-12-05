@@ -43,40 +43,43 @@ impl Default for Track {
 }
 
 impl Track {
-    pub fn new(path: &str) -> Self {
-        let tagged_file = Probe::open(path).unwrap().read().unwrap();
-        let properties = tagged_file.properties();
-        let tag = tagged_file.primary_tag();
+    pub fn new(path: &str) -> Option<Self> {
+        if let Ok(tagged_file) = Probe::open(path).unwrap().read() {
+            let properties = tagged_file.properties();
+            let tag = tagged_file.primary_tag();
 
-        let title = tag
-            .and_then(|t| t.get_string(&ItemKey::TrackTitle).map(String::from))
-            .unwrap_or(
-                Path::new(path)
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .to_string(),
-            );
+            let title = tag
+                .and_then(|t| t.get_string(&ItemKey::TrackTitle).map(String::from))
+                .unwrap_or(
+                    Path::new(path)
+                        .file_name()
+                        .unwrap()
+                        .to_str()
+                        .unwrap()
+                        .to_string(),
+                );
 
-        let artist = tag
-            .and_then(|t| t.get_string(&ItemKey::AlbumArtist).map(String::from))
-            .unwrap_or(String::new());
+            let artist = tag
+                .and_then(|t| t.get_string(&ItemKey::AlbumArtist).map(String::from))
+                .unwrap_or(String::new());
 
-        let album = tag
-            .and_then(|t| t.get_string(&ItemKey::AlbumTitle).map(String::from))
-            .unwrap_or(String::new());
+            let album = tag
+                .and_then(|t| t.get_string(&ItemKey::AlbumTitle).map(String::from))
+                .unwrap_or(String::new());
 
-        let duration = properties.duration().as_secs_f32();
+            let duration = properties.duration().as_secs_f32();
 
-        Track {
-            file_path: path.to_string(),
-            title,
-            artist,
-            album,
-            duration,
-            texture: Arc::new(Mutex::new(None)),
-            loading: false,
+            Some(Track {
+                file_path: path.to_string(),
+                title,
+                artist,
+                album,
+                duration,
+                texture: Arc::new(Mutex::new(None)),
+                loading: false,
+            })
+        } else {
+            None
         }
     }
 

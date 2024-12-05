@@ -55,7 +55,9 @@ impl Playlist {
                             let ext = extension.to_string_lossy().to_lowercase();
                             if ["mp3", "flac", "m4a", "wav", "ogg"].contains(&ext.as_str()) {
                                 if let Some(path_str) = path.to_str() {
-                                    return vec![Track::new(path_str)].into_par_iter();
+                                    if let Some(track) = Track::new(path_str) {
+                                        return vec![track].into_par_iter();
+                                    }
                                 }
                             }
                         }
