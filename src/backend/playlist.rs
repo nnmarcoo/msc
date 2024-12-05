@@ -4,18 +4,19 @@ use std::{
 };
 
 use eframe::egui::{ColorImage, Context, TextureHandle, TextureOptions};
+use image::load_from_memory;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
 use crate::constants::DEFAULT_IMAGE_BYTES;
 
-use super::{image::serial_image::SerialImage, track::Track};
+use super::track::Track;
 
 #[derive(Serialize, Deserialize)]
 pub struct Playlist {
     pub tracks: Vec<Track>,
     pub name: String,
-    pub image: SerialImage,
+    pub image_path: String,
     #[serde(skip)]
     pub texture: Option<TextureHandle>,
 }
@@ -25,7 +26,7 @@ impl Playlist {
         Playlist {
             tracks: Vec::new(),
             name: String::from("New Playlist"),
-            image: Self::default_image(),
+            image_path: String::new(),
             texture: None,
         }
     }
@@ -35,7 +36,7 @@ impl Playlist {
         Playlist {
             tracks,
             name: String::from(""),
-            image: Self::default_image(),
+            image_path: String::new(),
             texture: None,
         }
     }
@@ -72,29 +73,42 @@ impl Playlist {
         }
     }
 
-    fn default_image() -> SerialImage {
-        let image = image::load_from_memory(DEFAULT_IMAGE_BYTES)
-            .expect("Failed to load default image")
-            .to_rgba8();
-
-        let size = [image.width() as usize, image.height() as usize];
-        let pixels = image
-            .pixels()
-            .map(|p| {
-                let [r, g, b, a] = p.0;
-                ((r as u32) << 24) | ((g as u32) << 16) | ((b as u32) << 8) | (a as u32)
-            })
-            .collect();
-
-        SerialImage { size, pixels }
-    }
-
     pub fn load_texture(&mut self, ctx: &Context) {
         if self.texture.is_none() {
-            let color_image: ColorImage = self.image.clone().into();
-            let texture =
-                ctx.load_texture("playlist_texture", color_image, TextureOptions::default());
-            self.texture = Some(texture);
+            if let Ok(img) = image::open(&Path::new(&self.image_path)) {
+                let color_image: ColorImage = {
+                    let rgba_image = img.to_rgba8();
+                    let dimensions = rgba_image.dimensions();
+                    let pixels = rgba_image.into_raw();
+
+                    let color_image = ColorImage::from_rgba_unmultiplied(
+                        [dimensions.0 as usize, dimensions.1 as usize],
+                        &pixels,
+                    );
+                    color_image
+                };
+
+                let texture =
+                    ctx.load_texture("playlist_texture", color_image, TextureOptions::default());
+                self.texture = Some(texture);
+            } else {
+                // duplicate code in track.rs
+                let img = load_from_memory(DEFAULT_IMAGE_BYTES).unwrap();
+                let rgba_image = img.to_rgba8();
+                let dimensions = rgba_image.dimensions();
+                let pixels = rgba_image.into_raw();
+
+                let color_image = ColorImage::from_rgba_unmultiplied(
+                    [dimensions.0 as usize, dimensions.1 as usize],
+                    &pixels,
+                );
+
+                self.texture = Some(ctx.load_texture(
+                    "default_playlist_texture",
+                    color_image,
+                    TextureOptions::default(),
+                ));
+            }
         }
     }
 }

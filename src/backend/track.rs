@@ -31,7 +31,7 @@ pub struct Track {
 impl Default for Track {
     fn default() -> Self {
         Track {
-            file_path: String::from("-"),
+            file_path: String::new(),
             title: String::new(),
             artist: String::new(),
             album: String::new(),
@@ -102,6 +102,7 @@ impl Track {
             {
                 let image_data = picture.data();
 
+                // duplicate code in playlist.rs
                 let img =
                     load_from_memory(image_data)
                         .ok()
