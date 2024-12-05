@@ -144,7 +144,7 @@ impl MainArea {
             state.library.tracks.iter().collect::<Vec<_>>()
         };
 
-        let available_width = (ui.available_width() - 96.) / 3.;
+        let available_width = (ui.available_width() - 94.) / 3.;
 
         TableBuilder::new(ui)
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
