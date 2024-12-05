@@ -1,6 +1,6 @@
 use eframe::egui::{
     scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue,
-    Grid, Label, RichText, TextWrapMode, Ui, Window,
+    Grid, Label, RichText, TextStyle, TextWrapMode, Ui, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
@@ -144,15 +144,34 @@ impl MainArea {
             state.library.tracks.iter().collect::<Vec<_>>()
         };
 
-        let available_width = (ui.available_width() - 94.) / 3.;
+        let (track_num_width, duration_width) = ui.fonts(|fonts| {
+            let font_id = ui.style().text_styles[&TextStyle::Body].clone();
+            (
+                fonts
+                    .layout_no_wrap(
+                        format!("{}.", filtered_tracks.len()),
+                        font_id.clone(),
+                        Color32::TRANSPARENT,
+                    )
+                    .size()
+                    .x,
+                // this is so dumb
+                fonts
+                    .layout_no_wrap("0000000000000".to_string(), font_id, Color32::TRANSPARENT)
+                    .size()
+                    .x,
+            )
+        });
+
+        let available_width = (ui.available_width() - track_num_width - duration_width) / 3.;
 
         TableBuilder::new(ui)
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
-            .column(Column::auto())
+            .column(Column::exact(track_num_width))
             .column(Column::exact(available_width))
             .column(Column::exact(available_width))
             .column(Column::exact(available_width))
-            .column(Column::auto())
+            .column(Column::exact(duration_width))
             .header(20., |mut header| {
                 header.col(|ui| {
                     ui.strong("#");
