@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use eframe::egui::{
     scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue,
     Grid, Label, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
@@ -15,7 +17,7 @@ use crate::{
 // track selections break if the user changes the search query
 
 pub struct MainArea {
-    selection: std::collections::HashSet<usize>,
+    selection: HashSet<usize>,
 }
 
 impl MainArea {
