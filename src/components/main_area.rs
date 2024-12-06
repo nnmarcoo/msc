@@ -12,6 +12,8 @@ use crate::{
     widgets::link_label::link_label,
 };
 
+// track selections break if the user changes the search query
+
 pub struct MainArea {
     selection: std::collections::HashSet<usize>,
 }
@@ -186,7 +188,8 @@ impl MainArea {
             .body(|body| {
                 body.rows(16., filtered_tracks.len(), |mut row| {
                     let index = row.index();
-                    let track = &filtered_tracks[index];
+                    let track = filtered_tracks[index];
+
                     row.set_selected(self.selection.contains(&index));
 
                     row.col(|ui| {
@@ -209,20 +212,47 @@ impl MainArea {
 
                     response.context_menu(|ui| {
                         ui.menu_button("Add to playlist", |ui| {
-                            let _ = ui.button("Playlist1");
-                            let _ = ui.button("Playlist2");
-                            let _ = ui.button("Playlist3");
+                            for playlist in &mut state.config.playlists {
+                                if ui.button(&playlist.name).clicked() {
+                                    if !self.selection.is_empty() {
+                                        for index in &self.selection {
+                                            playlist.add_track(filtered_tracks[*index].clone());
+                                        }
+                                    } else {
+                                        playlist.add_track(track.clone());
+                                    }
+                                    ui.close_menu();
+                                }
+                            }
                         });
-                        let _ = ui.button("Add to queue");
+
+                        if ui.button("Add to queue").clicked() {
+                            state.queue.queue_track(track.clone());
+                        }
                         ui.separator();
 
-                        let _ = ui.button("Clear Selection");
-                        let _ = ui.button("Select all");
+                        // should this be hidden if there is no selection?
+                        if ui.button("Clear Selection").clicked() {
+                            ui.close_menu();
+                            self.selection.clear();
+                        }
+
+                        // should this be hidden if everything is selected?
+                        if ui.button("Select all").clicked() {
+                            ui.close_menu();
+                            for i in 0..filtered_tracks.len() {
+                                self.selection.insert(i);
+                            }
+                        }
 
                         if self.selection.is_empty() {
                             ui.separator();
-                            let _ = ui.button("Play");
-                            let _ = ui.button("Play next");
+                            if ui.button("Play").clicked() {
+                                // TODO
+                            }
+                            if ui.button("Play next").clicked() {
+                                state.queue.queue_track_next(track.clone());
+                            }
                         }
                     });
                     self.toggle_row_selection(index, &response);

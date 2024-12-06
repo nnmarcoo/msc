@@ -12,7 +12,7 @@ use crate::constants::DEFAULT_IMAGE_BYTES;
 
 use super::track::Track;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Playlist {
     pub tracks: Vec<Track>,
     pub name: String,
@@ -29,6 +29,10 @@ impl Playlist {
             image_path: String::new(),
             texture: None,
         }
+    }
+
+    pub fn add_track(&mut self, track: Track) {
+        self.tracks.push(track);
     }
 
     pub fn from_directory(path: &str) -> Playlist {

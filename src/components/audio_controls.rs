@@ -6,7 +6,8 @@ use crate::constants::DEFAULT_IMAGE_BORDER_IMAGE;
 use crate::msc::State;
 use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
-    include_image, vec2, Align, Color32, Context, Direction, Image, ImageButton, Label, Layout, RichText, TextWrapMode, TopBottomPanel
+    include_image, vec2, Align, Color32, Context, Direction, Image, ImageButton, Label, Layout,
+    RichText, TextWrapMode, TopBottomPanel,
 };
 
 pub struct AudioControls {
@@ -73,11 +74,9 @@ impl AudioControls {
                                     );
 
                                     ui.add(
-                                        Label::new(
-                                            RichText::from(
-                                                &state.queue.current_track().unwrap().artist,
-                                            ),
-                                        )
+                                        Label::new(RichText::from(
+                                            &state.queue.current_track().unwrap().artist,
+                                        ))
                                         .wrap_mode(TextWrapMode::Truncate),
                                     );
                                 });
@@ -165,11 +164,8 @@ impl AudioControls {
                                     "{}",
                                     format_seconds(state.queue.current_track().unwrap().duration)
                                 ));
-
-                                
                             });
                         },
-                        
                     );
                     ui.allocate_ui_with_layout(
                         ui.available_size(),
@@ -194,7 +190,7 @@ impl AudioControls {
                             if volume_slider.changed() {
                                 state.queue.set_volume(state.config.volume);
                             }
-                        }
+                        },
                     );
                 });
             });

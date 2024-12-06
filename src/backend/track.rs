@@ -16,7 +16,7 @@ use crate::constants::DEFAULT_IMAGE_BORDER_BYTES;
 
 use super::image::image_loader::ImageLoader;
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Track {
     pub file_path: String,
     pub title: String,
@@ -25,6 +25,7 @@ pub struct Track {
     pub duration: f32,
     #[serde(skip)]
     pub texture: Arc<Mutex<Option<TextureHandle>>>,
+    #[serde(skip)]
     pub loading: bool,
 }
 
