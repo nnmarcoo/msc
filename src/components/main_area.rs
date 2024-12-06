@@ -229,6 +229,7 @@ impl MainArea {
                         });
 
                         if ui.button("Add to queue").clicked() {
+                            ui.close_menu();
                             state.queue.queue_track(track.clone());
                         }
                         ui.separator();
@@ -250,9 +251,11 @@ impl MainArea {
                         if self.selection.is_empty() {
                             ui.separator();
                             if ui.button("Play").clicked() {
+                                ui.close_menu();
                                 // TODO
                             }
                             if ui.button("Play next").clicked() {
+                                ui.close_menu();
                                 state.queue.queue_track_next(track.clone());
                             }
                         }
