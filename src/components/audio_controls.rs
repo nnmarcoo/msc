@@ -5,9 +5,8 @@ use crate::backend::ui::{format_seconds, get_volume_color};
 use crate::constants::DEFAULT_IMAGE_BORDER_IMAGE;
 use crate::msc::State;
 use crate::widgets::color_slider::color_slider;
-use eframe::egui::accesskit::Action;
 use eframe::egui::{
-    include_image, vec2, Color32, Context, Direction, Event, EventFilter, Id, Image, ImageButton, Layout, RichText, TopBottomPanel
+    include_image, vec2, Color32, Context, Direction, Image, ImageButton, Layout, RichText, TopBottomPanel
 };
 
 pub struct AudioControls {
