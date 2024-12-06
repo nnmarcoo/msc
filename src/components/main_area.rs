@@ -1,12 +1,15 @@
 use eframe::egui::{
-    scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context,
-    DragValue, Grid, Label, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
+    scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue,
+    Grid, Label, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
 use crate::{
-    backend::{playlist::Playlist, ui::format_seconds}, constants::HEADERS, msc::{State, View}, widgets::link_label::link_label
+    backend::{playlist::Playlist, ui::format_seconds},
+    constants::HEADERS,
+    msc::{State, View},
+    widgets::link_label::link_label,
 };
 
 pub struct MainArea {
@@ -162,7 +165,8 @@ impl MainArea {
         // this is not correct
         let duration_width = 112. - track_num_width;
 
-        let available_width = ((ui.available_width() - track_num_width - duration_width) / 3.).max(0.);
+        let available_width =
+            ((ui.available_width() - track_num_width - duration_width) / 3.).max(0.);
 
         TableBuilder::new(ui)
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
