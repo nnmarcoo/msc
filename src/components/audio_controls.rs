@@ -5,9 +5,10 @@ use crate::backend::ui::{format_seconds, get_volume_color};
 use crate::constants::DEFAULT_IMAGE_BORDER_IMAGE;
 use crate::msc::State;
 use crate::widgets::color_slider::color_slider;
+use eframe::egui::accesskit::Action;
 use eframe::egui::{
-    include_image, vec2, Align, Color32, Context, Direction, Image, ImageButton, Label, Layout,
-    RichText, TextWrapMode, TopBottomPanel,
+    include_image, vec2, Color32, Context, Direction, Event, EventFilter, Id, Image, ImageButton,
+    Label, Layout, RichText, TextWrapMode, TopBottomPanel,
 };
 
 pub struct AudioControls {
@@ -35,10 +36,8 @@ impl AudioControls {
                     include_image!("../../assets/icons/play.png")
                 };
 
-                let section_width = ui.available_width() / 3.;
-
                 ui.horizontal(|ui| {
-                    ui.allocate_ui(vec2(section_width, ui.available_height()), |ui| {
+                    ui.allocate_ui(vec2(200., ui.available_height()), |ui| {
                         ui.vertical(|ui| {
                             ui.add_space(10.);
                             ui.horizontal(|ui| {
@@ -61,7 +60,7 @@ impl AudioControls {
                                     }
                                 }
                                 ui.vertical(|ui| {
-                                    ui.add_space(12.);
+                                    ui.add_space(10.);
                                     ui.add(
                                         Label::new(
                                             RichText::from(
@@ -73,19 +72,13 @@ impl AudioControls {
                                         .wrap_mode(TextWrapMode::Truncate),
                                     );
 
-                                    ui.add(
-                                        Label::new(RichText::from(
-                                            &state.queue.current_track().unwrap().artist,
-                                        ))
-                                        .wrap_mode(TextWrapMode::Truncate),
-                                    );
+                                    ui.label(&state.queue.current_track().unwrap().artist);
                                 });
                             });
                         });
-                        ui.add_space(ui.available_width());
                     });
                     ui.allocate_ui_with_layout(
-                        vec2(section_width, ui.available_height()),
+                        vec2((ui.available_width() - 150.).max(0.), ui.available_height()),
                         Layout::centered_and_justified(Direction::TopDown),
                         |ui| {
                             ui.horizontal(|ui| {
@@ -130,7 +123,7 @@ impl AudioControls {
                                 let timeline_res = ui.add(color_slider(
                                     &mut self.timeline_pos,
                                     0.0..=state.queue.current_track().unwrap().duration,
-                                    section_width,
+                                    ui.available_width(),
                                     4.,
                                     4.,
                                     Color32::from_rgb(0, 92, 128),
@@ -164,32 +157,29 @@ impl AudioControls {
                                     "{}",
                                     format_seconds(state.queue.current_track().unwrap().duration)
                                 ));
+
+                                ui.allocate_ui(ui.available_size(), |ui| {
+                                    let volume_color = get_volume_color(state.config.volume);
+
+                                    let volume_slider = ui.add(color_slider(
+                                        &mut state.config.volume,
+                                        0.0..=2.0,
+                                        100.,
+                                        4.,
+                                        4.,
+                                        volume_color,
+                                    ));
+
+                                    if volume_slider.double_clicked() {
+                                        state.config.volume = 1.;
+                                        state.queue.set_volume(state.config.volume);
+                                    }
+
+                                    if volume_slider.changed() {
+                                        state.queue.set_volume(state.config.volume);
+                                    }
+                                });
                             });
-                        },
-                    );
-                    ui.allocate_ui_with_layout(
-                        ui.available_size(),
-                        Layout::right_to_left(Align::Center),
-                        |ui| {
-                            let volume_color = get_volume_color(state.config.volume);
-
-                            let volume_slider = ui.add(color_slider(
-                                &mut state.config.volume,
-                                0.0..=2.0,
-                                100.,
-                                4.,
-                                4.,
-                                volume_color,
-                            ));
-
-                            if volume_slider.double_clicked() {
-                                state.config.volume = 1.;
-                                state.queue.set_volume(state.config.volume);
-                            }
-
-                            if volume_slider.changed() {
-                                state.queue.set_volume(state.config.volume);
-                            }
                         },
                     );
                 });

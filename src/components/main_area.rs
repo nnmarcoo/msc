@@ -208,13 +208,23 @@ impl MainArea {
                     let response = row.response();
 
                     response.context_menu(|ui| {
-                        ui.label("TODO");
+                        ui.menu_button("Add to playlist", |ui| {
+                            let _ = ui.button("Playlist1");
+                            let _ = ui.button("Playlist2");
+                            let _ = ui.button("Playlist3");
+                        });
+                        let _ = ui.button("Add to queue");
+                        ui.separator();
+
+                        let _ = ui.button("Clear Selection");
+                        let _ = ui.button("Select all");
+
+                        if self.selection.is_empty() {
+                            ui.separator();
+                            let _ = ui.button("Play");
+                            let _ = ui.button("Play next");
+                        }
                     });
-
-                    if response.double_clicked() {
-                        println!("hi");
-                    }
-
                     self.toggle_row_selection(index, &response);
                 });
             });
