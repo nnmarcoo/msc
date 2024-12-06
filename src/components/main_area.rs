@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use eframe::egui::{
-    scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context, DragValue,
-    Grid, Label, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
+    pos2, scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context,
+    DragValue, Grid, Label, Pos2, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
@@ -18,12 +18,14 @@ use crate::{
 
 pub struct MainArea {
     selection: HashSet<usize>,
+    show_window: bool,
 }
 
 impl MainArea {
     pub fn new() -> Self {
         MainArea {
             selection: Default::default(),
+            show_window: false,
         }
     }
 
@@ -43,16 +45,18 @@ impl MainArea {
             ui.image(texture);
         }
 
-        let playlist_name_res = ui.heading(&playlist.name);
+        if ui.heading(&playlist.name).clicked() {
+            self.show_window = true;
+        }
 
-        if playlist_name_res.clicked() {
-            // doesn't work
-            Window::new("Change Playlist Name")
-                .resizable(false)
-                .title_bar(false)
-                .default_open(true)
+        if self.show_window {
+            Window::new("Edit playlist")
+                .open(&mut self.show_window)
+                .collapsible(false)
+                .movable(false)
+                .default_pos(pos2(ui.available_width() / 2., ui.available_height() / 2.))
                 .show(ctx, |ui| {
-                    ui.label("test");
+                    ui.label("TEST");
                 });
         }
     }
