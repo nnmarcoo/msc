@@ -85,8 +85,8 @@ impl AudioControls {
                                                         .current_track()
                                                         .unwrap()
                                                         .duration
-                                                        .round()
-                                                        - self.timeline_pos
+                                                        .floor()
+                                                        - self.timeline_pos.floor()
                                                 )
                                             )
                                         };
