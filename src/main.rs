@@ -18,7 +18,7 @@ fn main() -> Result<(), Error> {
         viewport: ViewportBuilder::default()
             .with_title("msc")
             .with_decorations(false)
-            .with_min_inner_size([800., 600.])
+            .with_min_inner_size([1000., 625.])
             .with_icon(load_icon()),
         ..Default::default()
     };
