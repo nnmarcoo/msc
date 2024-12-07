@@ -75,7 +75,7 @@ impl AudioControls {
                         vec2(ui.available_width() - 370., ui.available_height()),
                         |ui| {
                             ui.vertical(|ui| {
-                                ui.add_space(19.);
+                                ui.add_space(27.);
                                 ui.with_layout(Layout::top_down(Align::Center), |ui| {
                                     ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                                         let track = state.queue.current_track().unwrap().clone();
