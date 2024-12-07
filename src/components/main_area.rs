@@ -2,7 +2,7 @@ use std::collections::HashSet;
 
 use eframe::egui::{
     pos2, scroll_area::ScrollBarVisibility, vec2, CentralPanel, Checkbox, Color32, Context,
-    DragValue, Grid, Label, Pos2, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
+    DragValue, Grid, Label, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;

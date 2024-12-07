@@ -6,8 +6,8 @@ use crate::constants::DEFAULT_IMAGE_BORDER_IMAGE;
 use crate::msc::State;
 use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
-    include_image, vec2, Align, Color32, Context, Direction, Image, ImageButton, Label, Layout,
-    RichText, TextWrapMode, TopBottomPanel,
+    include_image, vec2, Align, Color32, Context, Image, ImageButton, Label, Layout, RichText,
+    TextWrapMode, TopBottomPanel,
 };
 
 pub struct AudioControls {
@@ -35,163 +35,176 @@ impl AudioControls {
                     include_image!("../../assets/icons/play.png")
                 };
 
-                let section_width = ui.available_width() / 3.;
+                ui.horizontal_centered(|ui| {
+                    if ui
+                        .add_sized(
+                            [25., 25.],
+                            ImageButton::new(include_image!("../../assets/icons/previous.png"))
+                                .rounding(5.),
+                        )
+                        .clicked()
+                    {
+                        state.queue.play_previous_track(state.config.volume as f64);
+                    }
 
-                ui.horizontal(|ui| {
-                    ui.allocate_ui(vec2(section_width, ui.available_height()), |ui| {
-                        ui.vertical(|ui| {
-                            ui.add_space(10.);
-                            ui.horizontal(|ui| {
-                                if state.config.show_image {
-                                    if let Some(track) = state.queue.current_track() {
-                                        track.load_texture_async(
-                                            ctx.clone(),
-                                            Arc::clone(&state.image_loader),
-                                        );
+                    if ui
+                        .add_sized([30., 30.], ImageButton::new(icon).rounding(5.))
+                        .clicked()
+                    {
+                        state.queue.toggle_playback();
+                    }
 
-                                        let image = match &track.get_texture() {
-                                            Some(texture) => Image::new(texture),
-                                            None => Image::new(DEFAULT_IMAGE_BORDER_IMAGE),
+                    if ui
+                        .add_sized(
+                            [25., 25.],
+                            ImageButton::new(include_image!("../../assets/icons/next.png"))
+                                .rounding(5.),
+                        )
+                        .clicked()
+                    {
+                        state.queue.play_next_track(state.config.volume as f64);
+                    }
+
+                    ui.allocate_ui(
+                        vec2(ui.available_width() - 370., ui.available_height()),
+                        |ui| {
+                            ui.vertical(|ui| {
+                                ui.add_space(19.);
+                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
+                                    ui.with_layout(Layout::top_down(Align::RIGHT), |ui| {
+                                        let duration = if state.config.show_duration {
+                                            format_seconds(
+                                                state.queue.current_track().unwrap().duration,
+                                            )
+                                        } else {
+                                            format!(
+                                                "-{}",
+                                                format_seconds(
+                                                    state
+                                                        .queue
+                                                        .current_track()
+                                                        .unwrap()
+                                                        .duration
+                                                        .round()
+                                                        - self.timeline_pos
+                                                )
+                                            )
                                         };
 
-                                        ui.add_sized(
-                                            [48., 48.],
-                                            image.max_size(vec2(48., 48.)).rounding(5.),
-                                        );
-                                    }
-                                }
-                                ui.vertical(|ui| {
-                                    ui.add_space(10.);
-                                    ui.add(
-                                        Label::new(
-                                            RichText::from(
-                                                &state.queue.current_track().unwrap().title,
-                                            )
-                                            .size(16.)
-                                            .strong(),
-                                        )
-                                        .wrap_mode(TextWrapMode::Truncate),
-                                    );
+                                        if ui
+                                            .label(format!(
+                                                "{} / {}",
+                                                format_seconds(self.timeline_pos),
+                                                duration
+                                            ))
+                                            .clicked()
+                                        {
+                                            state.config.show_duration =
+                                                !state.config.show_duration;
+                                        }
 
-                                    ui.add(
-                                        Label::new(RichText::from(
-                                            &state.queue.current_track().unwrap().artist,
-                                        ))
-                                        .wrap_mode(TextWrapMode::Truncate),
-                                    );
-                                });
-                                ui.add_space(ui.available_width());
-                            });
-                        });
-                    });
-                    ui.allocate_ui_with_layout(
-                        vec2(section_width, ui.available_height()),
-                        Layout::centered_and_justified(Direction::TopDown),
-                        |ui| {
-                            ui.horizontal(|ui| {
-                                ui.add_space(ui.available_width() / 2. - 20.);
-                                if ui
-                                    .add_sized(
-                                        [25., 25.],
-                                        ImageButton::new(include_image!(
-                                            "../../assets/icons/previous.png"
-                                        ))
-                                        .rounding(100.),
-                                    )
-                                    .clicked()
-                                {
-                                    state.queue.play_previous_track(state.config.volume as f64);
-                                }
-
-                                if ui
-                                    .add_sized([30., 30.], ImageButton::new(icon).rounding(100.))
-                                    .clicked()
-                                {
-                                    state.queue.toggle_playback();
-                                }
-
-                                if ui
-                                    .add_sized(
-                                        [25., 25.],
-                                        ImageButton::new(include_image!(
-                                            "../../assets/icons/next.png"
-                                        ))
-                                        .rounding(100.),
-                                    )
-                                    .clicked()
-                                {
-                                    state.queue.play_next_track(state.config.volume as f64);
-                                }
-                            });
-
-                            ui.horizontal(|ui| {
-                                ui.label(format!("{}", format_seconds(self.timeline_pos)));
-
-                                let timeline_res = ui.add(color_slider(
-                                    &mut self.timeline_pos,
-                                    0.0..=state.queue.current_track().unwrap().duration,
-                                    section_width,
-                                    4.,
-                                    4.,
-                                    Color32::from_rgb(0, 92, 128),
-                                ));
-
-                                if timeline_res.drag_stopped() || timeline_res.clicked() {
-                                    self.seek_pos = self.timeline_pos;
-                                    state.queue.seek(self.timeline_pos);
-                                }
-
-                                if is_playing {
-                                    if state.config.redraw {
-                                        ctx.request_repaint_after(Duration::from_secs_f32(
-                                            state.config.redraw_time,
+                                        let timeline_res = ui.add(color_slider(
+                                            &mut self.timeline_pos,
+                                            0.0..=state.queue.current_track().unwrap().duration,
+                                            ui.available_width(),
+                                            4.,
+                                            4.,
+                                            Color32::from_rgb(0, 92, 128),
                                         ));
-                                    }
-                                    if !(timeline_res.is_pointer_button_down_on()
-                                        || timeline_res.dragged())
-                                        && self.seek_pos == -1.
-                                    {
-                                        self.timeline_pos = state.queue.position();
-                                    } else if self.seek_pos.round()
-                                        == state.queue.position().round()
-                                    {
-                                        self.seek_pos = -1.;
-                                        state.queue.set_volume(state.config.volume);
-                                    }
-                                }
 
-                                ui.label(format!(
-                                    "{}",
-                                    format_seconds(state.queue.current_track().unwrap().duration)
-                                ));
+                                        if timeline_res.drag_stopped() || timeline_res.clicked() {
+                                            self.seek_pos = self.timeline_pos;
+                                            state.queue.seek(self.timeline_pos);
+                                        }
+
+                                        if is_playing {
+                                            if state.config.redraw {
+                                                ctx.request_repaint_after(Duration::from_secs_f32(
+                                                    state.config.redraw_time,
+                                                ));
+                                            }
+                                            if !(timeline_res.is_pointer_button_down_on()
+                                                || timeline_res.dragged())
+                                                && self.seek_pos == -1.
+                                            {
+                                                self.timeline_pos = state.queue.position();
+                                            } else if self.seek_pos.floor()
+                                                == state.queue.position().floor()
+                                            {
+                                                self.seek_pos = -1.;
+                                                state.queue.set_volume(state.config.volume);
+                                            }
+                                        }
+                                    });
+                                });
                             });
                         },
                     );
-                    ui.allocate_ui_with_layout(
-                        ui.available_size(),
-                        Layout::right_to_left(Align::Center),
-                        |ui| {
-                            let volume_color = get_volume_color(state.config.volume);
 
-                            let volume_slider = ui.add(color_slider(
-                                &mut state.config.volume,
-                                0.0..=2.0,
-                                100.,
-                                4.,
-                                4.,
-                                volume_color,
-                            ));
+                    ui.add_space(5.);
 
-                            if volume_slider.double_clicked() {
-                                state.config.volume = 1.;
-                                state.queue.set_volume(state.config.volume);
-                            }
+                    if ui
+                        .add_sized(
+                            [25., 25.],
+                            ImageButton::new(include_image!("../../assets/icons/volume.png"))
+                                .rounding(5.),
+                        )
+                        .clicked()
+                    {}
 
-                            if volume_slider.changed() {
-                                state.queue.set_volume(state.config.volume);
-                            }
-                        },
-                    );
+                    let volume_color = get_volume_color(state.config.volume);
+
+                    let volume_slider = ui.add(color_slider(
+                        &mut state.config.volume,
+                        0.0..=2.0,
+                        100.,
+                        4.,
+                        4.,
+                        volume_color,
+                    ));
+
+                    if volume_slider.double_clicked() {
+                        state.config.volume = 1.;
+                        state.queue.set_volume(state.config.volume);
+                    }
+
+                    if volume_slider.changed() {
+                        state.queue.set_volume(state.config.volume);
+                    }
+
+                    ui.add_space(5.);
+
+                    if state.config.show_image {
+                        if let Some(track) = state.queue.current_track() {
+                            track.load_texture_async(ctx.clone(), Arc::clone(&state.image_loader));
+
+                            let image = match &track.get_texture() {
+                                Some(texture) => Image::new(texture),
+                                None => Image::new(DEFAULT_IMAGE_BORDER_IMAGE),
+                            };
+
+                            ui.add_sized([48., 48.], image.max_size(vec2(48., 48.)).rounding(5.));
+                        }
+                    }
+
+                    ui.vertical(|ui| {
+                        ui.add_space(20.);
+                        ui.add(
+                            Label::new(
+                                RichText::from(&state.queue.current_track().unwrap().title)
+                                    .size(16.)
+                                    .strong(),
+                            )
+                            .wrap_mode(TextWrapMode::Truncate),
+                        );
+
+                        ui.add(
+                            Label::new(RichText::from(
+                                &state.queue.current_track().unwrap().artist,
+                            ))
+                            .wrap_mode(TextWrapMode::Truncate),
+                        );
+                    });
                 });
             });
     }

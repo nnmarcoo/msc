@@ -14,6 +14,7 @@ pub struct Config {
     pub volume: f32,
     pub redraw: bool,
     pub redraw_time: f32,
+    pub show_duration: bool,
     pub show_image: bool,
     pub playlists: Vec<Playlist>,
 }
@@ -47,6 +48,7 @@ impl Config {
                     redraw_time: 0.1,
                     show_image: true,
                     playlists: Vec::new(),
+                    show_duration: true,
                 };
                 if let Err(e) = default_config.save() {
                     eprintln!("Failed to save default config: {}", e);

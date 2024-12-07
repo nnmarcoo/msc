@@ -48,17 +48,15 @@ impl Track {
         if let Ok(tagged_file) = Probe::open(path).unwrap().read() {
             let properties = tagged_file.properties();
             let tag = tagged_file.primary_tag();
+            let file_name = Path::new(path)
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .to_string();
 
             let title = tag
                 .and_then(|t| t.get_string(&ItemKey::TrackTitle).map(String::from))
-                .unwrap_or(
-                    Path::new(path)
-                        .file_name()
-                        .unwrap()
-                        .to_str()
-                        .unwrap()
-                        .to_string(),
-                );
+                .unwrap_or(file_name.clone());
 
             let artist = tag
                 .and_then(|t| t.get_string(&ItemKey::AlbumArtist).map(String::from))
