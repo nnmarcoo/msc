@@ -1,8 +1,8 @@
 use std::collections::HashSet;
 
 use eframe::egui::{
-    pos2, scroll_area::ScrollBarVisibility, CentralPanel, Checkbox, Color32, Context,
-    DragValue, Label, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
+    pos2, scroll_area::ScrollBarVisibility, CentralPanel, Checkbox, Color32, Context, DragValue,
+    Label, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
@@ -66,43 +66,40 @@ impl MainArea {
     }
 
     fn show_settings(&mut self, ui: &mut Ui, state: &mut State) {
-
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Redraw Unfocused Window").color(Color32::WHITE))
-                        .on_hover_text("How often msc updates while using other apps");
-                        ui.add(Checkbox::new(&mut state.config.redraw, ""));
-                        ui.add_space(-5.);
-                        ui.add_enabled(
-                            state.config.redraw,
-                            DragValue::new(&mut state.config.redraw_time)
-                                .range(0.1..=10.0)
-                                .fixed_decimals(1)
-                                .speed(0.01),
-                        )
-                        .on_hover_text("seconds");
+                    .on_hover_text("How often msc updates while using other apps");
+                ui.add(Checkbox::new(&mut state.config.redraw, ""));
+                ui.add_space(-5.);
+                ui.add_enabled(
+                    state.config.redraw,
+                    DragValue::new(&mut state.config.redraw_time)
+                        .range(0.1..=10.0)
+                        .fixed_decimals(1)
+                        .speed(0.01),
+                )
+                .on_hover_text("seconds");
             });
 
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Audio Folder").color(Color32::WHITE))
-                        .on_hover_text("Folder containing all audio files");
-                    if ui
-                            .button("🗁")
-                            .on_hover_text(&state.config.audio_directory)
-                            .clicked()
-                        {
-                            if let Some(folder_path) = FileDialog::new().pick_folder() {
-                                state.config.audio_directory =
-                                    folder_path.to_string_lossy().to_string();
-                                state.library =
-                                    Playlist::from_directory(&state.config.audio_directory);
-                            }
-                        }
+                    .on_hover_text("Folder containing all audio files");
+                if ui
+                    .button("🗁")
+                    .on_hover_text(&state.config.audio_directory)
+                    .clicked()
+                {
+                    if let Some(folder_path) = FileDialog::new().pick_folder() {
+                        state.config.audio_directory = folder_path.to_string_lossy().to_string();
+                        state.library = Playlist::from_directory(&state.config.audio_directory);
+                    }
+                }
             });
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Show Images").color(Color32::WHITE))
-                        .on_hover_text("Display image metadata in the audio control bar");
-                    ui.add(Checkbox::new(&mut state.config.show_image, ""));
+                    .on_hover_text("Display image metadata in the audio control bar");
+                ui.add(Checkbox::new(&mut state.config.show_image, ""));
             });
         });
     }
