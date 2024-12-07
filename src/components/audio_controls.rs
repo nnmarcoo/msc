@@ -29,10 +29,16 @@ impl AudioControls {
         TopBottomPanel::bottom("audio_controls")
             .exact_height(80.)
             .show(ctx, |ui| {
-                let icon = if is_playing {
+                let playback_icon = if is_playing {
                     include_image!("../../assets/icons/pause.png")
                 } else {
                     include_image!("../../assets/icons/play.png")
+                };
+
+                let volume_icon = if state.config.volume > 0. {
+                    include_image!("../../assets/icons/volume.png")
+                } else {
+                    include_image!("../../assets/icons/volumeoff.png")
                 };
 
                 ui.horizontal_centered(|ui| {
@@ -48,7 +54,7 @@ impl AudioControls {
                     }
 
                     if ui
-                        .add_sized([30., 30.], ImageButton::new(icon).rounding(5.))
+                        .add_sized([30., 30.], ImageButton::new(playback_icon).rounding(5.))
                         .clicked()
                     {
                         state.queue.toggle_playback();
@@ -146,11 +152,20 @@ impl AudioControls {
                     if ui
                         .add_sized(
                             [25., 25.],
-                            ImageButton::new(include_image!("../../assets/icons/volume.png"))
+                            ImageButton::new(volume_icon)
                                 .rounding(5.),
                         )
                         .clicked()
-                    {}
+                    {
+                        // change this awfulness
+                        if state.config.volume > 0. {
+                            state.config.volume = 0.;
+                            state.queue.set_volume(0.);
+                        } else {
+                            state.config.volume = 1.;
+                            state.queue.set_volume(1.);
+                        }
+                    }
 
                     let volume_color = get_volume_color(state.config.volume);
 
