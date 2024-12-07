@@ -1,9 +1,8 @@
 use eframe::egui::Color32;
 
 pub fn format_seconds(seconds: f32) -> String {
-    let total_seconds = seconds.trunc() as u64;
-    let minutes = total_seconds / 60;
-    let seconds = total_seconds % 60;
+    let minutes = (seconds / 60.) as u32;
+    let seconds = (seconds % 60.) as u32;
 
     format!("{:02}:{:02}", minutes, seconds)
 }
