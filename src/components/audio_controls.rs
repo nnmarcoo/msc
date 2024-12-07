@@ -76,8 +76,14 @@ impl AudioControls {
                         |ui| {
                             ui.vertical(|ui| {
                                 ui.add_space(19.);
-                                ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                                    ui.with_layout(Layout::top_down(Align::RIGHT), |ui| {
+                                ui.with_layout(Layout::top_down(Align::Center), |ui| {
+                                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                                        let track = state.queue.current_track().unwrap().clone();
+                                        ui.strong(track.title);
+                                        ui.add_space(5.);
+                                        ui.label(track.artist);
+                                        ui.add_space(ui.available_width());
+
                                         let duration = if state.config.show_duration {
                                             format_seconds(
                                                 state.queue.current_track().unwrap().duration,
@@ -108,40 +114,40 @@ impl AudioControls {
                                             state.config.show_duration =
                                                 !state.config.show_duration;
                                         }
-
-                                        let timeline_res = ui.add(color_slider(
-                                            &mut self.timeline_pos,
-                                            0.0..=state.queue.current_track().unwrap().duration,
-                                            ui.available_width(),
-                                            4.,
-                                            4.,
-                                            Color32::from_rgb(0, 92, 128),
-                                        ));
-
-                                        if timeline_res.drag_stopped() || timeline_res.clicked() {
-                                            self.seek_pos = self.timeline_pos;
-                                            state.queue.seek(self.timeline_pos);
-                                        }
-
-                                        if is_playing {
-                                            if state.config.redraw {
-                                                ctx.request_repaint_after(Duration::from_secs_f32(
-                                                    state.config.redraw_time,
-                                                ));
-                                            }
-                                            if !(timeline_res.is_pointer_button_down_on()
-                                                || timeline_res.dragged())
-                                                && self.seek_pos == -1.
-                                            {
-                                                self.timeline_pos = state.queue.position();
-                                            } else if self.seek_pos.floor()
-                                                == state.queue.position().floor()
-                                            {
-                                                self.seek_pos = -1.;
-                                                state.queue.set_volume(state.config.volume);
-                                            }
-                                        }
                                     });
+
+                                    let timeline_res = ui.add(color_slider(
+                                        &mut self.timeline_pos,
+                                        0.0..=state.queue.current_track().unwrap().duration,
+                                        ui.available_width(),
+                                        4.,
+                                        4.,
+                                        Color32::from_rgb(0, 92, 128),
+                                    ));
+
+                                    if timeline_res.drag_stopped() || timeline_res.clicked() {
+                                        self.seek_pos = self.timeline_pos;
+                                        state.queue.seek(self.timeline_pos);
+                                    }
+
+                                    if is_playing {
+                                        if state.config.redraw {
+                                            ctx.request_repaint_after(Duration::from_secs_f32(
+                                                state.config.redraw_time,
+                                            ));
+                                        }
+                                        if !(timeline_res.is_pointer_button_down_on()
+                                            || timeline_res.dragged())
+                                            && self.seek_pos == -1.
+                                        {
+                                            self.timeline_pos = state.queue.position();
+                                        } else if self.seek_pos.floor()
+                                            == state.queue.position().floor()
+                                        {
+                                            self.seek_pos = -1.;
+                                            state.queue.set_volume(state.config.volume);
+                                        }
+                                    }
                                 });
                             });
                         },
@@ -185,6 +191,7 @@ impl AudioControls {
 
                     ui.add_space(5.);
 
+                    /*
                     if state.config.show_image {
                         if let Some(track) = state.queue.current_track() {
                             track.load_texture_async(ctx.clone(), Arc::clone(&state.image_loader));
@@ -216,6 +223,7 @@ impl AudioControls {
                             .wrap_mode(TextWrapMode::Truncate),
                         );
                     });
+                     */
                 });
             });
     }
