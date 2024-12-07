@@ -150,11 +150,7 @@ impl AudioControls {
                     ui.add_space(5.);
 
                     if ui
-                        .add_sized(
-                            [25., 25.],
-                            ImageButton::new(volume_icon)
-                                .rounding(5.),
-                        )
+                        .add_sized([25., 25.], ImageButton::new(volume_icon).rounding(5.))
                         .clicked()
                     {
                         // change this awfulness
