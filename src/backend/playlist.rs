@@ -16,6 +16,7 @@ use super::track::Track;
 pub struct Playlist {
     pub tracks: Vec<Track>,
     pub name: String,
+    pub desc: String,
     pub image_path: String,
     #[serde(skip)]
     pub texture: Option<TextureHandle>,
@@ -25,7 +26,8 @@ impl Playlist {
     pub fn new() -> Self {
         Playlist {
             tracks: Vec::new(),
-            name: String::from("New Playlist"),
+            name: String::from("My Playlist"),
+            desc: String::new(),
             image_path: String::new(),
             texture: None,
         }
@@ -39,7 +41,8 @@ impl Playlist {
         let tracks = Self::collect_audio_files(Path::new(path));
         Playlist {
             tracks,
-            name: String::from(""),
+            name: String::new(),
+            desc: String::new(),
             image_path: String::new(),
             texture: None,
         }

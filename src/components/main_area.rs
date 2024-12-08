@@ -1,8 +1,7 @@
 use std::collections::HashSet;
 
 use eframe::egui::{
-    pos2, scroll_area::ScrollBarVisibility, CentralPanel, Checkbox, Color32, Context, DragValue,
-    Label, Response, RichText, Sense, TextStyle, TextWrapMode, Ui, Window,
+    pos2, scroll_area::ScrollBarVisibility, vec2, Align2, CentralPanel, Checkbox, Color32, Context, CursorIcon, DragValue, Image, Label, Response, RichText, Sense, TextEdit, TextStyle, TextWrapMode, Ui, Window
 };
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
@@ -39,25 +38,61 @@ impl MainArea {
     }
 
     fn show_playlist(&mut self, ctx: &Context, ui: &mut Ui, state: &mut State) {
-        let playlist = state.config.playlists.get(state.selected_playlist).unwrap();
+        let playlist = state
+            .config
+            .playlists
+            .get_mut(state.selected_playlist)
+            .unwrap();
 
-        if let Some(texture) = &playlist.texture {
-            ui.image(texture);
-        }
+        ui.horizontal(|ui| {
+            if let Some(texture) = &playlist.texture {
+                let image_res = ui.add(Image::new(texture).max_size(vec2(100., 100.)).sense(Sense::click()));
 
-        if ui.heading(&playlist.name).clicked() {
-            self.show_window = true;
-        }
+                if image_res.clicked() {
+                    // TODO: add filter
+                    if let Some(image_path) = FileDialog::new().pick_file() {
+                        playlist.image_path = image_path.to_string_lossy().to_string();
+                        playlist.texture = None;
+                    }
+                }
+                image_res.on_hover_cursor(CursorIcon::PointingHand);
+            }
+
+            ui.vertical(|ui| {
+                let name_res = ui.add(
+                    Label::new(RichText::new(&playlist.name).strong().heading())
+                        .selectable(false)
+                        .sense(Sense::click()),
+                );
+
+                let desc_res = ui.add(
+                    Label::new(RichText::new(&playlist.desc))
+                        .selectable(false)
+                        .sense(Sense::click()),
+                );
+
+                if name_res.clicked() || desc_res.clicked() {
+                    self.show_window = true;
+                }
+
+                name_res.on_hover_cursor(CursorIcon::PointingHand);
+                desc_res.on_hover_cursor(CursorIcon::PointingHand);
+            });
+        });
 
         if self.show_window {
             Window::new("Edit playlist")
                 .open(&mut self.show_window)
                 .collapsible(false)
-                .movable(false)
+                .anchor(Align2::CENTER_CENTER, vec2(0., 0.))
+                .resizable(false)
                 .default_pos(pos2(ui.available_width() / 2., ui.available_height() / 2.))
                 .show(ctx, |ui| {
-                    ui.label("TEST");
+                    ui.add(TextEdit::singleline(&mut playlist.name).hint_text("Name"));
+                    ui.add(TextEdit::singleline(&mut playlist.desc).hint_text("Description"));
                 });
+        } else if playlist.name.is_empty() {
+            playlist.name = String::from("My Playlist");
         }
     }
 

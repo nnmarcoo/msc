@@ -75,12 +75,11 @@ impl AudioControls {
                         vec2(ui.available_width() - 370., ui.available_height()),
                         |ui| {
                             ui.vertical(|ui| {
-                                ui.add_space(27.);
-                                ui.with_layout(Layout::top_down(Align::Center), |ui| {
+                                ui.add_space(26.);
+                                ui.vertical(|ui| {
                                     ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                                         let track = state.queue.current_track().unwrap().clone();
                                         ui.strong(track.title);
-                                        ui.add_space(5.);
                                         ui.label(track.artist);
                                         ui.add_space(ui.available_width());
 
@@ -115,6 +114,8 @@ impl AudioControls {
                                                 !state.config.show_duration;
                                         }
                                     });
+
+                                    ui.add_space(1.);
 
                                     let timeline_res = ui.add(color_slider(
                                         &mut self.timeline_pos,
