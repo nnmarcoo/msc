@@ -5,6 +5,7 @@ use eframe::egui::{
 
 use crate::{
     backend::playlist::Playlist,
+    constants::DEFAULT_IMAGE_IMAGE,
     msc::{State, View},
 };
 
@@ -46,30 +47,28 @@ impl AudioColumn {
                         let mut to_remove = None;
 
                         for (i, playlist) in state.config.playlists.iter_mut().enumerate() {
-                            playlist.load_texture(ctx);
+                            playlist.load_texture(ctx.clone());
 
-                            if let Some(texture) = &playlist.texture {
-                                let playlist_button_res = ui
-                                    .add(
-                                        ImageButton::new(
-                                            Image::new(texture).max_size(vec2(40., 40.)),
-                                        )
-                                        .rounding(5.),
-                                    )
-                                    .on_hover_text(&playlist.name);
+                            let image: Image<'_> = match &playlist.get_texture() {
+                                Some(texture) => Image::new(texture),
+                                None => Image::new(DEFAULT_IMAGE_IMAGE),
+                            };
 
-                                if playlist_button_res.clicked() {
-                                    state.selected_playlist = i;
-                                    state.view = View::Playlist;
-                                }
+                            let playlist_button_res = ui
+                                .add(ImageButton::new(image.max_size(vec2(40., 40.))).rounding(5.))
+                                .on_hover_text(&playlist.name);
 
-                                playlist_button_res.context_menu(|ui| {
-                                    if ui.button("Delete").clicked() {
-                                        to_remove = Some(i);
-                                        ui.close_menu();
-                                    }
-                                });
+                            if playlist_button_res.clicked() {
+                                state.selected_playlist = i;
+                                state.view = View::Playlist;
                             }
+
+                            playlist_button_res.context_menu(|ui| {
+                                if ui.button("Delete").clicked() {
+                                    to_remove = Some(i);
+                                    ui.close_menu();
+                                }
+                            });
                         }
 
                         if let Some(i) = to_remove {

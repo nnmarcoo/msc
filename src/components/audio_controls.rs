@@ -1,13 +1,11 @@
-use std::sync::Arc;
 use std::time::Duration;
 
 use crate::backend::ui::{format_seconds, get_volume_color};
-use crate::constants::DEFAULT_IMAGE_BORDER_IMAGE;
+
 use crate::msc::State;
 use crate::widgets::color_slider::color_slider;
 use eframe::egui::{
-    include_image, vec2, Align, Color32, Context, Image, ImageButton, Label, Layout, RichText,
-    TextWrapMode, TopBottomPanel,
+    include_image, vec2, Align, Color32, Context, ImageButton, Layout, TopBottomPanel,
 };
 
 pub struct AudioControls {

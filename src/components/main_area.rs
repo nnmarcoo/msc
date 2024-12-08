@@ -1,14 +1,16 @@
 use std::collections::HashSet;
 
 use eframe::egui::{
-    pos2, scroll_area::ScrollBarVisibility, vec2, Align2, CentralPanel, Checkbox, Color32, Context, CursorIcon, DragValue, Image, Label, Response, RichText, Sense, TextEdit, TextStyle, TextWrapMode, Ui, Window
+    pos2, scroll_area::ScrollBarVisibility, vec2, Align2, CentralPanel, Checkbox, Color32, Context,
+    CursorIcon, DragValue, Image, Label, Response, RichText, Sense, TextEdit, TextStyle,
+    TextWrapMode, Ui, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
 use crate::{
     backend::{playlist::Playlist, ui::format_seconds},
-    constants::HEADERS,
+    constants::{DEFAULT_IMAGE_BORDER_IMAGE, DEFAULT_IMAGE_IMAGE, HEADERS},
     msc::{State, View},
     widgets::link_label::link_label,
 };
@@ -45,18 +47,21 @@ impl MainArea {
             .unwrap();
 
         ui.horizontal(|ui| {
-            if let Some(texture) = &playlist.texture {
-                let image_res = ui.add(Image::new(texture).max_size(vec2(100., 100.)).sense(Sense::click()));
+            let image: Image<'_> = match &playlist.get_texture() {
+                Some(texture) => Image::new(texture),
+                None => Image::new(DEFAULT_IMAGE_BORDER_IMAGE),
+            };
 
-                if image_res.clicked() {
-                    // TODO: add filter
-                    if let Some(image_path) = FileDialog::new().pick_file() {
-                        playlist.image_path = image_path.to_string_lossy().to_string();
-                        playlist.texture = None;
-                    }
+            let image_res = ui.add_sized([40., 40.], image.sense(Sense::click()));
+
+            if image_res.clicked() {
+                // TODO: add filter
+                if let Some(image_path) = FileDialog::new().pick_file() {
+                    playlist.set_path(image_path.to_string_lossy().to_string());
+                    playlist.load_texture(ctx.clone());
                 }
-                image_res.on_hover_cursor(CursorIcon::PointingHand);
             }
+            image_res.on_hover_cursor(CursorIcon::PointingHand);
 
             ui.vertical(|ui| {
                 let name_res = ui.add(
