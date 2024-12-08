@@ -74,11 +74,9 @@ impl AudioColumn {
                         if let Some(i) = to_remove {
                             state.config.playlists.remove(i);
                             if state.selected_playlist == i {
-                                if !state.config.playlists.is_empty() {
-                                    state.selected_playlist = 0;
-                                } else {
-                                    state.view = View::Library;
-                                }
+                                state.view = View::Library;
+                            } else {
+                                state.selected_playlist = 0;
                             }
                         }
                     });
