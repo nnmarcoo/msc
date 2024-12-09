@@ -2,8 +2,8 @@ use std::collections::HashSet;
 
 use eframe::egui::{
     pos2, scroll_area::ScrollBarVisibility, vec2, Align2, CentralPanel, Checkbox, Color32,
-    ComboBox, Context, CursorIcon, DragValue, Image, Label, Response, RichText, Sense, TextEdit,
-    TextStyle, TextWrapMode, Ui, Window,
+    ComboBox, Context, CursorIcon, DragValue, Image, Label, Pos2, Rect, Response, RichText, Sense,
+    TextEdit, TextStyle, TextWrapMode, Ui, Vec2, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
@@ -16,7 +16,7 @@ use crate::{
 };
 
 // track selections break if the user changes the search query
-// cache filtered tracks so it's not calculated every frame
+// cache filtered_tracks so it's not calculated every frame
 
 pub struct MainArea {
     selection: HashSet<usize>,
@@ -48,46 +48,59 @@ impl MainArea {
             .unwrap();
 
         ui.horizontal(|ui| {
-            let image: Image<'_> = match &playlist.image.get_texture_large() {
+            let image: Image<'_> = match &playlist.image.get_texture_medium() {
                 Some(texture) => Image::new(texture),
                 None => Image::new(DEFAULT_IMAGE_IMAGE),
             };
 
-            let image_res = ui.add_sized([192., 192.], image.rounding(5.).sense(Sense::click()));
+            ui.painter().rect_filled(
+                Rect::from_min_size(
+                    Pos2::new(0.0, 0.0),
+                    Vec2::new(ui.available_width() + 80., 210.),
+                ),
+                0.,
+                playlist.image.get_average_color(),
+            );
 
-            if image_res.clicked() {
-                if let Some(image_path) = FileDialog::new().pick_file() {
-                    playlist.set_path(image_path.to_string_lossy().to_string());
-                    playlist.load_texture(ctx.clone());
-                }
-            }
+            ui.horizontal(|ui| {
+                let image_res =
+                    ui.add_sized([144., 144.], image.rounding(5.).sense(Sense::click()));
 
-            if image_res.hovered() {
-                ui.painter()
-                    .rect_filled(image_res.rect, 5., Color32::from_black_alpha(64));
-            }
-
-            image_res.on_hover_cursor(CursorIcon::PointingHand);
-
-            ui.vertical(|ui| {
-                let name_res = ui.add(
-                    Label::new(RichText::new(&playlist.name).strong().heading())
-                        .selectable(false)
-                        .sense(Sense::click()),
-                );
-
-                let desc_res = ui.add(
-                    Label::new(RichText::new(&playlist.desc))
-                        .selectable(false)
-                        .sense(Sense::click()),
-                );
-
-                if name_res.clicked() || desc_res.clicked() {
-                    self.show_window = true;
+                if image_res.clicked() {
+                    if let Some(image_path) = FileDialog::new().pick_file() {
+                        playlist.set_path(image_path.to_string_lossy().to_string());
+                        playlist.load_texture(ctx.clone());
+                    }
                 }
 
-                name_res.on_hover_cursor(CursorIcon::PointingHand);
-                desc_res.on_hover_cursor(CursorIcon::PointingHand);
+                if image_res.hovered() {
+                    ui.painter()
+                        .rect_filled(image_res.rect, 5., Color32::from_black_alpha(64));
+                }
+
+                image_res.on_hover_cursor(CursorIcon::PointingHand);
+
+                ui.vertical(|ui| {
+                    ui.add_space(55.);
+                    let name_res = ui.add(
+                        Label::new(RichText::new(&playlist.name).strong().size(24.))
+                            .selectable(false)
+                            .sense(Sense::click()),
+                    );
+
+                    let desc_res = ui.add(
+                        Label::new(RichText::new(&playlist.desc))
+                            .selectable(false)
+                            .sense(Sense::click()),
+                    );
+
+                    if name_res.clicked() || desc_res.clicked() {
+                        self.show_window = true;
+                    }
+
+                    name_res.on_hover_cursor(CursorIcon::PointingHand);
+                    desc_res.on_hover_cursor(CursorIcon::PointingHand);
+                });
             });
         });
 
