@@ -47,20 +47,25 @@ impl MainArea {
             .unwrap();
 
         ui.horizontal(|ui| {
-            let image: Image<'_> = match &playlist.get_texture() {
+            let image: Image<'_> = match &playlist.image.get_texture_large() {
                 Some(texture) => Image::new(texture),
-                None => Image::new(DEFAULT_IMAGE_BORDER_IMAGE),
+                None => Image::new(DEFAULT_IMAGE_IMAGE),
             };
 
-            let image_res = ui.add_sized([40., 40.], image.sense(Sense::click()));
+            let image_res = ui.add_sized([192., 192.], image.rounding(5.).sense(Sense::click()));
 
             if image_res.clicked() {
-                // TODO: add filter
                 if let Some(image_path) = FileDialog::new().pick_file() {
                     playlist.set_path(image_path.to_string_lossy().to_string());
                     playlist.load_texture(ctx.clone());
                 }
             }
+
+            if image_res.hovered() {
+                ui.painter()
+                    .rect_filled(image_res.rect, 5., Color32::from_black_alpha(64));
+            }
+
             image_res.on_hover_cursor(CursorIcon::PointingHand);
 
             ui.vertical(|ui| {

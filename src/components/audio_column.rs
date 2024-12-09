@@ -1,6 +1,6 @@
 use eframe::egui::{
-    include_image, scroll_area::ScrollBarVisibility, vec2, Context, Image, ImageButton, ScrollArea,
-    SidePanel,
+    include_image, scroll_area::ScrollBarVisibility, vec2, Color32, Context, CursorIcon, Image,
+    ImageButton, ScrollArea, Sense, SidePanel, Stroke,
 };
 
 use crate::{
@@ -49,14 +49,28 @@ impl AudioColumn {
                         for (i, playlist) in state.config.playlists.iter_mut().enumerate() {
                             playlist.load_texture(ctx.clone());
 
-                            let image: Image<'_> = match &playlist.get_texture() {
+                            let image: Image<'_> = match &playlist.image.get_texture_small() {
                                 Some(texture) => Image::new(texture),
                                 None => Image::new(DEFAULT_IMAGE_IMAGE),
                             };
 
                             let playlist_button_res = ui
-                                .add(ImageButton::new(image.max_size(vec2(40., 40.))).rounding(5.))
-                                .on_hover_text(&playlist.name);
+                                .add(
+                                    image
+                                        .max_size(vec2(48., 48.))
+                                        .rounding(5.)
+                                        .sense(Sense::click()),
+                                )
+                                .on_hover_text(&playlist.name)
+                                .on_hover_cursor(CursorIcon::PointingHand);
+
+                            if playlist_button_res.hovered() {
+                                ui.painter().rect_stroke(
+                                    playlist_button_res.rect,
+                                    5.,
+                                    Stroke::new(1., Color32::GRAY),
+                                );
+                            }
 
                             if playlist_button_res.clicked() {
                                 state.selected_playlist = i;
@@ -93,6 +107,7 @@ impl AudioColumn {
                     .clicked()
                 {
                     state.config.playlists.insert(0, Playlist::new());
+                    state.selected_playlist = 0;
                 }
             });
     }

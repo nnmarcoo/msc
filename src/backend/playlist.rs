@@ -3,7 +3,7 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use eframe::egui::{Context, TextureHandle};
+use eframe::egui::Context;
 use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
@@ -15,7 +15,7 @@ pub struct Playlist {
     pub name: String,
     pub desc: String,
     #[serde(skip)]
-    image: ImageDisplay,
+    pub image: ImageDisplay,
     image_path: String,
 }
 
@@ -75,10 +75,6 @@ impl Playlist {
         } else {
             Vec::new()
         }
-    }
-
-    pub fn get_texture(&self) -> Option<TextureHandle> {
-        self.image.get_texture()
     }
 
     pub fn load_texture(&mut self, ctx: Context) {
