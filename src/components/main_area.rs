@@ -1,16 +1,16 @@
 use std::collections::HashSet;
 
 use eframe::egui::{
-    pos2, scroll_area::ScrollBarVisibility, vec2, Align2, CentralPanel, Checkbox, Color32, Context,
-    CursorIcon, DragValue, Image, Label, Response, RichText, Sense, TextEdit, TextStyle,
-    TextWrapMode, Ui, Window,
+    pos2, scroll_area::ScrollBarVisibility, vec2, Align2, CentralPanel, Checkbox, Color32,
+    ComboBox, Context, CursorIcon, DragValue, Image, Label, Response, RichText, Sense, TextEdit,
+    TextStyle, TextWrapMode, Ui, Window,
 };
 use egui_extras::{Column, TableBuilder};
 use rfd::FileDialog;
 
 use crate::{
     backend::{playlist::Playlist, ui::format_seconds},
-    constants::{DEFAULT_IMAGE_BORDER_IMAGE, DEFAULT_IMAGE_IMAGE, HEADERS},
+    constants::{DEFAULT_IMAGE_IMAGE, HEADERS},
     msc::{State, View},
     widgets::link_label::link_label,
 };
@@ -112,6 +112,7 @@ impl MainArea {
 
     fn show_settings(&mut self, ui: &mut Ui, state: &mut State) {
         ui.vertical(|ui| {
+            ui.heading("Performance");
             ui.horizontal(|ui| {
                 ui.label(RichText::new("Redraw Unfocused Window").color(Color32::WHITE))
                     .on_hover_text("How often msc updates while using other apps");
@@ -128,6 +129,19 @@ impl MainArea {
             });
 
             ui.horizontal(|ui| {
+                ui.label(RichText::new("Image Quality").color(Color32::WHITE))
+                    .on_hover_text("Display image metadata in the audio control bar");
+                ComboBox::new("image_quality_combo", "").show_ui(ui, |ui| {
+                    for v in ["High", "Medium", "Low"] {
+                        ui.selectable_value(&mut String::new(), String::from(v), v);
+                    }
+                });
+            });
+
+            ui.add_space(10.);
+            ui.heading("Configuration");
+
+            ui.horizontal(|ui| {
                 ui.label(RichText::new("Audio Folder").color(Color32::WHITE))
                     .on_hover_text("Folder containing all audio files");
                 if ui
@@ -140,11 +154,6 @@ impl MainArea {
                         state.library = Playlist::from_directory(&state.config.audio_directory);
                     }
                 }
-            });
-            ui.horizontal(|ui| {
-                ui.label(RichText::new("Show Images").color(Color32::WHITE))
-                    .on_hover_text("Display image metadata in the audio control bar");
-                ui.add(Checkbox::new(&mut state.config.show_image, ""));
             });
         });
     }
