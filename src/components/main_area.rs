@@ -16,6 +16,7 @@ use crate::{
 };
 
 // track selections break if the user changes the search query
+// cache filtered tracks so it's not calculated every frame
 
 pub struct MainArea {
     selection: HashSet<usize>,
