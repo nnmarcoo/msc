@@ -104,6 +104,28 @@ impl MainArea {
             });
         });
 
+        if playlist.tracks.is_empty() {
+            ui.vertical(|ui| {
+                ui.add_space(ui.available_height() / 2. - 20.);
+                ui.horizontal(|ui| {
+                    ui.add_space(ui.available_width() / 2. - 60.);
+                    ui.add(Label::new("Playlist empty!"));
+                });
+                ui.add_space(10.);
+                ui.horizontal(|ui| {
+                    ui.add_space(ui.available_width() / 2. - 40.);
+
+                    let settings_res = ui.add(link_label(
+                        RichText::new("Library").color(Color32::WHITE),
+                        Color32::WHITE,
+                    ));
+                    if settings_res.clicked() {
+                        state.view = View::Library;
+                    }
+                });
+            });
+        }
+
         if self.show_window {
             Window::new("Edit playlist")
                 .open(&mut self.show_window)
