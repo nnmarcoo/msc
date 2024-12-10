@@ -4,6 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+use color_thief::{get_palette, ColorFormat};
 use eframe::egui::{Color32, ColorImage, Context, TextureHandle, TextureOptions};
 use image::{imageops::FilterType, load_from_memory, open, DynamicImage, ImageFormat};
 use lofty::{file::TaggedFileExt, probe::Probe};
@@ -80,7 +81,7 @@ impl ImageDisplay {
                     });
 
                     // wasteful
-                    let color = calculate_average(&imag2e);
+                    let color = dominant_color(&imag2e);
                     *average_color.lock().unwrap() = color;
                 }
             }
@@ -125,27 +126,14 @@ fn load_image(image: DynamicImage, width: u32, height: u32) -> ColorImage {
     ColorImage::from_rgba_unmultiplied([dimensions.0 as usize, dimensions.1 as usize], &pixels)
 }
 
-fn calculate_average(image: &DynamicImage) -> Color32 {
-    let img = image.to_rgba8();
+fn dominant_color(image: &DynamicImage) -> Color32 {
+    let rgb_image = image.to_rgb8();
+    let pixels = rgb_image.as_raw();
 
-    let (width, height) = img.dimensions();
-    let mut total_r = 0u64;
-    let mut total_g = 0u64;
-    let mut total_b = 0u64;
-    let mut total_a = 0u64;
-
-    img.pixels().for_each(|pixel| {
-        total_r += pixel[0] as u64;
-        total_g += pixel[1] as u64;
-        total_b += pixel[2] as u64;
-        total_a += pixel[3] as u64;
-    });
-
-    let pixel_count = (width * height) as u64;
-    let avg_r = (total_r / pixel_count) as u8;
-    let avg_g = (total_g / pixel_count) as u8;
-    let avg_b = (total_b / pixel_count) as u8;
-    let avg_a = (total_a / pixel_count) as u8;
-
-    Color32::from_rgba_unmultiplied(avg_r, avg_g, avg_b, avg_a)
+    if let Ok(palette) = get_palette(pixels, ColorFormat::Rgb, 10, 2) {
+        if let Some(color) = palette.first() {
+            return Color32::from_rgb(color.r, color.g, color.b);
+        }
+    }
+    Color32::BLACK
 }
