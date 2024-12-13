@@ -79,7 +79,7 @@ impl AudioControls {
                                         let track = state.queue.current_track().unwrap().clone();
                                         ui.strong(track.title);
                                         ui.label(track.artist);
-                                        ui.add_space(ui.available_width() + 1.);
+                                        ui.add_space(ui.available_width());
 
                                         let duration = if state.config.show_duration {
                                             format_seconds(
