@@ -1,4 +1,6 @@
-use eframe::egui::Color32;
+use std::collections::HashSet;
+
+use eframe::egui::{Color32, Response};
 
 pub fn format_seconds(seconds: f32) -> String {
     let minutes = (seconds / 60.) as u32;
@@ -29,5 +31,15 @@ pub fn get_volume_color(value: f32) -> Color32 {
         let g = (blue.g() as f32 * (1.0 - t) + high_blue.g() as f32 * t) as u8;
         let b = (blue.b() as f32 * (1.0 - t) + high_blue.b() as f32 * t) as u8;
         Color32::from_rgb(r, g, b)
+    }
+}
+
+pub fn toggle_row_selection(selection: &mut HashSet<usize>, index: usize, row_response: &Response) {
+    if row_response.clicked() {
+        if selection.contains(&index) {
+            selection.remove(&index);
+        } else {
+            selection.insert(index);
+        }
     }
 }
