@@ -79,7 +79,7 @@ impl AudioControls {
                                         let track = state.queue.current_track().unwrap().clone();
                                         ui.strong(track.title);
                                         ui.label(track.artist);
-                                        ui.add_space(ui.available_width());
+                                        ui.add_space(ui.available_width() + 1.);
 
                                         let duration = if state.config.show_duration {
                                             format_seconds(
@@ -187,42 +187,6 @@ impl AudioControls {
                     if volume_slider.changed() {
                         state.queue.set_volume(state.config.volume);
                     }
-
-                    ui.add_space(5.);
-
-                    /*
-                    if state.config.show_image {
-                        if let Some(track) = state.queue.current_track() {
-                            track.load_texture_async(ctx.clone(), Arc::clone(&state.image_loader));
-
-                            let image = match &track.get_texture() {
-                                Some(texture) => Image::new(texture),
-                                None => Image::new(DEFAULT_IMAGE_BORDER_IMAGE),
-                            };
-
-                            ui.add_sized([48., 48.], image.max_size(vec2(48., 48.)).rounding(5.));
-                        }
-                    }
-
-                    ui.vertical(|ui| {
-                        ui.add_space(20.);
-                        ui.add(
-                            Label::new(
-                                RichText::from(&state.queue.current_track().unwrap().title)
-                                    .size(16.)
-                                    .strong(),
-                            )
-                            .wrap_mode(TextWrapMode::Truncate),
-                        );
-
-                        ui.add(
-                            Label::new(RichText::from(
-                                &state.queue.current_track().unwrap().artist,
-                            ))
-                            .wrap_mode(TextWrapMode::Truncate),
-                        );
-                    });
-                     */
                 });
             });
     }
