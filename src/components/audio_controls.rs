@@ -73,44 +73,52 @@ impl AudioControls {
                         vec2((ui.available_width() - 370.).max(0.), ui.available_height()),
                         |ui| {
                             ui.vertical(|ui| {
-                                ui.add_space(26.);
+                                ui.add_space(23.);
                                 ui.vertical(|ui| {
-                                    ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
+                                    ui.horizontal(|ui| {
                                         let track = state.queue.current_track().unwrap().clone();
                                         ui.strong(track.title);
                                         ui.label(track.artist);
-                                        ui.add_space(ui.available_width());
 
-                                        let duration = if state.config.show_duration {
-                                            format_seconds(
-                                                state.queue.current_track().unwrap().duration,
-                                            )
-                                        } else {
-                                            format!(
-                                                "-{}",
-                                                format_seconds(
-                                                    state
-                                                        .queue
-                                                        .current_track()
-                                                        .unwrap()
-                                                        .duration
-                                                        .floor()
-                                                        - self.timeline_pos.floor()
-                                                )
-                                            )
-                                        };
+                                        ui.with_layout(
+                                            Layout::right_to_left(Align::BOTTOM),
+                                            |ui| {
+                                                let duration = if state.config.show_duration {
+                                                    format_seconds(
+                                                        state
+                                                            .queue
+                                                            .current_track()
+                                                            .unwrap()
+                                                            .duration,
+                                                    )
+                                                } else {
+                                                    format!(
+                                                        "-{}",
+                                                        format_seconds(
+                                                            state
+                                                                .queue
+                                                                .current_track()
+                                                                .unwrap()
+                                                                .duration
+                                                                .floor()
+                                                                - self.timeline_pos.floor()
+                                                        )
+                                                    )
+                                                };
 
-                                        if ui
-                                            .label(format!(
-                                                "{} / {}",
-                                                format_seconds(self.timeline_pos),
-                                                duration
-                                            ))
-                                            .clicked()
-                                        {
-                                            state.config.show_duration =
-                                                !state.config.show_duration;
-                                        }
+                                                if ui
+                                                    .label(format!(
+                                                        "{} / {}",
+                                                        format_seconds(self.timeline_pos),
+                                                        duration
+                                                    ))
+                                                    .clicked()
+                                                {
+                                                    state.config.show_duration =
+                                                        !state.config.show_duration;
+                                                }
+                                            },
+                                        );
                                     });
 
                                     ui.add_space(1.);

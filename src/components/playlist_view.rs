@@ -14,6 +14,8 @@ use crate::{
     widgets::link_label::link_label,
 };
 
+// make selections specific to the playlist
+
 pub struct PlaylistView {
     show_window: bool,
     selection: HashSet<usize>,
