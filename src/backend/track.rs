@@ -3,14 +3,9 @@ use lofty::{
     probe::Probe,
     tag::ItemKey,
 };
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
 use serde::{Deserialize, Serialize};
 
-use std::{
-    collections::HashMap,
-    fs::read_dir,
-    path::{Path, PathBuf},
-};
+use std::path::Path;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Track {
@@ -68,16 +63,5 @@ impl Track {
         } else {
             None
         }
-    }
-
-    pub fn collect_tracks(path: &str) -> HashMap<String, Track> {
-        if let Ok(entries) = read_dir(Path::new(path)) {
-            let entries: Vec<PathBuf> = entries
-                .filter_map(Result::ok)
-                .map(|entry| entry.path())
-                .collect();
-
-        }
-        HashMap::new()
     }
 }

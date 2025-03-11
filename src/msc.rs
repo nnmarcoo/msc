@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use eframe::{
     egui::{CentralPanel, Context, Frame as gFrame, Margin, ResizeDirection},
     App, CreationContext, Frame,
@@ -7,7 +5,7 @@ use eframe::{
 use egui_extras::install_image_loaders;
 
 use crate::{
-    backend::{cfg::Config, playlist::Playlist, queue::Queue, resize::handle_resize, track::Track},
+    backend::{cfg::Config, playlist::Playlist, queue::Queue, resize::handle_resize},
     components::{
         audio_column::AudioColumn, audio_controls::AudioControls, main_area::MainArea,
         title_bar::TitleBar,
@@ -24,7 +22,7 @@ pub enum View {
 pub struct State {
     pub config: Config,
     pub view: View,
-    pub library: HashMap<String, Track>,
+    pub library: Playlist,
     pub query: String,
     pub selected_playlist: usize,
     pub queue: Queue,
@@ -45,6 +43,7 @@ impl Msc {
 
         let config = Config::get();
         let test: Playlist = Playlist::from_directory(&config.audio_directory);
+        let test2: Playlist = Playlist::from_directory(&config.audio_directory);
 
         let state = State {
             config: Config::get(),
@@ -52,7 +51,7 @@ impl Msc {
             library: test,
             query: String::new(),
             selected_playlist: 0,
-            queue: Queue::from_playlist(test),
+            queue: Queue::from_playlist(test2),
         };
 
         Self {
