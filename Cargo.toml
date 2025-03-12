@@ -11,8 +11,8 @@ all-features = true
 targets = ["x86_64-unknown-linux-gnu", "wasm32-unknown-unknown"]
 
 [dependencies]
-egui = "0.30"
-eframe = { version = "0.30", default-features = false, features = [
+egui = "0.31"
+eframe = { version = "0.31", default-features = false, features = [
     "accesskit",     # Make egui compatible with screen readers. NOTE: adds a lot of dependencies.
     "default_fonts", # Embed the default egui fonts.
     "glow",          # Use the glow rendering backend. Alternative: "wgpu".
@@ -34,7 +34,11 @@ wasm-bindgen-futures = "0.4"
 web-sys = "0.3.70"           # to access the DOM (to hide the loading text)
 
 [profile.release]
-opt-level = 2 # fast and small wasm
+panic = "abort" # Strip expensive panic clean-up logic
+codegen-units = 1 # Compile crates one after another so the compiler can optimize better
+lto = true # Enables link to optimizations
+opt-level = 3 # Optimize for binary size
+strip = true # Remove debug symbols
 
 # Optimize all dependencies even in debug builds:
 [profile.dev.package."*"]
