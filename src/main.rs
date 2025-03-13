@@ -15,7 +15,7 @@ fn main() -> eframe::Result {
                 eframe::icon_data::from_png_bytes(&include_bytes!("../assets/logo.png")[..])
                     .expect("Failed to load icon"),
             ),
-            hardware_acceleration: eframe::HardwareAcceleration::Preferred,
+        hardware_acceleration: eframe::HardwareAcceleration::Preferred,
         ..Default::default()
     };
 
