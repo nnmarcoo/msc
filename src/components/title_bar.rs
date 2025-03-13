@@ -28,8 +28,7 @@ impl TitleBar {
         TopBottomPanel::top("title_bar")
             .frame(Frame::default().inner_margin(Margin::ZERO))
             .show(ctx, |ui| {
-                self.window_state.is_maximized =
-                    ui.input(|i| i.viewport().maximized.unwrap_or(false));
+                self.window_state.is_maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
 
                 let res = ui.interact(ui.max_rect(), ui.id(), Sense::click_and_drag());
 
@@ -43,15 +42,12 @@ impl TitleBar {
                 }
 
                 if res.double_clicked_by(PointerButton::Primary) {
-                    ctx.send_viewport_cmd(ViewportCommand::Maximized(
-                        !self.window_state.is_maximized,
-                    ));
+                    ctx.send_viewport_cmd(ViewportCommand::Maximized(!self.window_state.is_maximized));
                 }
 
                 menu::bar(ui, |ui| {
-                    // Remove spacing between widgets
                     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-
+                
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         ui.scope(|ui| {
                             ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
@@ -66,7 +62,7 @@ impl TitleBar {
                                 ctx.send_viewport_cmd(ViewportCommand::Close);
                             }
                         });
-
+                
                         if self.window_state.is_maximized {
                             if ui
                                 .add_sized(
@@ -88,7 +84,7 @@ impl TitleBar {
                                 ctx.send_viewport_cmd(ViewportCommand::Maximized(true));
                             }
                         }
-
+                
                         if ui
                             .add_sized(
                                 [self.bar_width, self.bar_width],
@@ -99,6 +95,8 @@ impl TitleBar {
                             ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
                         }
 
+                        ui.add_space(5.);
+                
                         if ui
                             .add(
                                 TextEdit::singleline(&mut self.query)
@@ -109,26 +107,24 @@ impl TitleBar {
                         {
                             //state.view = View::Library;
                         }
-
+                
                         ui.add_space(ui.available_width() - 47.);
-
+                
                         ui.allocate_ui(vec2(28., 28.), |ui| {
-                            ui.menu_image_button(
-                                include_image!("../../assets/icon-256.png"),
-                                |ui| {
-                                    if ui.button("About").clicked() {}
-                                    if ui.button("Help").clicked() {}
-                                    if ui.button("Update").clicked() {}
-                                    ui.separator();
-                                    if ui.button("Settings").clicked() {
-                                        //state.view = View::Settings;
-                                        ui.close_menu();
-                                    }
-                                },
-                            );
+                            ui.menu_image_button(include_image!("../../assets/icon-256.png"), |ui| {
+                                if ui.button("About").clicked() {}
+                                if ui.button("Help").clicked() {}
+                                if ui.button("Update").clicked() {}
+                                ui.separator();
+                                if ui.button("Settings").clicked() {
+                                    //state.view = View::Settings;
+                                    ui.close_menu();
+                                }
+                            });
                         });
                     });
                 });
+                
             });
     }
 }
