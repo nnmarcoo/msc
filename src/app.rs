@@ -1,15 +1,20 @@
 use egui::CentralPanel;
+use egui_extras::install_image_loaders;
+
+use crate::{components::title_bar::TitleBar, resize::handle_resize, structs::WindowState};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct Msc {
-    label: String,
+    pub window_state: WindowState,
+    pub titel_bar: TitleBar,
 }
 
 impl Default for Msc {
     fn default() -> Self {
         Self {
-            label: "TODO".to_owned(),
+            window_state: WindowState::default(),
+            titel_bar: TitleBar::new(),
         }
     }
 }
@@ -17,7 +22,7 @@ impl Default for Msc {
 impl Msc {
     /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        // This is also where you can customize the look and feel of egui using
+        install_image_loaders(&cc.egui_ctx);
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
         if let Some(storage) = cc.storage {
@@ -34,7 +39,8 @@ impl eframe::App for Msc {
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         CentralPanel::default().show(ctx, |ui| {
-            ui.label(&self.label);
+            handle_resize(self, ctx);
+            self.titel_bar.show(ctx);
         });
     }
 }
