@@ -1,4 +1,4 @@
-use egui::CentralPanel;
+use egui::{CentralPanel, Visuals};
 use egui_extras::install_image_loaders;
 
 use crate::{components::title_bar::TitleBar, resize::handle_resize, structs::WindowState};
@@ -24,6 +24,13 @@ impl Msc {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         install_image_loaders(&cc.egui_ctx);
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
+
+        println!("{:#?}", cc.egui_ctx.style().visuals.clone());
+
+        cc.egui_ctx.set_visuals(Visuals {
+            panel_fill: egui::Color32::RED,
+            ..Default::default()
+        });
 
         if let Some(storage) = cc.storage {
             return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();

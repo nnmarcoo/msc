@@ -21,6 +21,8 @@ eframe = { version = "0.31", default-features = false, features = [
 ] }
 log = "0.4"
 egui_extras = { version = "0.31", features = ["all_loaders"] }
+rayon = "1.10"
+image = "0.25"
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
