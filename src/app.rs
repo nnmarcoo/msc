@@ -28,7 +28,7 @@ impl Msc {
         println!("{:#?}", cc.egui_ctx.style().visuals.clone());
 
         cc.egui_ctx.set_visuals(Visuals {
-            panel_fill: egui::Color32::RED,
+            //panel_fill: egui::Color32::RED,
             ..Default::default()
         });
 
