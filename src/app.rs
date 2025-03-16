@@ -20,7 +20,6 @@ impl Default for Msc {
 }
 
 impl Msc {
-    /// Called once before the first frame.
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         install_image_loaders(&cc.egui_ctx);
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
