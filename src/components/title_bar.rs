@@ -1,19 +1,20 @@
 use eframe::egui::{
     include_image,
     menu::{self},
-    vec2, Align, Color32, Context, Frame, ImageButton, Layout, Margin, PointerButton, Sense,
-    TextEdit, TopBottomPanel, ViewportCommand,
+    vec2, Align, Color32, Context, Frame, Layout, Margin, PointerButton, Sense, TextEdit,
+    TopBottomPanel, ViewportCommand,
 };
+use egui::Image;
 use serde::{Deserialize, Serialize};
 
-use crate::structs::WindowState;
+use crate::{structs::WindowState, widgets::button::Button};
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct TitleBar {
     pub window_state: WindowState,
     #[serde(skip)]
     pub query: String,
-    bar_width: f32,
+    bar_height: f32,
 }
 
 impl TitleBar {
@@ -21,7 +22,7 @@ impl TitleBar {
         TitleBar {
             window_state: WindowState::default(),
             query: String::new(),
-            bar_width: 30.,
+            bar_height: 32.,
         }
     }
 
@@ -53,51 +54,37 @@ impl TitleBar {
                     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
 
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        ui.scope(|ui| {
-                            ui.style_mut().visuals.widgets.hovered.weak_bg_fill =
-                                Color32::from_rgb(232, 17, 35);
-                            if ui
-                                .add_sized(
-                                    [self.bar_width, self.bar_width],
-                                    ImageButton::new(include_image!("../../assets/icon-256.png")),
-                                )
-                                .clicked()
-                            {
-                                ctx.send_viewport_cmd(ViewportCommand::Close);
-                            }
-                        });
-
-                        if self.window_state.is_maximized {
-                            if ui
-                                .add_sized(
-                                    [self.bar_width, self.bar_width],
-                                    ImageButton::new(include_image!("../../assets/icon-256.png")),
-                                )
-                                .clicked()
-                            {
-                                ctx.send_viewport_cmd(ViewportCommand::Maximized(false));
-                            }
-                        } else {
-                            if ui
-                                .add_sized(
-                                    [self.bar_width, self.bar_width],
-                                    ImageButton::new(include_image!("../../assets/icon-256.png")),
-                                )
-                                .clicked()
-                            {
-                                ctx.send_viewport_cmd(ViewportCommand::Maximized(true));
-                            }
-                        }
-
-                        if ui
-                            .add_sized(
-                                [self.bar_width, self.bar_width],
-                                ImageButton::new(include_image!("../../assets/icon-256.png")),
+                        // x
+                        ui.add(
+                            Button::new(
+                                vec2(self.bar_height, self.bar_height),
+                                &Image::new(include_image!("../../assets/icons/x.png")),
+                                || ctx.send_viewport_cmd(ViewportCommand::Close),
                             )
-                            .clicked()
-                        {
-                            ctx.send_viewport_cmd(ViewportCommand::Minimized(true));
+                            .with_hover_color(Color32::from_rgb(232, 17, 35)),
+                        );
+
+                        // maximize/restore
+                        if self.window_state.is_maximized {
+                            ui.add(Button::new(
+                                vec2(self.bar_height, self.bar_height),
+                                &Image::new(include_image!("../../assets/icons/restore.png")),
+                                || ctx.send_viewport_cmd(ViewportCommand::Maximized(false)),
+                            ));
+                        } else {
+                            ui.add(Button::new(
+                                vec2(self.bar_height, self.bar_height),
+                                &Image::new(include_image!("../../assets/icons/maximize.png")),
+                                || ctx.send_viewport_cmd(ViewportCommand::Maximized(true)),
+                            ));
                         }
+
+                        // minimize
+                        ui.add(Button::new(
+                            vec2(self.bar_height, self.bar_height),
+                            &Image::new(include_image!("../../assets/icons/minimize.png")),
+                            || ctx.send_viewport_cmd(ViewportCommand::Minimized(true)),
+                        ));
 
                         ui.add_space(5.);
 
@@ -114,9 +101,10 @@ impl TitleBar {
 
                         ui.add_space(ui.available_width() - 47.);
 
+                        // setttings
                         ui.allocate_ui(vec2(28., 28.), |ui| {
                             ui.menu_image_button(
-                                include_image!("../../assets/icon-256.png"),
+                                include_image!("../../assets/icons/settings.png"),
                                 |ui| {
                                     if ui.button("About").clicked() {}
                                     if ui.button("Help").clicked() {}
