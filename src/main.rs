@@ -12,7 +12,7 @@ fn main() -> eframe::Result {
             .with_min_inner_size([300.0, 220.0])
             .with_decorations(false)
             .with_icon(
-                eframe::icon_data::from_png_bytes(&include_bytes!("../assets/logo.png")[..])
+                eframe::icon_data::from_png_bytes(&include_bytes!("../assets/icon-256.png")[..])
                     .expect("Failed to load icon"),
             ),
         hardware_acceleration: eframe::HardwareAcceleration::Preferred,
