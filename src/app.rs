@@ -1,4 +1,4 @@
-use egui::{CentralPanel, Visuals};
+use egui::{CentralPanel, TextWrapMode, Visuals};
 use egui_extras::install_image_loaders;
 
 use crate::{

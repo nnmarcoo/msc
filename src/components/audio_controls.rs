@@ -46,7 +46,7 @@ impl AudioControls {
                         vec2((ui.available_width() - 300.).max(0.), ui.available_height()),
                         |ui| {
                             ui.vertical(|ui| {
-                                ui.add_space(26.);
+                                ui.add_space(20.);
                                 ui.vertical(|ui| {
                                     ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                                         ui.strong("Title");
