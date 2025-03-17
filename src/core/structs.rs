@@ -7,10 +7,3 @@ pub struct WindowState {
     pub is_maximized: bool,
     pub resizing: Option<ResizeDirection>,
 }
-
-#[derive(Serialize, Deserialize)]
-pub struct Playlist {
-    pub name: String,
-    pub description: String,
-    pub image_path: String,
-}
