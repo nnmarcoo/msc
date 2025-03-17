@@ -1,14 +1,11 @@
 use serde::{Deserialize, Serialize};
 
-
 #[derive(Serialize, Deserialize, Default)]
-pub struct PlayPanel {
-
-}
+pub struct PlayPanel {}
 
 impl PlayPanel {
     pub fn new() -> Self {
-      PlayPanel {}
+        PlayPanel {}
     }
 
     pub fn show(&mut self, ctx: &egui::Context) {

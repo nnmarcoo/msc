@@ -1,7 +1,14 @@
 use egui::{CentralPanel, Visuals};
 use egui_extras::install_image_loaders;
 
-use crate::{components::{audio_controls::AudioControls, main_panel::MainPanel, play_panel::PlayPanel, title_bar::TitleBar}, resize::handle_resize, structs::WindowState};
+use crate::{
+    components::{
+        audio_controls::AudioControls, main_panel::MainPanel, play_panel::PlayPanel,
+        title_bar::TitleBar,
+    },
+    resize::handle_resize,
+    structs::WindowState,
+};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
@@ -10,7 +17,7 @@ pub struct Msc {
     pub titel_bar: TitleBar,
     pub audio_controls: AudioControls,
     pub play_panel: PlayPanel,
-    pub main_panel: MainPanel
+    pub main_panel: MainPanel,
 }
 
 impl Default for Msc {
@@ -20,7 +27,7 @@ impl Default for Msc {
             titel_bar: TitleBar::new(),
             audio_controls: AudioControls::new(),
             play_panel: PlayPanel::new(),
-            main_panel: MainPanel::new()
+            main_panel: MainPanel::new(),
         }
     }
 }
@@ -30,7 +37,7 @@ impl Msc {
         install_image_loaders(&cc.egui_ctx);
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
-        println!("{:#?}", cc.egui_ctx.style().visuals.clone());
+        //println!("{:#?}", cc.egui_ctx.style().visuals.clone());
 
         cc.egui_ctx.set_visuals(Visuals {
             //panel_fill: egui::Color32::RED,
@@ -50,6 +57,10 @@ impl eframe::App for Msc {
     }
 
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        if ctx.zoom_factor() > 1.7 {
+            ctx.set_zoom_factor(1.7);
+        }
+
         CentralPanel::default().show(ctx, |_ui| {
             handle_resize(self, ctx);
             self.titel_bar.show(ctx);

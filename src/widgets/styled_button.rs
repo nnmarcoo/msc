@@ -1,4 +1,4 @@
-pub struct Button<'a, F>
+pub struct StyledButton<'a, F>
 where
     F: FnMut(),
 {
@@ -9,7 +9,7 @@ where
     on_click: F,
 }
 
-impl<'a, F> Button<'a, F>
+impl<'a, F> StyledButton<'a, F>
 where
     F: FnMut(),
 {
@@ -34,7 +34,7 @@ where
     }
 }
 
-impl<'a, F> egui::Widget for Button<'a, F>
+impl<'a, F> egui::Widget for StyledButton<'a, F>
 where
     F: FnMut(),
 {

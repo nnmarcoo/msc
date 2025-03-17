@@ -1,13 +1,13 @@
 use eframe::egui::{
     include_image,
     menu::{self},
-    vec2, Align, Color32, Context, Frame, Layout, Margin, PointerButton, Sense, TextEdit,
-    TopBottomPanel, ViewportCommand,
+    vec2, Align, Color32, Context, Frame, Layout, Margin, PointerButton, Sense, TopBottomPanel,
+    ViewportCommand,
 };
 use egui::Image;
 use serde::{Deserialize, Serialize};
 
-use crate::{structs::WindowState, widgets::button::Button};
+use crate::{structs::WindowState, widgets::styled_button::StyledButton};
 
 #[derive(Serialize, Deserialize, Default)]
 pub struct TitleBar {
@@ -27,6 +27,11 @@ impl TitleBar {
     }
 
     pub fn show(&mut self, ctx: &Context) {
+        let zoom_scale = ctx.pixels_per_point();
+
+        let fixed_bar_height = self.bar_height / zoom_scale;
+        let control_size = vec2(fixed_bar_height, fixed_bar_height);
+
         TopBottomPanel::top("title_bar")
             .frame(Frame::default().inner_margin(Margin::ZERO))
             .show(ctx, |ui| {
@@ -52,71 +57,37 @@ impl TitleBar {
 
                 menu::bar(ui, |ui| {
                     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        // x
                         ui.add(
-                            Button::new(
-                                vec2(self.bar_height, self.bar_height),
+                            StyledButton::new(
+                                control_size,
                                 &Image::new(include_image!("../../assets/icons/x.png")),
                                 || ctx.send_viewport_cmd(ViewportCommand::Close),
                             )
                             .with_hover_color(Color32::from_rgb(232, 17, 35)),
                         );
 
-                        // maximize/restore
-                        if self.window_state.is_maximized {
-                            ui.add(Button::new(
-                                vec2(self.bar_height, self.bar_height),
-                                &Image::new(include_image!("../../assets/icons/restore.png")),
-                                || ctx.send_viewport_cmd(ViewportCommand::Maximized(false)),
-                            ));
+                        let min_max = if self.window_state.is_maximized {
+                            include_image!("../../assets/icons/restore.png")
                         } else {
-                            ui.add(Button::new(
-                                vec2(self.bar_height, self.bar_height),
-                                &Image::new(include_image!("../../assets/icons/maximize.png")),
-                                || ctx.send_viewport_cmd(ViewportCommand::Maximized(true)),
-                            ));
-                        }
+                            include_image!("../../assets/icons/maximize.png")
+                        };
 
-                        // minimize
-                        ui.add(Button::new(
-                            vec2(self.bar_height, self.bar_height),
+                        ui.add(StyledButton::new(
+                            control_size,
+                            &Image::new(min_max),
+                            || {
+                                ctx.send_viewport_cmd(ViewportCommand::Maximized(
+                                    !self.window_state.is_maximized,
+                                ))
+                            },
+                        ));
+
+                        ui.add(StyledButton::new(
+                            control_size,
                             &Image::new(include_image!("../../assets/icons/minimize.png")),
                             || ctx.send_viewport_cmd(ViewportCommand::Minimized(true)),
                         ));
-
-                        ui.add_space(5.);
-
-                        if ui
-                            .add(
-                                TextEdit::singleline(&mut self.query)
-                                    .hint_text("🔍 Search a song")
-                                    .desired_width(150.),
-                            )
-                            .has_focus()
-                        {
-                            //state.view = View::Library;
-                        }
-
-                        ui.add_space(ui.available_width() - 47.);
-
-                        // setttings
-                        ui.allocate_ui(vec2(28., 28.), |ui| {
-                            ui.menu_image_button(
-                                include_image!("../../assets/icons/settings.png"),
-                                |ui| {
-                                    if ui.button("About").clicked() {}
-                                    if ui.button("Help").clicked() {}
-                                    if ui.button("Update").clicked() {}
-                                    ui.separator();
-                                    if ui.button("Settings").clicked() {
-                                        //state.view = View::Settings;
-                                        ui.close_menu();
-                                    }
-                                },
-                            );
-                        });
                     });
                 });
             });
