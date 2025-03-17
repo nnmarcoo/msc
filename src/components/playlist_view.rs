@@ -1,53 +1,79 @@
-use egui::Ui;
+use egui::{vec2, Context, Image, ScrollArea, Ui};
 use crate::core::Playlist::Playlist;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct PlayListView {
     playlists: Vec<Playlist>,
+    prev_size: f32,
 }
 
 impl PlayListView {
     pub fn new() -> Self {
         PlayListView { playlists: 
             vec![
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\bass.jpg".to_string()),
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\break.png".to_string()),
             Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\brother.jpg".to_string()),
-        ] }
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\chillaxin.png".to_string()),
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\drwyd.png".to_string()),
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\no.jpg".to_string()),
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\over.png".to_string()),
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\ppur.jpg".to_string()),
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\punk.png".to_string()),
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\vamp.jpg".to_string()),
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\xtreem hy.jpg".to_string()),
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\zooom.png".to_string()),
+            Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\debug.jpg".to_string()),
+        ],
+        prev_size: 0.,
+    
+    }
+        
+
     }
 
-    pub fn show(&mut self, ui: &mut Ui) {
-        // Get the total available width in the current UI context
+    pub fn show(&mut self, ui: &mut Ui, ctx: &Context) {
         let available_width = ui.available_width();
 
-        // Define a gap between images (in pixels)
-        let gap = 10.0;
+        let zoom = ctx.zoom_factor();
 
-        // Define a minimum desired image size (width/height in pixels)
-        let min_image_size = 100.0;
+        let base_gap = 3.;
+        let base_min_image_size = 100.;
 
-        // Calculate the maximum number of columns that can fit using the minimum image size
+        let gap = base_gap * zoom;
+        let min_image_size = base_min_image_size * zoom;
+
         let mut num_columns = ((available_width + gap) / (min_image_size + gap)).floor() as usize;
         if num_columns < 1 {
             num_columns = 1;
         }
 
-        // Recalculate the image size so that images and gaps exactly fit the available width
         let image_size = (available_width - (num_columns as f32 - 1.0) * gap) / num_columns as f32;
 
-        // Use egui's Grid widget to display images in a grid with spacing between them
-        egui::Grid::new("playlist_grid")
+        ScrollArea::vertical().show(ui, |ui| {
+            egui::Grid::new("playlist_grid")
             .spacing([gap, gap])
             .show(ui, |ui| {
-                for (i, playlist) in self.playlists.iter().enumerate() {
-                    // Display the playlist image with the calculated dimensions
-                    playlist.display_or_load(image_size as u32, image_size as u32, ui);
+
+                if self.prev_size != image_size {
+                    println!("{}, {}", self.prev_size, image_size);
+                    self.prev_size = image_size;
+                    for (_, playlist) in self.playlists.iter().enumerate() { 
+                        playlist.load_image((image_size * zoom) as u32, (image_size * zoom) as u32, ctx);
+                    }
                     
-                    // End the row after num_columns images have been added
+                }
+                
+                for (i, playlist) in self.playlists.iter().enumerate() {                    
+                    playlist.display(image_size.floor(), image_size.floor(), ui);
+                    
                     if (i + 1) % num_columns == 0 {
                         ui.end_row();
                     }
                 }
-                // Ensure the final row is ended even if it's not full
                 ui.end_row();
             });
+        });
+        
     }
 }

@@ -1,0 +1,16 @@
+{
+  "audio_directory": "D:\\audio",
+  "volume": 1.0,
+  "redraw": true,
+  "redraw_time": 0.1,
+  "show_duration": true,
+  "show_image": true,
+  "playlists": [
+    {
+      "tracks": [],
+      "name": "My Playlist",
+      "desc": "",
+      "image_path": "D:\\spotify\\vamp.jpg"
+    }
+  ]
+}

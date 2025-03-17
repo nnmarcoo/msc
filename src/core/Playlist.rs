@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use egui::{ColorImage, Context, Rgba, TextureHandle, TextureOptions, Ui};
+use egui::{vec2, ColorImage, Context, Image, TextureHandle, TextureOptions, Ui};
 use image::{imageops::FilterType, DynamicImage};
 use serde::{Deserialize, Serialize};
 
@@ -48,11 +48,9 @@ impl Playlist {
         });
     }
 
-    pub fn display_or_load(&self, width: u32, height: u32, ui: &mut Ui) {
+    pub fn display(&self, width: f32, height: f32, ui: &mut Ui) {
         if let Some(texture) = self.get_texture_handle() {
-            ui.image(&texture);
-        } else {
-            self.load_image(width, height, ui.ctx());
+            ui.add(Image::new(&texture).fit_to_exact_size(vec2(width, height)));
         }
     }
 

@@ -45,7 +45,7 @@ impl Msc {
         });
 
         if let Some(storage) = cc.storage {
-            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            //return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
         }
         Default::default()
     }
@@ -65,8 +65,9 @@ impl eframe::App for Msc {
             handle_resize(self, ctx);
             self.titel_bar.show(ctx);
             self.audio_controls.show(ctx);
-            self.main_panel.show(ctx);
             self.play_panel.show(ctx);
+            self.main_panel.show(ctx);
+            //
         });
     }
 }

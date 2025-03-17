@@ -13,7 +13,7 @@ impl MainPanel {
     }
     pub fn show(&mut self, ctx: &egui::Context) {
         egui::CentralPanel::default().show(ctx, |ui| {
-            self.playlist_view.show(ui);
+            self.playlist_view.show(ui, ctx);
         });
     }
 }
