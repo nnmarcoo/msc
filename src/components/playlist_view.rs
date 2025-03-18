@@ -1,4 +1,6 @@
-use egui::{Context, ScrollArea, Ui};
+use std::cmp::max;
+
+use egui::{Context, Grid, ScrollArea, Ui};
 
 use crate::core::playlist::Playlist;
 
@@ -36,20 +38,20 @@ impl PlayListView {
         let zoom = ctx.zoom_factor();
 
         let base_gap = 3.;
-        let base_min_image_size = 100.;
+        let base_min_image_size = 150.;
 
         let gap = base_gap * zoom;
         let min_image_size = base_min_image_size * zoom;
 
-        let mut num_columns = ((available_width + gap) / (min_image_size + gap)).floor() as usize;
-        if num_columns < 1 {
-            num_columns = 1;
-        }
+        let num_columns = max(
+            1,
+            ((available_width + gap) / (min_image_size + gap)).floor() as usize,
+        );
 
         let image_size = (available_width - (num_columns as f32 - 1.0) * gap) / num_columns as f32;
 
         ScrollArea::vertical().show(ui, |ui| {
-            egui::Grid::new("playlist_grid")
+            Grid::new("playlist_grid")
             .spacing([gap, gap])
             .show(ui, |ui| { 
                 for (i, playlist) in self.playlists.iter_mut().enumerate() {       
