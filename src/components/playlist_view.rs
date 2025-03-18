@@ -1,5 +1,6 @@
 use egui::{vec2, Context, Image, ScrollArea, Ui};
-use crate::core::Playlist::Playlist;
+
+use crate::core::playlist::Playlist;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct PlayListView {
@@ -24,12 +25,9 @@ impl PlayListView {
             Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\xtreem hy.jpg".to_string()),
             Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\zooom.png".to_string()),
             Playlist::new("Playlist 1".to_string(), "Description 1".to_string(), "D:\\spotify\\debug.jpg".to_string()),
-        ],
-        prev_size: 0.,
-    
-    }
-        
-
+            ],
+            prev_size: 0.,
+        }   
     }
 
     pub fn show(&mut self, ui: &mut Ui, ctx: &Context) {
@@ -53,19 +51,9 @@ impl PlayListView {
         ScrollArea::vertical().show(ui, |ui| {
             egui::Grid::new("playlist_grid")
             .spacing([gap, gap])
-            .show(ui, |ui| {
-
-                if self.prev_size != image_size {
-                    println!("{}, {}", self.prev_size, image_size);
-                    self.prev_size = image_size;
-                    for (_, playlist) in self.playlists.iter().enumerate() { 
-                        playlist.load_image((image_size * zoom) as u32, (image_size * zoom) as u32, ctx);
-                    }
-                    
-                }
-                
-                for (i, playlist) in self.playlists.iter().enumerate() {                    
-                    playlist.display(image_size.floor(), image_size.floor(), ui);
+            .show(ui, |ui| { 
+                for (i, playlist) in self.playlists.iter_mut().enumerate() {       
+                    playlist.display_or_load(zoom, image_size, ui);
                     
                     if (i + 1) % num_columns == 0 {
                         ui.end_row();

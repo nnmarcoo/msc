@@ -11,6 +11,7 @@ pub struct Playlist {
     pub image_path: String,
     #[serde(skip)]
     pub texture: Arc<Mutex<Option<TextureHandle>>>,
+    pub prev_size: f32,
 }
 
 impl Playlist {
@@ -20,10 +21,11 @@ impl Playlist {
             description,
             image_path,
             texture: Arc::new(Mutex::new(None)),
+            prev_size: 0.,
         }
     }
 
-    pub fn load_image(&self, width: u32, height: u32, ctx: &Context) {
+    pub fn load_image(&self, size: u32, ctx: &Context) {
         let image_path = self.image_path.clone();
         let texture_arc = Arc::clone(&self.texture);
         let ctx = ctx.clone();
@@ -34,10 +36,10 @@ impl Playlist {
                     "Failed to open image at {}: {}. Creating an empty fallback image.",
                     image_path, err
                 );
-                DynamicImage::new_rgba8(width, height)
+                DynamicImage::new_rgba8(size, size)
             });
 
-            let resized = img.resize_exact(width, height, FilterType::Lanczos3);
+            let resized = img.resize_exact(size, size, FilterType::Lanczos3);
             let rgba = resized.to_rgba8();
             let (w, h) = rgba.dimensions();
             let color_image =
@@ -48,9 +50,13 @@ impl Playlist {
         });
     }
 
-    pub fn display(&self, width: f32, height: f32, ui: &mut Ui) {
-        if let Some(texture) = self.get_texture_handle() {
-            ui.add(Image::new(&texture).fit_to_exact_size(vec2(width, height)));
+    pub fn display_or_load(&mut self, zoom_scale: f32, size: f32, ui: &mut Ui) {
+        if self.prev_size != size {
+            self.prev_size = size;
+            self.load_image((size * zoom_scale) as u32, ui.ctx());
+        } else if let Some(texture) = self.get_texture_handle() {
+            
+            ui.add(Image::new(&texture).fit_to_exact_size(vec2(size, size)));
         }
     }
 
