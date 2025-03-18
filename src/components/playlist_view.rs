@@ -1,4 +1,4 @@
-use egui::{vec2, Context, Image, ScrollArea, Ui};
+use egui::{Context, ScrollArea, Ui};
 
 use crate::core::playlist::Playlist;
 
