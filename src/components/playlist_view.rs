@@ -1,6 +1,9 @@
 use std::cmp::max;
 
-use egui::{scroll_area::ScrollBarVisibility, Context, CursorIcon, Image, ScrollArea, Spinner, Ui};
+use egui::{
+    scroll_area::ScrollBarVisibility, vec2, Color32, Context, CursorIcon, Image, Pos2, Rect,
+    ScrollArea, Spinner, Ui,
+};
 
 use crate::core::playlist::Playlist;
 
@@ -145,7 +148,18 @@ impl PlayListView {
                     if Some(row) == expanded_row {
                         if let Some(expanded_idx) = self.expanded_index {
                             let expanded_playlist = &self.playlists[expanded_idx];
+
+                            let width = size * 2.;
+                            let start_pos = ui.cursor().min;
+
+                            ui.painter().rect_filled(
+                                Rect::from_min_size(start_pos, vec2(ui.available_width(), width)),
+                                0.,
+                                Color32::LIGHT_YELLOW,
+                            );
+
                             ScrollArea::vertical()
+                                .max_height(width)
                                 .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
                                 .show(ui, |ui| {
                                     ui.heading(&expanded_playlist.name);
@@ -153,6 +167,7 @@ impl PlayListView {
                                     for track in &expanded_playlist.tracks {
                                         ui.label(track);
                                     }
+                                    ui.add_space(width - (ui.cursor().min.y - start_pos.y));
                                 });
                         }
                     }
