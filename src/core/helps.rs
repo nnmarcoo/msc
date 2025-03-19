@@ -1,6 +1,9 @@
 use std::sync::{Arc, Mutex};
 
-use egui::{ColorImage, Context, TextureHandle, TextureOptions};
+use egui::{
+    epaint::text::{FontInsert, InsertFontFamily},
+    ColorImage, Context, FontData, FontFamily, TextureHandle, TextureOptions,
+};
 use image::{imageops::FilterType, DynamicImage};
 
 pub fn format_seconds(seconds: f32) -> String {
@@ -10,6 +13,20 @@ pub fn format_seconds(seconds: f32) -> String {
     format!("{:02}:{:02}", minutes, seconds)
 }
 
+pub fn add_font(ctx: &Context) {
+    ctx.add_font(FontInsert::new(
+        "Not Sure if Weird or Just Regular",
+        FontData::from_static(include_bytes!(
+            "../../assets/Not Sure if Weird or Just Regular.ttf"
+        )),
+        vec![InsertFontFamily {
+            family: FontFamily::Name("logo".into()),
+            priority: egui::epaint::text::FontPriority::Highest,
+        }],
+    ));
+}
+
+#[allow(dead_code)]
 pub fn load_image(
     image_path: String,
     width: u32,

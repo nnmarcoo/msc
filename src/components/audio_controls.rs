@@ -1,6 +1,9 @@
-use crate::{core::helps::format_seconds, widgets::{color_slider::color_slider, styled_button::StyledButton}};
+use crate::{
+    core::helps::format_seconds,
+    widgets::{color_slider::color_slider, styled_button::StyledButton},
+};
 use eframe::egui::TopBottomPanel;
-use egui::{include_image, text::TextWrapping, vec2, Align, Color32, Context, Image, Label, Layout, RichText};
+use egui::{include_image, vec2, Align, Color32, Context, Image, Label, Layout, RichText};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Default)]
@@ -24,13 +27,45 @@ impl AudioControls {
             .exact_height(64.)
             .show(ctx, |ui| {
                 ui.horizontal_centered(|ui| {
-                    ui.add(StyledButton::new(vec2(22., 22.), &Image::new(include_image!("../../assets/icons/previous.png")), || {}).with_rounding(5.));
-                    ui.add(StyledButton::new(vec2(28., 28.), &Image::new(include_image!("../../assets/icons/pause.png")), || {}).with_rounding(5.));
-                    ui.add(StyledButton::new(vec2(22., 22.), &Image::new(include_image!("../../assets/icons/next.png")), || {}).with_rounding(5.));
+                    ui.add(
+                        StyledButton::new(
+                            vec2(22., 22.),
+                            &Image::new(include_image!("../../assets/icons/previous.png")),
+                            || {},
+                        )
+                        .with_rounding(5.),
+                    );
+                    ui.add(
+                        StyledButton::new(
+                            vec2(28., 28.),
+                            &Image::new(include_image!("../../assets/icons/pause.png")),
+                            || {},
+                        )
+                        .with_rounding(5.),
+                    );
+                    ui.add(
+                        StyledButton::new(
+                            vec2(22., 22.),
+                            &Image::new(include_image!("../../assets/icons/next.png")),
+                            || {},
+                        )
+                        .with_rounding(5.),
+                    );
 
                     ui.add_space(15.);
 
-                    ui.add(StyledButton::new(vec2(22., 22.), &Image::new(include_image!("../../assets/icons/vol_on.png")), || {}).with_rounding(5.));
+                    let vol_icon = if self.volume > 0. {
+                        include_image!("../../assets/icons/vol_on.png")
+                    } else {
+                        include_image!("../../assets/icons/vol_off.png")
+                    };
+
+                    ui.add(
+                        StyledButton::new(vec2(22., 22.), &Image::new(vol_icon), || {
+                            self.volume = if self.volume > 0. { 0. } else { 0.5 };
+                        })
+                        .with_rounding(5.),
+                    );
 
                     let _ = ui.add(color_slider(
                         &mut self.volume,
@@ -50,7 +85,9 @@ impl AudioControls {
                                 ui.add_space(20.);
                                 ui.vertical(|ui| {
                                     ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
-                                        ui.add(Label::new(RichText::new("Title").strong()).truncate());
+                                        ui.add(
+                                            Label::new(RichText::new("Title").strong()).truncate(),
+                                        );
                                         ui.add(Label::new("Artist").truncate());
                                         ui.add_space(ui.available_width());
 

@@ -3,8 +3,8 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use egui::{vec2, ColorImage, Context, Image, TextureHandle, TextureOptions, Ui};
-use image::{imageops::FilterType, DynamicImage};
+use egui::{vec2, ColorImage, Context, Image, Response, TextureHandle, TextureOptions, Ui};
+use image::{imageops::FilterType, load_from_memory, DynamicImage};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -39,12 +39,9 @@ impl Playlist {
         let current_gen = gen_num.fetch_add(1, Ordering::SeqCst) + 1;
 
         rayon::spawn(move || {
-            let img = image::open(&image_path).unwrap_or_else(|err| {
-                eprintln!(
-                    "Failed to open image at {}: {}. Creating an empty fallback image.",
-                    image_path, err
-                );
-                DynamicImage::new_rgba8(size, size)
+            let img = image::open(&image_path).unwrap_or_else(|_| {
+                load_from_memory(include_bytes!("../../assets/default.png"))
+                    .expect("Failed to load default image")
             });
 
             let resized = img.resize(size, size, FilterType::Lanczos3);

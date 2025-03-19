@@ -6,6 +6,7 @@ use crate::{
         audio_controls::AudioControls, main_panel::MainPanel, play_panel::PlayPanel,
         title_bar::TitleBar,
     },
+    core::helps::add_font,
     resize::handle_resize,
     structs::WindowState,
 };
@@ -35,12 +36,15 @@ impl Default for Msc {
 impl Msc {
     pub fn new(cc: &eframe::CreationContext<'_>) -> Self {
         install_image_loaders(&cc.egui_ctx);
+        add_font(&cc.egui_ctx);
+
         // `cc.egui_ctx.set_visuals` and `cc.egui_ctx.set_fonts`.
 
         //println!("{:#?}", cc.egui_ctx.style().visuals.clone());
 
         cc.egui_ctx.set_visuals(Visuals {
             //panel_fill: egui::Color32::RED,
+            //override_text_color: Some(Color32::DARK_RED),
             ..Default::default()
         });
 
@@ -65,9 +69,8 @@ impl eframe::App for Msc {
             handle_resize(self, ctx);
             self.titel_bar.show(ctx);
             self.audio_controls.show(ctx);
-            self.play_panel.show(ctx);
+            //self.play_panel.show(ctx);
             self.main_panel.show(ctx);
-            //
         });
     }
 }
