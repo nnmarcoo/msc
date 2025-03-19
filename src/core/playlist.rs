@@ -3,8 +3,8 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use egui::{vec2, ColorImage, Context, Image, Response, TextureHandle, TextureOptions, Ui};
-use image::{imageops::FilterType, load_from_memory, DynamicImage};
+use egui::{ColorImage, Context, TextureHandle, TextureOptions};
+use image::{imageops::FilterType, load_from_memory};
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
@@ -14,6 +14,7 @@ pub struct Playlist {
     pub image_path: String,
     pub prev_size: f32,
     pub gen_num: Arc<AtomicUsize>,
+    pub tracks: Vec<String>,
     #[serde(skip)]
     pub texture: Arc<Mutex<Option<TextureHandle>>>,
 }
@@ -27,6 +28,7 @@ impl Playlist {
             texture: Arc::new(Mutex::new(None)),
             prev_size: 0.,
             gen_num: Arc::new(AtomicUsize::new(0)),
+            tracks: vec!["deez".into(), "nuts".into()],
         }
     }
 
@@ -59,15 +61,17 @@ impl Playlist {
         });
     }
 
-    pub fn display_or_load(&mut self, zoom_scale: f32, size: f32, ui: &mut Ui) {
-        if let Some(texture) = self.get_texture_handle() {
-            ui.add(Image::new(&texture).fit_to_exact_size(vec2(size, size)));
-        }
-
+    pub fn texture_or_load(&mut self, size: f32, ctx: &Context) -> Option<TextureHandle> {
         if self.prev_size != size {
             self.prev_size = size;
-            self.load_image((size * zoom_scale) as u32, ui.ctx());
+            self.load_image(size as u32, ctx);
         }
+
+        if let Some(texture) = self.get_texture_handle() {
+            return Some(texture);
+        }
+
+        None
     }
 
     pub fn get_texture_handle(&self) -> Option<TextureHandle> {

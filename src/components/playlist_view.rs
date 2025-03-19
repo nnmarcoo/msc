@@ -1,13 +1,13 @@
 use std::cmp::max;
 
-use egui::{Context, Grid, ScrollArea, Ui};
+use egui::{vec2, Context, CursorIcon, Grid, Image, ScrollArea, Sense, Ui};
 
 use crate::core::playlist::Playlist;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct PlayListView {
     playlists: Vec<Playlist>,
-    prev_size: f32,
+    expanded_index: Option<usize>,
 }
 
 impl PlayListView {
@@ -81,7 +81,7 @@ impl PlayListView {
                     "D:\\spotify\\debug.jpg".to_string(),
                 ),
             ],
-            prev_size: 0.,
+            expanded_index: None,
         }
     }
 
@@ -100,14 +100,39 @@ impl PlayListView {
             ((available_width + gap) / (min_image_size + gap)).floor() as usize,
         );
 
-        let image_size = (available_width - (num_columns as f32 - 1.0) * gap) / num_columns as f32;
+        let size = (available_width - (num_columns as f32 - 1.0) * gap) / num_columns as f32;
 
         ScrollArea::vertical().show(ui, |ui| {
             Grid::new("playlist_grid")
                 .spacing([gap, gap])
                 .show(ui, |ui| {
                     for (i, playlist) in self.playlists.iter_mut().enumerate() {
-                        playlist.display_or_load(zoom, image_size, ui);
+                        if let Some(texture) = playlist.texture_or_load(size * zoom, ctx) {
+                            let res = ui.add(
+                                Image::new(&texture)
+                                    .fit_to_exact_size(vec2(size, size))
+                                    .sense(Sense::CLICK),
+                            );
+
+                            if res.clicked() {
+                                if Some(i) == self.expanded_index {
+                                    self.expanded_index = None;
+                                } else {
+                                    self.expanded_index = Some(i);
+                                }
+                            }
+
+                            res.on_hover_cursor(CursorIcon::PointingHand);
+
+                            if Some(i) == self.expanded_index {
+                                ui.group(|ui| {
+                                    ui.label("Tracks:");
+                                    for track in &playlist.tracks {
+                                        ui.label(track);
+                                    }
+                                });
+                            }
+                        }
 
                         if (i + 1) % num_columns == 0 {
                             ui.end_row();
