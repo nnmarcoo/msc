@@ -23,7 +23,8 @@ log = "0.4"
 egui_extras = { version = "0.31", features = ["all_loaders"] }
 rayon = "1.10"
 image = "0.25"
-egui_dnd = "0.12.0"
+egui_dnd = "0.12"
+color-thief = "0.2"
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }
