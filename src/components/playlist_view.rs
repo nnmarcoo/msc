@@ -158,6 +158,7 @@ impl PlayListView {
                                 Color32::LIGHT_YELLOW,
                             );
 
+                            ui.add_space(gap);
                             ScrollArea::vertical()
                                 .max_height(width)
                                 .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
@@ -167,8 +168,8 @@ impl PlayListView {
                                     for track in &expanded_playlist.tracks {
                                         ui.label(track);
                                     }
-                                    ui.add_space(width - (ui.cursor().min.y - start_pos.y));
                                 });
+                                ui.add_space(width - (ui.cursor().min.y - start_pos.y));
                         }
                     }
                 }
