@@ -5,11 +5,10 @@ use eframe::egui::{
     ViewportCommand,
 };
 use egui::{FontFamily, FontId, Image, RichText};
-use serde::{Deserialize, Serialize};
 
 use crate::{structs::WindowState, widgets::styled_button::StyledButton};
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct TitleBar {
     pub window_state: WindowState,
     bar_height: f32,

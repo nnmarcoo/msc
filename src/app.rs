@@ -6,7 +6,7 @@ use crate::{
         audio_controls::AudioControls, main_panel::MainPanel, play_panel::PlayPanel,
         title_bar::TitleBar,
     },
-    core::helps::add_font,
+    core::{helps::add_font, queue::Queue},
     resize::handle_resize,
     structs::WindowState,
 };
@@ -19,6 +19,8 @@ pub struct Msc {
     pub audio_controls: AudioControls,
     pub play_panel: PlayPanel,
     pub main_panel: MainPanel,
+
+    pub queue: Queue,
 }
 
 impl Default for Msc {
@@ -29,6 +31,8 @@ impl Default for Msc {
             audio_controls: AudioControls::new(),
             play_panel: PlayPanel::new(),
             main_panel: MainPanel::new(),
+
+            queue: Queue::new(),
         }
     }
 }

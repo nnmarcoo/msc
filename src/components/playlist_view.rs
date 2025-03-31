@@ -1,8 +1,8 @@
 use std::cmp::max;
 
 use egui::{
-    scroll_area::ScrollBarVisibility, vec2, Color32, Context, CursorIcon, Image, Rect,
-    ScrollArea, Spinner, Ui,
+    scroll_area::ScrollBarVisibility, vec2, Color32, Context, CursorIcon, Image, Rect, ScrollArea,
+    Spinner, Ui,
 };
 
 use crate::core::playlist::Playlist;
@@ -169,7 +169,7 @@ impl PlayListView {
                                         ui.label(track);
                                     }
                                 });
-                                ui.add_space(width - (ui.cursor().min.y - start_pos.y));
+                            ui.add_space(width - (ui.cursor().min.y - start_pos.y));
                         }
                     }
                 }

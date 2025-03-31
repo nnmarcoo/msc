@@ -25,6 +25,7 @@ rayon = "1.10"
 image = "0.25"
 egui_dnd = "0.12"
 color-thief = "0.2"
+kira = "0.10"
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }

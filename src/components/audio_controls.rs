@@ -4,9 +4,8 @@ use crate::{
 };
 use eframe::egui::TopBottomPanel;
 use egui::{include_image, vec2, Align, Color32, Context, Image, Label, Layout, RichText};
-use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct AudioControls {
     timeline_pos: f32,
     seek_pos: f32,
