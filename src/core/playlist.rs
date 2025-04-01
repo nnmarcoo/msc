@@ -3,9 +3,12 @@ use std::sync::{
     Arc, Mutex,
 };
 
-use egui::{ColorImage, Context, TextureHandle, TextureOptions};
-use image::{imageops::FilterType, load_from_memory};
+use color_thief::{get_palette, ColorFormat};
+use egui::{Color32, ColorImage, Context, TextureHandle, TextureOptions};
+use image::{imageops::FilterType, load_from_memory, DynamicImage};
 use serde::{Deserialize, Serialize};
+
+// Could all this threaded stuff be done better?
 
 #[derive(Serialize, Deserialize)]
 pub struct Playlist {
@@ -17,6 +20,8 @@ pub struct Playlist {
     pub tracks: Vec<String>,
     #[serde(skip)]
     pub texture: Arc<Mutex<Option<TextureHandle>>>,
+    #[serde(skip)]
+    average_color: Arc<Mutex<Color32>>,
 }
 
 impl Playlist {
@@ -29,6 +34,7 @@ impl Playlist {
             prev_size: 0.,
             gen_num: Arc::new(AtomicUsize::new(0)),
             tracks: vec!["deez".into(), "nuts".into()],
+            average_color:  Arc::new(Mutex::new(Color32::BLACK)),
         }
     }
 
@@ -39,6 +45,8 @@ impl Playlist {
 
         let gen_num = Arc::clone(&self.gen_num);
         let current_gen = gen_num.fetch_add(1, Ordering::SeqCst) + 1;
+
+        let average_color = Arc::clone(&self.average_color);
 
         rayon::spawn(move || {
             let img = image::open(&image_path).unwrap_or_else(|_| {
@@ -58,6 +66,8 @@ impl Playlist {
 
             let texture = ctx.load_texture(&image_path, color_image, TextureOptions::NEAREST);
             *texture_arc.lock().unwrap() = Some(texture);
+
+            *average_color.lock().unwrap() = dominant_color(&img);
         });
     }
 
@@ -77,4 +87,20 @@ impl Playlist {
     pub fn get_texture_handle(&self) -> Option<TextureHandle> {
         self.texture.lock().unwrap().clone()
     }
+
+    pub fn get_average_color(&self) -> Color32 {
+        self.average_color.lock().unwrap().clone()
+    }
+}
+
+fn dominant_color(image: &DynamicImage) -> Color32 {
+    let rgb_image = image.to_rgb8();
+    let pixels = rgb_image.as_raw();
+
+    if let Ok(palette) = get_palette(pixels, ColorFormat::Rgb, 10, 2) {
+        if let Some(color) = palette.first() {
+            return Color32::from_rgb(color.r, color.g, color.b);
+        }
+    }
+    Color32::BLACK
 }

@@ -155,7 +155,7 @@ impl PlayListView {
                             ui.painter().rect_filled(
                                 Rect::from_min_size(start_pos, vec2(ui.available_width(), width)),
                                 0.,
-                                Color32::LIGHT_YELLOW,
+                                expanded_playlist.get_average_color(),
                             );
 
                             ui.add_space(gap);
