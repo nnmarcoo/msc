@@ -1,7 +1,7 @@
 use std::cmp::max;
 
 use egui::{
-    scroll_area::ScrollBarVisibility, vec2, Color32, Context, CursorIcon, Image, Rect, ScrollArea,
+    scroll_area::ScrollBarVisibility, vec2, Context, CursorIcon, Image, Rect, ScrollArea,
     Spinner, Ui,
 };
 
