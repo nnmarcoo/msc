@@ -72,7 +72,7 @@ impl eframe::App for Msc {
         CentralPanel::default().show(ctx, |_ui| {
             handle_resize(self, ctx);
             self.titel_bar.show(ctx);
-            self.audio_controls.show(ctx);
+            self.audio_controls.show(&mut self.queue, ctx);
             //self.play_panel.show(ctx);
             self.main_panel.show(ctx);
         });

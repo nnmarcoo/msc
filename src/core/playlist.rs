@@ -34,7 +34,7 @@ impl Playlist {
             prev_size: 0.,
             gen_num: Arc::new(AtomicUsize::new(0)),
             tracks: vec!["deez".into(), "nuts".into()],
-            average_color:  Arc::new(Mutex::new(Color32::BLACK)),
+            average_color: Arc::new(Mutex::new(Color32::BLACK)),
         }
     }
 

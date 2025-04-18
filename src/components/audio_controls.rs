@@ -1,5 +1,5 @@
 use crate::{
-    core::helps::format_seconds,
+    core::{helps::format_seconds, queue::Queue},
     widgets::{color_slider::color_slider, styled_button::StyledButton},
 };
 use eframe::egui::TopBottomPanel;
@@ -21,7 +21,9 @@ impl AudioControls {
         }
     }
 
-    pub fn show(&mut self, ctx: &Context) {
+    pub fn show(&mut self, queue: &mut Queue, ctx: &Context) {
+        let is_playing = queue.is_playing();
+
         TopBottomPanel::bottom("audio_controls")
             .exact_height(64.)
             .show(ctx, |ui| {
@@ -34,12 +36,17 @@ impl AudioControls {
                         )
                         .with_rounding(5.),
                     );
+
+                    let playback_icon = if is_playing {
+                        include_image!("../../assets/icons/pause.png")
+                    } else {
+                        include_image!("../../assets/icons/play.png")
+                    };
+
                     ui.add(
-                        StyledButton::new(
-                            vec2(28., 28.),
-                            &Image::new(include_image!("../../assets/icons/pause.png")),
-                            || {},
-                        )
+                        StyledButton::new(vec2(28., 28.), &Image::new(playback_icon), || {
+                            queue.toggle_playback();
+                        })
                         .with_rounding(5.),
                     );
                     ui.add(
@@ -62,6 +69,7 @@ impl AudioControls {
                     ui.add(
                         StyledButton::new(vec2(22., 22.), &Image::new(vol_icon), || {
                             self.volume = if self.volume > 0. { 0. } else { 0.5 };
+                            queue.set_volume(self.volume);
                         })
                         .with_rounding(5.),
                     );

@@ -1,8 +1,8 @@
 use std::cmp::max;
 
 use egui::{
-    scroll_area::ScrollBarVisibility, vec2, Context, CursorIcon, Image, Rect, ScrollArea,
-    Spinner, Ui,
+    scroll_area::ScrollBarVisibility, vec2, Context, CursorIcon, Image, Rect, ScrollArea, Spinner,
+    Ui,
 };
 
 use crate::core::playlist::Playlist;
@@ -16,74 +16,7 @@ pub struct PlayListView {
 impl PlayListView {
     pub fn new() -> Self {
         PlayListView {
-            playlists: vec![
-                // some test playlists // remove later
-                Playlist::new(
-                    "Pwdadwalaylist 1".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\bass.jpg".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 2".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\break.png".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 2.5".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\brother.jpg".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 3".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\chillaxin.png".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 4".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\drwyd.png".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 5".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\no.jpg".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 6".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\over.png".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 7".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\ppur.jpg".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 8".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\punk.png".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 9".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\vamp.jpg".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 10".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\xtreem hy.jpg".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 11".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\zooom.png".to_string(),
-                ),
-                Playlist::new(
-                    "Playlist 12".to_string(),
-                    "Description 1".to_string(),
-                    "D:\\spotify\\debug.jpg".to_string(),
-                ),
-            ],
+            playlists: vec![],
             expanded_index: None,
         }
     }
