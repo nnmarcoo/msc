@@ -23,27 +23,23 @@ impl TitleBar {
     }
 
     pub fn show(&mut self, ctx: &Context) {
-        let zoom_scale = ctx.pixels_per_point();
-        let fixed_bar_height = self.bar_height / zoom_scale;
-        let control_size = vec2(fixed_bar_height, fixed_bar_height);
-
         TopBottomPanel::top("title_bar")
             .frame(Frame::default().inner_margin(Margin::ZERO))
             .show(ctx, |ui| {
                 self.handle_drag(ctx, ui);
 
                 menu::bar(ui, |ui| {
-                    ui.add_space(5. / zoom_scale);
+                    ui.add_space(5.);
                     ui.vertical(|ui| {
-                        ui.add_space(3. / zoom_scale);
+                        ui.add_space(3.);
                         ui.label(RichText::new("msc").font(FontId::new(
-                            32. / zoom_scale,
+                            32.,
                             FontFamily::Name("logo".into()),
                         )));
                     });
 
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        self.window_control_buttons(ctx, ui, control_size);
+                        self.window_control_buttons(ctx, ui, vec2(self.bar_height, self.bar_height));
                     });
                 });
             });
