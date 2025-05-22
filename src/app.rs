@@ -8,13 +8,13 @@ use crate::{
     },
     core::{helps::add_font, queue::Queue},
     resize::handle_resize,
-    structs::WindowState,
+    structs::{State, View},
 };
 
 #[derive(serde::Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct Msc {
-    pub window_state: WindowState,
+    pub state: State,
     pub titel_bar: TitleBar,
     pub audio_controls: AudioControls,
     pub play_panel: PlayPanel,
@@ -26,7 +26,13 @@ pub struct Msc {
 impl Default for Msc {
     fn default() -> Self {
         Self {
-            window_state: WindowState::default(),
+            state: State {
+                is_dragging: false,
+                is_maximized: false,
+                resizing: None,
+                audio_directory: String::new(),
+                view: View::Playlist,
+            },
             titel_bar: TitleBar::new(),
             audio_controls: AudioControls::new(),
             play_panel: PlayPanel::new(),
@@ -71,10 +77,10 @@ impl eframe::App for Msc {
 
         CentralPanel::default().show(ctx, |_ui| {
             handle_resize(self, ctx);
-            self.titel_bar.show(ctx);
+            self.titel_bar.show(ctx, &mut self.state);
             self.audio_controls.show(&mut self.queue, ctx);
             //self.play_panel.show(ctx);
-            self.main_panel.show(ctx);
+            self.main_panel.show(ctx, &mut self.state);
         });
     }
 }

@@ -3,14 +3,14 @@ use eframe::egui::{Context, CursorIcon, Pos2, ResizeDirection, ViewportCommand};
 use crate::Msc;
 
 pub fn handle_resize(app: &mut Msc, ctx: &Context) {
-    if app.window_state.is_maximized || app.window_state.is_dragging {
+    if app.state.is_maximized || app.state.is_dragging {
         return;
     }
 
     if let Some(pos) = ctx.input(|i| i.pointer.hover_pos()) {
-        app.window_state.resizing = check_resize_direction(ctx, pos);
+        app.state.resizing = check_resize_direction(ctx, pos);
 
-        match app.window_state.resizing {
+        match app.state.resizing {
             Some(ResizeDirection::NorthWest) | Some(ResizeDirection::SouthEast) => {
                 ctx.set_cursor_icon(CursorIcon::ResizeNwSe);
             }
@@ -29,7 +29,7 @@ pub fn handle_resize(app: &mut Msc, ctx: &Context) {
         if let Some(pos) = ctx.input(|i| i.pointer.press_origin()) {
             if check_resize_direction(ctx, pos) != None {
                 if ctx.input(|i| i.pointer.primary_down()) {
-                    if let Some(direction) = app.window_state.resizing {
+                    if let Some(direction) = app.state.resizing {
                         ctx.send_viewport_cmd(ViewportCommand::BeginResize(direction));
                     }
                 }

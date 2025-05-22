@@ -1,11 +1,15 @@
 use std::cmp::max;
 
 use egui::{
-    scroll_area::ScrollBarVisibility, vec2, Context, CursorIcon, Image, Rect, ScrollArea, Spinner,
-    Ui,
+    scroll_area::ScrollBarVisibility, vec2, Color32, Context, CursorIcon, Image, Label, Rect,
+    RichText, ScrollArea, Spinner, Ui,
 };
 
-use crate::core::playlist::Playlist;
+use crate::{
+    core::playlist::Playlist,
+    structs::{State, View},
+    widgets::link_label::link_label,
+};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct PlayListView {
@@ -21,7 +25,29 @@ impl PlayListView {
         }
     }
 
-    pub fn show(&mut self, ui: &mut Ui, ctx: &Context) {
+    pub fn show(&mut self, ui: &mut Ui, ctx: &Context, state: &mut State) {
+        // TODO: Add condition
+        ui.vertical(|ui| {
+            ui.add_space(ui.available_height() / 2. - 20.);
+            ui.horizontal(|ui| {
+                ui.add_space(ui.available_width() / 2. - 60.);
+                ui.add(Label::new("Audio folder empty!"));
+            });
+            ui.add_space(10.);
+            ui.horizontal(|ui| {
+                ui.add_space(ui.available_width() / 2. - 30.);
+
+                let settings_res = ui.add(link_label(
+                    RichText::new("Settings").color(Color32::WHITE),
+                    Color32::WHITE,
+                ));
+                if settings_res.clicked() {
+                    state.view = View::Settings;
+                }
+            });
+        });
+        return;
+
         let available_width = ui.available_width();
         let zoom = ctx.zoom_factor();
 
