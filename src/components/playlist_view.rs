@@ -6,47 +6,45 @@ use egui::{
 };
 
 use crate::{
-    core::playlist::Playlist,
     structs::{State, View},
     widgets::link_label::link_label,
 };
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct PlayListView {
-    playlists: Vec<Playlist>,
     expanded_index: Option<usize>,
 }
 
 impl PlayListView {
     pub fn new() -> Self {
         PlayListView {
-            playlists: vec![],
             expanded_index: None,
         }
     }
 
     pub fn show(&mut self, ui: &mut Ui, ctx: &Context, state: &mut State) {
-        // TODO: Add condition
-        ui.vertical(|ui| {
-            ui.add_space(ui.available_height() / 2. - 20.);
-            ui.horizontal(|ui| {
-                ui.add_space(ui.available_width() / 2. - 60.);
-                ui.add(Label::new("Audio folder empty!"));
-            });
-            ui.add_space(10.);
-            ui.horizontal(|ui| {
-                ui.add_space(ui.available_width() / 2. - 30.);
+        if state.library.is_empty() {
+            ui.vertical(|ui| {
+                ui.add_space(ui.available_height() / 2. - 20.);
+                ui.horizontal(|ui| {
+                    ui.add_space(ui.available_width() / 2. - 60.);
+                    ui.add(Label::new("Audio folder empty!"));
+                });
+                ui.add_space(10.);
+                ui.horizontal(|ui| {
+                    ui.add_space(ui.available_width() / 2. - 30.);
 
-                let settings_res = ui.add(link_label(
-                    RichText::new("Settings").color(Color32::WHITE),
-                    Color32::WHITE,
-                ));
-                if settings_res.clicked() {
-                    state.view = View::Settings;
-                }
+                    let settings_res = ui.add(link_label(
+                        RichText::new("Settings").color(Color32::WHITE),
+                        Color32::WHITE,
+                    ));
+                    if settings_res.clicked() {
+                        state.view = View::Settings;
+                    }
+                });
             });
-        });
-        return;
+            return;
+        }
 
         let available_width = ui.available_width();
         let zoom = ctx.zoom_factor();
@@ -71,7 +69,7 @@ impl PlayListView {
 
         ScrollArea::vertical().show(ui, |ui| {
             ui.vertical(|ui| {
-                let n = self.playlists.len();
+                let n = state.playlists.len();
                 let num_rows = (n + num_columns - 1) / num_columns;
 
                 for row in 0..num_rows {
@@ -80,7 +78,7 @@ impl PlayListView {
                             let i = row * num_columns + col;
                             if i < n {
                                 if let Some(texture) =
-                                    self.playlists[i].texture_or_load(scaled_size, ctx)
+                                    state.playlists[i].texture_or_load(scaled_size, ctx)
                                 {
                                     let res = ui.add(
                                         Image::new(&texture)
@@ -106,7 +104,7 @@ impl PlayListView {
 
                     if Some(row) == expanded_row {
                         if let Some(expanded_idx) = self.expanded_index {
-                            let expanded_playlist = &self.playlists[expanded_idx];
+                            let expanded_playlist = &state.playlists[expanded_idx];
 
                             let width = size * 2.;
                             let start_pos = ui.cursor().min;

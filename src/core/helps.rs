@@ -1,10 +1,16 @@
-use std::sync::{Arc, Mutex};
+use std::{
+    collections::HashMap, fs::read_dir, path::{Path, PathBuf}, sync::{Arc, Mutex}
+};
 
+use blake3::Hash;
 use egui::{
     epaint::text::{FontInsert, InsertFontFamily},
     ColorImage, Context, FontData, FontFamily, TextureHandle, TextureOptions,
 };
 use image::{imageops::FilterType, DynamicImage};
+use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+
+use super::track::Track;
 
 pub fn format_seconds(seconds: f32) -> String {
     let minutes = (seconds / 60.) as u32;
@@ -57,4 +63,46 @@ pub fn load_image(
 
         *texture_arc.lock().unwrap() = Some(texture);
     });
+}
+
+pub fn collect_audio_files(dir: &Path) -> HashMap<Hash, Track> {
+    let mut map = HashMap::new();
+
+    if let Ok(entries) = read_dir(dir) {
+        let entries: Vec<PathBuf> = entries
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .collect();
+
+        // Collect results in parallel into a Vec, then merge
+        let results: Vec<(Hash, Track)> = entries.par_iter().flat_map(|path| {
+            let mut local_results = Vec::new();
+            if path.is_file() {
+                if let Some(extension) = path.extension() {
+                    let ext = extension.to_string_lossy().to_lowercase();
+                    if ["mp3", "flac", "m4a", "wav", "ogg"].contains(&ext.as_str()) {
+                        if let Some(path_str) = path.to_str() {
+                            if let Some(track) = Track::new(path_str) {
+                                if let Ok(bytes) = std::fs::read(path) {
+                                    let hash = blake3::hash(&bytes);
+                                    local_results.push((hash, track));
+                                }
+                            }
+                        }
+                    }
+                }
+            } else if path.is_dir() {
+                let sub_map = collect_audio_files(path);
+                for (hash, track) in sub_map {
+                    local_results.push((hash, track));
+                }
+            }
+            local_results
+        }).collect();
+
+        for (hash, track) in results {
+            map.insert(hash, track);
+        }
+    }
+    map
 }

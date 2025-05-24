@@ -8,7 +8,7 @@ use egui::{Color32, ColorImage, Context, TextureHandle, TextureOptions};
 use image::{imageops::FilterType, load_from_memory, DynamicImage};
 use serde::{Deserialize, Serialize};
 
-// Could all this threaded stuff be done better?
+// THIS SUCKS
 
 #[derive(Serialize, Deserialize)]
 pub struct Playlist {
