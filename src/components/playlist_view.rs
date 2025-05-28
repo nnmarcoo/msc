@@ -23,7 +23,7 @@ impl PlayListView {
     }
 
     pub fn show(&mut self, ui: &mut Ui, ctx: &Context, state: &mut State) {
-        if state.library.is_empty() {
+        if state.audio_directory.is_empty() {
             ui.vertical(|ui| {
                 ui.add_space(ui.available_height() / 2. - 20.);
                 ui.horizontal(|ui| {
@@ -45,6 +45,11 @@ impl PlayListView {
             });
             return;
         }
+
+        ScrollArea::vertical().show(ui, |ui| {
+            ui.label(format!("{:#?}", state.library));
+        });
+        return;
 
         let available_width = ui.available_width();
         let zoom = ctx.zoom_factor();

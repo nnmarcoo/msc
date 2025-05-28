@@ -9,6 +9,13 @@ use super::{playlist::Playlist, track::Track};
 pub enum View {
     Playlist,
     Settings,
+    Loading,
+}
+
+impl Default for View {
+    fn default() -> Self {
+        View::Loading
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -20,7 +27,9 @@ pub struct State {
     #[serde(skip)]
     pub resizing: Option<ResizeDirection>,
     pub audio_directory: String,
+    #[serde(skip)]
     pub view: View,
+    #[serde(skip)]
     pub library: HashMap<Hash, Track>,
     pub playlists: Vec<Playlist>,
 }

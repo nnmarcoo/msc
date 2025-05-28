@@ -134,7 +134,9 @@ impl AudioControls {
                     } // shuffle queue
                     let _ = ui.button("⟲"); // repeat
                     let _ = ui.button("🔜"); // queue
-                    let _ = ui.button("⛭"); // settings
+                    if ui.button("⛭").clicked() {
+                        state.view = View::Settings;
+                    }
                 });
             });
     }

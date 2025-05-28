@@ -30,7 +30,7 @@ impl Default for Msc {
                 is_dragging: false,
                 is_maximized: false,
                 resizing: None,
-                view: View::Playlist,
+                view: View::Loading,
                 audio_directory: Default::default(),
                 library: Default::default(),
                 playlists: Default::default(),
@@ -61,7 +61,7 @@ impl Msc {
         });
 
         if let Some(storage) = cc.storage {
-            //return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
+            return eframe::get_value(storage, eframe::APP_KEY).unwrap_or_default();
         }
         Default::default()
     }
