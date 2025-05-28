@@ -130,10 +130,10 @@ impl AudioControls {
                     ui.add_space(60.);
 
                     if ui.button("🔀").clicked() {
-                        state.view = View::Playlist
-                    } // shuffle queue
-                    let _ = ui.button("⟲"); // repeat
-                    let _ = ui.button("🔜"); // queue
+                        state.view = View::Playlist;
+                    }
+                    if ui.button("⟲").clicked() {}
+                    let _ = ui.button("🔜");
                     if ui.button("⛭").clicked() {
                         state.view = View::Settings;
                     }

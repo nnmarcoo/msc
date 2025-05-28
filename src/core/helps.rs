@@ -11,9 +11,9 @@ use egui::{
     ColorImage, Context, FontData, FontFamily, TextureHandle, TextureOptions,
 };
 use image::{imageops::FilterType, DynamicImage};
-use rayon::iter::{IntoParallelIterator, IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 
-use super::track::Track;
+use super::{structs::State, track::Track};
 
 pub fn format_seconds(seconds: f32) -> String {
     let minutes = (seconds / 60.) as u32;
@@ -111,4 +111,13 @@ pub fn collect_audio_files(dir: &Path) -> HashMap<Hash, Track> {
         }
     }
     map
+}
+
+pub fn init(state: &mut State) {
+    if state.is_initialized {
+        return;
+    }
+    state.is_initialized = true;
+
+    state.library = collect_audio_files(Path::new(&state.audio_directory));
 }

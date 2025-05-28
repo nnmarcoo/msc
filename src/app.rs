@@ -1,4 +1,4 @@
-use egui::{CentralPanel, Visuals};
+use egui::{CentralPanel, Context, Visuals};
 use egui_extras::install_image_loaders;
 
 use crate::{
@@ -6,9 +6,12 @@ use crate::{
         audio_controls::AudioControls, main_panel::MainPanel, play_panel::PlayPanel,
         title_bar::TitleBar,
     },
-    core::{helps::add_font, queue::Queue},
+    core::{
+        helps::{add_font, init},
+        queue::Queue,
+    },
     resize::handle_resize,
-    structs::{State, View},
+    structs::State,
 };
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -20,21 +23,13 @@ pub struct Msc {
     pub play_panel: PlayPanel,
     pub main_panel: MainPanel,
 
-    pub queue: Queue,
+    pub queue: Queue, // this should probably be in state
 }
 
 impl Default for Msc {
     fn default() -> Self {
         Self {
-            state: State {
-                is_dragging: false,
-                is_maximized: false,
-                resizing: None,
-                view: View::Loading,
-                audio_directory: Default::default(),
-                library: Default::default(),
-                playlists: Default::default(),
-            },
+            state: State::default(),
             titel_bar: TitleBar::new(),
             audio_controls: AudioControls::new(),
             play_panel: PlayPanel::new(),
@@ -72,11 +67,8 @@ impl eframe::App for Msc {
         eframe::set_value(storage, eframe::APP_KEY, self);
     }
 
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if ctx.zoom_factor() > 1.7 {
-            ctx.set_zoom_factor(1.7);
-        }
-
+    fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
+        init(&mut self.state);
         CentralPanel::default().show(ctx, |_ui| {
             handle_resize(self, ctx);
             self.titel_bar.show(ctx, &mut self.state);

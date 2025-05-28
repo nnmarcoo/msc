@@ -23,7 +23,7 @@ impl PlayListView {
     }
 
     pub fn show(&mut self, ui: &mut Ui, ctx: &Context, state: &mut State) {
-        if state.audio_directory.is_empty() {
+        if state.audio_directory.is_empty() || state.library.is_empty() {
             ui.vertical(|ui| {
                 ui.add_space(ui.available_height() / 2. - 20.);
                 ui.horizontal(|ui| {
@@ -34,22 +34,19 @@ impl PlayListView {
                 ui.horizontal(|ui| {
                     ui.add_space(ui.available_width() / 2. - 30.);
 
-                    let settings_res = ui.add(link_label(
-                        RichText::new("Settings").color(Color32::WHITE),
-                        Color32::WHITE,
-                    ));
-                    if settings_res.clicked() {
+                    if ui
+                        .add(link_label(
+                            RichText::new("Settings").color(Color32::WHITE),
+                            Color32::WHITE,
+                        ))
+                        .clicked()
+                    {
                         state.view = View::Settings;
                     }
                 });
             });
             return;
         }
-
-        ScrollArea::vertical().show(ui, |ui| {
-            ui.label(format!("{:#?}", state.library));
-        });
-        return;
 
         let available_width = ui.available_width();
         let zoom = ctx.zoom_factor();
