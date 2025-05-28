@@ -1,5 +1,6 @@
 use crate::{
     core::{helps::format_seconds, queue::Queue},
+    structs::{State, View},
     widgets::{color_slider::color_slider, styled_button::StyledButton},
 };
 use eframe::egui::TopBottomPanel;
@@ -21,7 +22,7 @@ impl AudioControls {
         }
     }
 
-    pub fn show(&mut self, queue: &mut Queue, ctx: &Context) {
+    pub fn show(&mut self, ctx: &Context, queue: &mut Queue, state: &mut State) {
         let is_playing = queue.is_playing();
 
         TopBottomPanel::bottom("audio_controls")
@@ -128,7 +129,9 @@ impl AudioControls {
 
                     ui.add_space(60.);
 
-                    let _ = ui.button("🔀"); // shuffle queue
+                    if ui.button("🔀").clicked() {
+                        state.view = View::Playlist
+                    } // shuffle queue
                     let _ = ui.button("⟲"); // repeat
                     let _ = ui.button("🔜"); // queue
                     let _ = ui.button("⛭"); // settings

@@ -123,7 +123,7 @@ impl PlayListView {
                                     ui.heading(&expanded_playlist.name);
                                     ui.label("Tracks:");
                                     for track in &expanded_playlist.tracks {
-                                        ui.label(track);
+                                        ui.label(track.to_string()); // This needs to be changed
                                     }
                                 });
                             ui.add_space(width - (ui.cursor().min.y - start_pos.y));

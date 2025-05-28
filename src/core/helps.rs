@@ -1,5 +1,8 @@
 use std::{
-    collections::HashMap, fs::read_dir, path::{Path, PathBuf}, sync::{Arc, Mutex}
+    collections::HashMap,
+    fs::read_dir,
+    path::{Path, PathBuf},
+    sync::{Arc, Mutex},
 };
 
 use blake3::Hash;
@@ -75,30 +78,33 @@ pub fn collect_audio_files(dir: &Path) -> HashMap<Hash, Track> {
             .collect();
 
         // Collect results in parallel into a Vec, then merge
-        let results: Vec<(Hash, Track)> = entries.par_iter().flat_map(|path| {
-            let mut local_results = Vec::new();
-            if path.is_file() {
-                if let Some(extension) = path.extension() {
-                    let ext = extension.to_string_lossy().to_lowercase();
-                    if ["mp3", "flac", "m4a", "wav", "ogg"].contains(&ext.as_str()) {
-                        if let Some(path_str) = path.to_str() {
-                            if let Some(track) = Track::new(path_str) {
-                                if let Ok(bytes) = std::fs::read(path) {
-                                    let hash = blake3::hash(&bytes);
-                                    local_results.push((hash, track));
+        let results: Vec<(Hash, Track)> = entries
+            .par_iter()
+            .flat_map(|path| {
+                let mut local_results = Vec::new();
+                if path.is_file() {
+                    if let Some(extension) = path.extension() {
+                        let ext = extension.to_string_lossy().to_lowercase();
+                        if ["mp3", "flac", "m4a", "wav", "ogg"].contains(&ext.as_str()) {
+                            if let Some(path_str) = path.to_str() {
+                                if let Some(track) = Track::new(path_str) {
+                                    if let Ok(bytes) = std::fs::read(path) {
+                                        let hash = blake3::hash(&bytes);
+                                        local_results.push((hash, track));
+                                    }
                                 }
                             }
                         }
                     }
+                } else if path.is_dir() {
+                    let sub_map = collect_audio_files(path);
+                    for (hash, track) in sub_map {
+                        local_results.push((hash, track));
+                    }
                 }
-            } else if path.is_dir() {
-                let sub_map = collect_audio_files(path);
-                for (hash, track) in sub_map {
-                    local_results.push((hash, track));
-                }
-            }
-            local_results
-        }).collect();
+                local_results
+            })
+            .collect();
 
         for (hash, track) in results {
             map.insert(hash, track);

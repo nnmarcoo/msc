@@ -3,6 +3,7 @@ use std::sync::{
     Arc, Mutex,
 };
 
+use blake3::Hash;
 use color_thief::{get_palette, ColorFormat};
 use egui::{Color32, ColorImage, Context, TextureHandle, TextureOptions};
 use image::{imageops::FilterType, load_from_memory, DynamicImage};
@@ -17,7 +18,7 @@ pub struct Playlist {
     pub image_path: String,
     pub prev_size: f32,
     pub gen_num: Arc<AtomicUsize>,
-    pub tracks: Vec<String>,
+    pub tracks: Vec<Hash>,
     #[serde(skip)]
     pub texture: Arc<Mutex<Option<TextureHandle>>>,
     #[serde(skip)]
@@ -33,7 +34,7 @@ impl Playlist {
             texture: Arc::new(Mutex::new(None)),
             prev_size: 0.,
             gen_num: Arc::new(AtomicUsize::new(0)),
-            tracks: vec!["deez".into(), "nuts".into()],
+            tracks: vec![],
             average_color: Arc::new(Mutex::new(Color32::BLACK)),
         }
     }

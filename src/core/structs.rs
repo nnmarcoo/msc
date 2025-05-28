@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 
 use blake3::Hash;
-use egui::{ResizeDirection};
+use egui::ResizeDirection;
 
 use super::{playlist::Playlist, track::Track};
 
