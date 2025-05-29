@@ -6,10 +6,7 @@ use crate::{
         audio_controls::AudioControls, main_panel::MainPanel, play_panel::PlayPanel,
         title_bar::TitleBar,
     },
-    core::{
-        helps::{add_font, init},
-        queue::Queue,
-    },
+    core::helps::{add_font, init},
     resize::handle_resize,
     structs::State,
 };
@@ -22,8 +19,6 @@ pub struct Msc {
     pub audio_controls: AudioControls,
     pub play_panel: PlayPanel,
     pub main_panel: MainPanel,
-
-    pub queue: Queue, // this should probably be in state
 }
 
 impl Default for Msc {
@@ -34,8 +29,6 @@ impl Default for Msc {
             audio_controls: AudioControls::new(),
             play_panel: PlayPanel::new(),
             main_panel: MainPanel::new(),
-
-            queue: Queue::new(),
         }
     }
 }
@@ -72,8 +65,7 @@ impl eframe::App for Msc {
         CentralPanel::default().show(ctx, |_ui| {
             handle_resize(self, ctx);
             self.titel_bar.show(ctx, &mut self.state);
-            self.audio_controls
-                .show(ctx, &mut self.queue, &mut self.state);
+            self.audio_controls.show(ctx, &mut self.state);
             //self.play_panel.show(ctx);
             self.main_panel.show(ctx, &mut self.state);
         });

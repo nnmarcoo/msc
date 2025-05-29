@@ -1,5 +1,5 @@
 use crate::{
-    core::{helps::format_seconds, queue::Queue},
+    core::helps::format_seconds,
     structs::{State, View},
     widgets::{color_slider::color_slider, styled_button::StyledButton},
 };
@@ -22,8 +22,8 @@ impl AudioControls {
         }
     }
 
-    pub fn show(&mut self, ctx: &Context, queue: &mut Queue, state: &mut State) {
-        let is_playing = queue.is_playing();
+    pub fn show(&mut self, ctx: &Context, state: &mut State) {
+        let is_playing = state.queue.is_playing();
 
         TopBottomPanel::bottom("audio_controls")
             .exact_height(64.)
@@ -46,7 +46,7 @@ impl AudioControls {
 
                     ui.add(
                         StyledButton::new(vec2(28., 28.), &Image::new(playback_icon), || {
-                            queue.toggle_playback();
+                            state.queue.toggle_playback();
                         })
                         .with_rounding(5.),
                     );
@@ -70,7 +70,7 @@ impl AudioControls {
                     ui.add(
                         StyledButton::new(vec2(22., 22.), &Image::new(vol_icon), || {
                             self.volume = if self.volume > 0. { 0. } else { 0.5 };
-                            queue.set_volume(self.volume);
+                            state.queue.set_volume(self.volume);
                         })
                         .with_rounding(5.),
                     );
