@@ -11,13 +11,13 @@ use crate::{
 };
 
 #[derive(serde::Deserialize, serde::Serialize)]
-pub struct PlayListView {
+pub struct PlayListsView {
     expanded_index: Option<usize>,
 }
 
-impl PlayListView {
+impl PlayListsView {
     pub fn new() -> Self {
-        PlayListView {
+        PlayListsView {
             expanded_index: None,
         }
     }
@@ -47,10 +47,6 @@ impl PlayListView {
             });
             return;
         }
-
-        ScrollArea::vertical().show(ui, |ui| {
-            ui.label(format!("{:#?}", state.library));
-        });
 
         let available_width = ui.available_width();
         let zoom = ctx.zoom_factor();
