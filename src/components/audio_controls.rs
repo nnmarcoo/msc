@@ -87,7 +87,7 @@ impl AudioControls {
                     ui.add_space(10.);
 
                     ui.allocate_ui(
-                        vec2((ui.available_width() - 300.).max(0.), ui.available_height()),
+                        vec2((ui.available_width() - 250.).max(0.), ui.available_height()),
                         |ui| {
                             ui.vertical(|ui| {
                                 ui.add_space(20.);
@@ -99,7 +99,7 @@ impl AudioControls {
                                         ui.add(Label::new("Artist").truncate());
                                         ui.add_space(ui.available_width());
 
-                                        let duration = format_seconds(100.);
+                                        let duration = format_seconds(0.);
 
                                         ui.label(format!(
                                             "{} / {}",
@@ -112,7 +112,7 @@ impl AudioControls {
 
                                     let timeline_res = ui.add(color_slider(
                                         &mut self.timeline_pos,
-                                        0.0..=100.,
+                                        0.0..=0.,
                                         ui.available_width(),
                                         4.,
                                         4.,
@@ -127,13 +127,11 @@ impl AudioControls {
                         },
                     );
 
-                    ui.add_space(60.);
+                    ui.add_space(30.);
 
-                    if ui.button("🔀").clicked() {
-                        state.view = View::Playlist;
-                    }
+                    if ui.button("🔀").clicked() {}
                     if ui.button("⟲").clicked() {}
-                    let _ = ui.button("🔜");
+                    if ui.button("🔜").clicked() {}
                     if ui.button("⛭").clicked() {
                         state.view = View::Settings;
                     }
