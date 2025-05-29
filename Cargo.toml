@@ -21,7 +21,7 @@ eframe = { version = "0.31", default-features = false, features = [
 ] }
 log = "0.4"
 egui_extras = { version = "0.31", features = ["all_loaders"] }
-blake3 = { version = "1.8", features = ["serde"] }
+blake3 = { version = "1.8", features = ["serde", "mmap"] }
 rayon = "1.10"
 image = "0.25"
 egui_dnd = "0.12"
@@ -29,6 +29,7 @@ color-thief = "0.2"
 kira = "0.10"
 lofty = "0.22"
 rfd = "0.15"
+dashmap = "6.1"
 
 # You only need serde if you want app persistence:
 serde = { version = "1", features = ["derive"] }

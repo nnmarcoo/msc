@@ -48,6 +48,10 @@ impl PlayListView {
             return;
         }
 
+        ScrollArea::vertical().show(ui, |ui| {
+            ui.label(format!("{:#?}", state.library));
+        });
+
         let available_width = ui.available_width();
         let zoom = ctx.zoom_factor();
 

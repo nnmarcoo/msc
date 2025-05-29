@@ -1,17 +1,18 @@
 use std::{
     collections::HashMap,
     fs::read_dir,
-    path::{Path, PathBuf},
+    path::Path,
     sync::{Arc, Mutex},
 };
 
-use blake3::Hash;
+use blake3::{Hash, Hasher};
+use dashmap::DashMap;
 use egui::{
     epaint::text::{FontInsert, InsertFontFamily},
     ColorImage, Context, FontData, FontFamily, TextureHandle, TextureOptions,
 };
 use image::{imageops::FilterType, DynamicImage};
-use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
+use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use super::{structs::State, track::Track};
 
@@ -69,48 +70,37 @@ pub fn load_image(
 }
 
 pub fn collect_audio_files(dir: &Path) -> HashMap<Hash, Track> {
-    let mut map = HashMap::new();
+    let map = DashMap::new();
 
     if let Ok(entries) = read_dir(dir) {
-        let entries: Vec<PathBuf> = entries
-            .filter_map(Result::ok)
-            .map(|entry| entry.path())
-            .collect();
-
-        // Collect results in parallel into a Vec, then merge
-        let results: Vec<(Hash, Track)> = entries
-            .par_iter()
-            .flat_map(|path| {
-                let mut local_results = Vec::new();
+        entries.par_bridge().for_each(|res| {
+            if let Ok(entry) = res {
+                let path = entry.path();
                 if path.is_file() {
-                    if let Some(extension) = path.extension() {
-                        let ext = extension.to_string_lossy().to_lowercase();
+                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
+                        let ext = ext.to_lowercase();
                         if ["mp3", "flac", "m4a", "wav", "ogg"].contains(&ext.as_str()) {
                             if let Some(path_str) = path.to_str() {
                                 if let Some(track) = Track::new(path_str) {
-                                    if let Ok(bytes) = std::fs::read(path) {
-                                        let hash = blake3::hash(&bytes);
-                                        local_results.push((hash, track));
+                                    let mut hasher = Hasher::new();
+                                    if let Ok(_) = hasher.update_mmap(&path) {
+                                        let hash = hasher.finalize();
+                                        map.insert(hash, track);
                                     }
                                 }
                             }
                         }
                     }
                 } else if path.is_dir() {
-                    let sub_map = collect_audio_files(path);
+                    let sub_map = collect_audio_files(&path);
                     for (hash, track) in sub_map {
-                        local_results.push((hash, track));
+                        map.insert(hash, track);
                     }
                 }
-                local_results
-            })
-            .collect();
-
-        for (hash, track) in results {
-            map.insert(hash, track);
-        }
+            }
+        });
     }
-    map
+    map.into_iter().collect()
 }
 
 pub fn init(state: &mut State) {
