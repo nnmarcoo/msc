@@ -39,23 +39,30 @@ impl TitleBar {
                         );
                     });
 
-                    ui.add(
-                        StyledButton::new(
-                            self.size,
-                            &Image::new(include_image!("../../assets/icons/playlists.png")),
-                            || state.view = View::Playlists,
-                        )
-                        .with_hover_text("Playlists"),
-                    );
+                    ui.vertical(|ui| {
+                        ui.add_space(6.);
+                        ui.horizontal(|ui| {
+                            ui.add(
+                                StyledButton::new(
+                                    self.size / 1.5,
+                                    &Image::new(include_image!("../../assets/icons/playlists.png")),
+                                    || state.view = View::Playlists,
+                                )
+                                .with_rounding(5.)
+                                .with_hover_text("Playlists"),
+                            );
 
-                    ui.add(
-                        StyledButton::new(
-                            self.size,
-                            &Image::new(include_image!("../../assets/icons/library.png")),
-                            || state.view = View::Library,
-                        )
-                        .with_hover_text("Library"),
-                    );
+                            ui.add(
+                                StyledButton::new(
+                                    self.size / 1.5,
+                                    &Image::new(include_image!("../../assets/icons/library.png")),
+                                    || state.view = View::Library,
+                                )
+                                .with_rounding(5.)
+                                .with_hover_text("Library"),
+                            );
+                        });
+                    });
 
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         self.window_control_buttons(ctx, ui, self.size, state);
