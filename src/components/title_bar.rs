@@ -6,16 +6,21 @@ use eframe::egui::{
 };
 use egui::{FontFamily, FontId, Image, RichText, Ui, Vec2};
 
-use crate::{structs::State, widgets::styled_button::StyledButton};
+use crate::{
+    structs::{State, View},
+    widgets::styled_button::StyledButton,
+};
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct TitleBar {
-    bar_height: f32,
+    size: Vec2,
 }
 
 impl TitleBar {
     pub fn new() -> Self {
-        TitleBar { bar_height: 32. }
+        TitleBar {
+            size: vec2(32., 32.),
+        }
     }
 
     pub fn show(&mut self, ctx: &Context, state: &mut State) {
@@ -34,13 +39,26 @@ impl TitleBar {
                         );
                     });
 
+                    ui.add(
+                        StyledButton::new(
+                            self.size,
+                            &Image::new(include_image!("../../assets/icons/playlists.png")),
+                            || state.view = View::Playlists,
+                        )
+                        .with_hover_text("Playlists"),
+                    );
+
+                    ui.add(
+                        StyledButton::new(
+                            self.size,
+                            &Image::new(include_image!("../../assets/icons/library.png")),
+                            || state.view = View::Library,
+                        )
+                        .with_hover_text("Library"),
+                    );
+
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
-                        self.window_control_buttons(
-                            ctx,
-                            ui,
-                            vec2(self.bar_height, self.bar_height),
-                            state,
-                        );
+                        self.window_control_buttons(ctx, ui, self.size, state);
                     });
                 });
             });
@@ -70,23 +88,33 @@ impl TitleBar {
                 &Image::new(include_image!("../../assets/icons/x.png")),
                 || ctx.send_viewport_cmd(ViewportCommand::Close),
             )
-            .with_hover_color(Color32::from_rgb(232, 17, 35)),
+            .with_hover_color(Color32::from_rgb(232, 17, 35))
+            .with_hover_text("Close"),
         );
 
-        let min_max = if state.is_maximized {
-            include_image!("../../assets/icons/restore.png")
+        let (min_max, min_max_text) = if state.is_maximized {
+            (include_image!("../../assets/icons/restore.png"), "Restore")
         } else {
-            include_image!("../../assets/icons/maximize.png")
+            (
+                include_image!("../../assets/icons/maximize.png"),
+                "Maximize",
+            )
         };
 
-        ui.add(StyledButton::new(size, &Image::new(min_max), || {
-            ctx.send_viewport_cmd(ViewportCommand::Maximized(!state.is_maximized))
-        }));
+        ui.add(
+            StyledButton::new(size, &Image::new(min_max), || {
+                ctx.send_viewport_cmd(ViewportCommand::Maximized(!state.is_maximized))
+            })
+            .with_hover_text(min_max_text),
+        );
 
-        ui.add(StyledButton::new(
-            size,
-            &Image::new(include_image!("../../assets/icons/minimize.png")),
-            || ctx.send_viewport_cmd(ViewportCommand::Minimized(true)),
-        ));
+        ui.add(
+            StyledButton::new(
+                size,
+                &Image::new(include_image!("../../assets/icons/minimize.png")),
+                || ctx.send_viewport_cmd(ViewportCommand::Minimized(true)),
+            )
+            .with_hover_text("Minimize"),
+        );
     }
 }

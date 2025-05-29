@@ -7,8 +7,9 @@ use super::{playlist::Playlist, queue::Queue, track::Track};
 
 #[derive(serde::Deserialize, serde::Serialize, PartialEq)]
 pub enum View {
-    Playlist,
+    Playlists,
     Settings,
+    Library,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -38,7 +39,7 @@ impl Default for State {
             resizing: None,
             audio_directory: Default::default(),
             library: Default::default(),
-            view: View::Playlist,
+            view: View::Playlists,
             playlists: Vec::new(),
             queue: Queue::new(),
         }
