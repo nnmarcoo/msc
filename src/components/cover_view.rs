@@ -12,13 +12,13 @@ use crate::{
 };
 
 #[derive(serde::Deserialize, serde::Serialize)]
-pub struct PlayListsView {
+pub struct CoverView {
     expanded_index: Option<usize>,
 }
 
-impl PlayListsView {
+impl CoverView {
     pub fn new() -> Self {
-        PlayListsView {
+        CoverView {
             expanded_index: None,
         }
     }

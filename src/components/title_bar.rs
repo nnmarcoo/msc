@@ -46,7 +46,7 @@ impl TitleBar {
                                 StyledButton::new(
                                     self.size / 1.5,
                                     &Image::new(include_image!("../../assets/icons/playlists.png")),
-                                    || state.view = View::Playlists,
+                                    || state.view = View::Covers,
                                 )
                                 .with_rounding(5.)
                                 .with_hover_text("Playlists"),
