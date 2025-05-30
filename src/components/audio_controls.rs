@@ -35,19 +35,21 @@ impl AudioControls {
                             &Image::new(include_image!("../../assets/icons/previous.png")),
                             || {},
                         )
+                        .with_hover_text("Previous")
                         .with_rounding(5.),
                     );
 
-                    let playback_icon = if is_playing {
-                        include_image!("../../assets/icons/pause.png")
+                    let (playback_icon, playback_text) = if is_playing {
+                        (include_image!("../../assets/icons/pause.png"), "Pause")
                     } else {
-                        include_image!("../../assets/icons/play.png")
+                        (include_image!("../../assets/icons/play.png"), "Play")
                     };
 
                     ui.add(
                         StyledButton::new(vec2(28., 28.), &Image::new(playback_icon), || {
                             state.queue.toggle_playback();
                         })
+                        .with_hover_text(playback_text)
                         .with_rounding(5.),
                     );
                     ui.add(
@@ -56,15 +58,16 @@ impl AudioControls {
                             &Image::new(include_image!("../../assets/icons/next.png")),
                             || {},
                         )
+                        .with_hover_text("Next")
                         .with_rounding(5.),
                     );
 
                     ui.add_space(15.);
 
-                    let vol_icon = if self.volume > 0. {
-                        include_image!("../../assets/icons/vol_on.png")
+                    let (vol_icon, vol_text) = if self.volume > 0. {
+                        (include_image!("../../assets/icons/vol_on.png"), "Mute")
                     } else {
-                        include_image!("../../assets/icons/vol_off.png")
+                        (include_image!("../../assets/icons/vol_off.png"), "Unmute")
                     };
 
                     ui.add(
@@ -72,6 +75,7 @@ impl AudioControls {
                             self.volume = if self.volume > 0. { 0. } else { 0.5 };
                             state.queue.set_volume(self.volume);
                         })
+                        .with_hover_text(vol_text)
                         .with_rounding(5.),
                     );
 
