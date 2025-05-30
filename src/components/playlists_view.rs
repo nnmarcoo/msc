@@ -6,6 +6,7 @@ use egui::{
 };
 
 use crate::{
+    core::playlist::Playlist,
     structs::{State, View},
     widgets::link_label::link_label,
 };
@@ -70,6 +71,13 @@ impl PlayListsView {
         let expanded_row = self.expanded_index.map(|i| i / num_columns);
 
         ScrollArea::vertical().show(ui, |ui| {
+            if ui.button("+").clicked() {
+                state.playlists.push(Playlist::new(
+                    format!("Playlist {}", state.playlists.len() + 1),
+                    String::new(),
+                    String::new(),
+                ));
+            }
             ui.vertical(|ui| {
                 let n = state.playlists.len();
                 let num_rows = (n + num_columns - 1) / num_columns;
