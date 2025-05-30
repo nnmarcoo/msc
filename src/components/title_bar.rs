@@ -40,7 +40,7 @@ impl TitleBar {
                     });
 
                     ui.vertical(|ui| {
-                        ui.add_space(6.);
+                        ui.add_space(5.);
                         ui.horizontal(|ui| {
                             ui.add(
                                 StyledButton::new(
