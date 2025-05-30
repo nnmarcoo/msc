@@ -1,4 +1,6 @@
-use egui::{scroll_area::ScrollBarVisibility, Align, Label, Layout, Sense, TextWrapMode, Ui};
+use egui::{
+    scroll_area::ScrollBarVisibility, Align, Label, Layout, ScrollArea, Sense, TextWrapMode, Ui,
+};
 use egui_extras::{Column, TableBuilder};
 
 use crate::{core::helps::format_seconds, structs::State};
@@ -57,12 +59,13 @@ impl LibraryView {
 
                                 if !state.playlists.is_empty() {
                                     ui.separator();
-
-                                    for playlist in &mut state.playlists {
-                                        if ui.button(&playlist.name).clicked() {
-                                            // TODO: Add track (selection) to playlist
+                                    ScrollArea::vertical().show(ui, |ui| {
+                                        for playlist in &mut state.playlists {
+                                            if ui.button(&playlist.name).clicked() {
+                                                // TODO: Add track (selection) to playlist
+                                            }
                                         }
-                                    }
+                                    });
                                 }
                             });
 
