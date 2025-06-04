@@ -2,9 +2,7 @@ use egui::{CentralPanel, Context};
 
 use crate::structs::{State, View};
 
-use super::{
-    library_view::LibraryView, cover_view::CoverView, settings_view::SettingsView,
-};
+use super::{cover_view::CoverView, library_view::LibraryView, settings_view::SettingsView};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct MainPanel {

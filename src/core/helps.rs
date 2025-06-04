@@ -1,5 +1,4 @@
 use std::{
-    collections::HashMap,
     fs::read_dir,
     path::Path,
     sync::{Arc, Mutex},
@@ -14,7 +13,7 @@ use egui::{
 use image::{imageops::FilterType, DynamicImage};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
-use super::{structs::State, track::Track};
+use super::track::Track;
 
 pub fn format_seconds(seconds: f32) -> String {
     let minutes = (seconds / 60.) as u32;
@@ -69,7 +68,7 @@ pub fn load_image(
     });
 }
 
-pub fn collect_audio_files(dir: &Path) -> HashMap<Hash, Track> {
+pub fn collect_audio_files(dir: &Path) -> DashMap<Hash, Track> {
     let map = DashMap::new();
 
     if let Ok(entries) = read_dir(dir) {
@@ -100,14 +99,5 @@ pub fn collect_audio_files(dir: &Path) -> HashMap<Hash, Track> {
             }
         });
     }
-    map.into_iter().collect()
-}
-
-pub fn init(state: &mut State) {
-    if state.is_initialized {
-        return;
-    }
-    state.is_initialized = true;
-
-    state.library = collect_audio_files(Path::new(&state.audio_directory));
+    map
 }

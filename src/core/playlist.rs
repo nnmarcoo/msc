@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 pub struct Playlist {
     pub name: String,
     pub description: String,
-    pub image_path: String,
+    pub image_path: String, // should this be able to be a pic from one of the tracks?
     pub prev_size: f32,
     pub gen_num: Arc<AtomicUsize>,
     pub tracks: Vec<Hash>,

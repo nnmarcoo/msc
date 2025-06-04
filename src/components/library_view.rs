@@ -1,9 +1,13 @@
+use std::sync::atomic::Ordering;
+
 use egui::{
     scroll_area::ScrollBarVisibility, Align, Label, Layout, ScrollArea, Sense, TextWrapMode, Ui,
 };
 use egui_extras::{Column, TableBuilder};
 
-use crate::{core::helps::format_seconds, structs::State};
+use crate::{components::shared::show_loading, core::helps::format_seconds, structs::State};
+
+use super::shared::show_empty_library;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct LibraryView {}
@@ -14,6 +18,12 @@ impl LibraryView {
     }
 
     pub fn show(&mut self, ui: &mut Ui, state: &mut State) {
+        if !state.library_loaded.load(Ordering::SeqCst) {
+            return show_loading(ui);
+        } else if state.library.is_empty() {
+            return show_empty_library(ui, state);
+        }
+
         pub const HEADERS: [&str; 4] = ["Title", "Artist", "Album", "Duration"];
         let width = ((ui.available_width() / (HEADERS.len() - 1) as f32) - 24.).max(0.);
 
@@ -33,7 +43,7 @@ impl LibraryView {
                 }
             })
             .body(|mut body| {
-                for (_, track) in &state.library {
+                for track in state.library.iter() {
                     body.row(20., |mut row| {
                         row.col(|ui| {
                             ui.add(Label::new(&track.title).truncate());

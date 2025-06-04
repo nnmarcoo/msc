@@ -6,7 +6,7 @@ use crate::{
         audio_controls::AudioControls, main_panel::MainPanel, play_panel::PlayPanel,
         title_bar::TitleBar,
     },
-    core::helps::{add_font, init},
+    core::helps::add_font,
     resize::handle_resize,
     structs::State,
 };
@@ -61,7 +61,7 @@ impl eframe::App for Msc {
     }
 
     fn update(&mut self, ctx: &Context, _frame: &mut eframe::Frame) {
-        init(&mut self.state);
+        self.state.init();
         CentralPanel::default().show(ctx, |_ui| {
             handle_resize(self, ctx);
             self.titel_bar.show(ctx, &mut self.state);

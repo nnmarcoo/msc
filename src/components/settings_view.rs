@@ -1,9 +1,7 @@
-use std::path::Path;
-
 use egui::{Color32, RichText, Ui};
 use rfd::FileDialog;
 
-use crate::{core::helps::collect_audio_files, structs::State};
+use crate::structs::State;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct SettingsView {}
@@ -24,8 +22,7 @@ impl SettingsView {
             {
                 if let Some(folder_path) = FileDialog::new().pick_folder() {
                     state.audio_directory = folder_path.to_string_lossy().to_string();
-                    state.library = collect_audio_files(Path::new(&state.audio_directory));
-                    println!("Library: {:#?}", state.library);
+                    state.start_loading_library();
                 }
             }
         });
