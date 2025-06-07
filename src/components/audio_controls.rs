@@ -10,7 +10,6 @@ use egui::{include_image, vec2, Align, Color32, Context, Image, Label, Layout, R
 pub struct AudioControls {
     timeline_pos: f32,
     seek_pos: f32,
-    volume: f32,
 }
 
 impl AudioControls {
@@ -18,7 +17,6 @@ impl AudioControls {
         AudioControls {
             timeline_pos: 0.,
             seek_pos: -1.,
-            volume: 0.5,
         }
     }
 
@@ -33,7 +31,9 @@ impl AudioControls {
                         StyledButton::new(
                             vec2(22., 22.),
                             &Image::new(include_image!("../../assets/icons/previous.png")),
-                            || {},
+                            || {
+                                state.queue.play_previous();
+                            },
                         )
                         .with_hover_text("Previous")
                         .with_rounding(5.),
@@ -56,7 +56,9 @@ impl AudioControls {
                         StyledButton::new(
                             vec2(22., 22.),
                             &Image::new(include_image!("../../assets/icons/next.png")),
-                            || {},
+                            || {
+                                state.queue.play_next();
+                            },
                         )
                         .with_hover_text("Next")
                         .with_rounding(5.),
@@ -64,7 +66,7 @@ impl AudioControls {
 
                     ui.add_space(15.);
 
-                    let (vol_icon, vol_text) = if self.volume > 0. {
+                    let (vol_icon, vol_text) = if state.queue.volume > 0. {
                         (include_image!("../../assets/icons/vol_on.png"), "Mute")
                     } else {
                         (include_image!("../../assets/icons/vol_off.png"), "Unmute")
@@ -72,21 +74,26 @@ impl AudioControls {
 
                     ui.add(
                         StyledButton::new(vec2(22., 22.), &Image::new(vol_icon), || {
-                            self.volume = if self.volume > 0. { 0. } else { 0.5 };
-                            state.queue.set_volume(self.volume);
+                            state.queue.volume = if state.queue.volume > 0. { 0. } else { 0.5 };
+                            state.queue.update_volume();
                         })
                         .with_hover_text(vol_text)
                         .with_rounding(5.),
                     );
 
-                    let _ = ui.add(color_slider(
-                        &mut self.volume,
-                        0.0..=1.,
-                        70.,
-                        4.,
-                        4.,
-                        Color32::from_rgb(0, 92, 128),
-                    ));
+                    if ui
+                        .add(color_slider(
+                            &mut state.queue.volume,
+                            0.0..=1.,
+                            70.,
+                            4.,
+                            4.,
+                            Color32::from_rgb(0, 92, 128),
+                        ))
+                        .changed()
+                    {
+                        state.queue.update_volume();
+                    }
 
                     ui.add_space(10.);
 

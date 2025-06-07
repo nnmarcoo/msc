@@ -64,6 +64,7 @@ impl State {
         }
         self.is_initialized = true;
 
+        self.queue.init_audio_manager();
         self.start_loading_library();
     }
 

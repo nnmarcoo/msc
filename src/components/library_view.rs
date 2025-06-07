@@ -81,7 +81,9 @@ impl LibraryView {
 
                             ui.separator();
 
-                            if ui.button("Play").clicked() {}
+                            if ui.button("Play").clicked() {
+                                state.queue.play(track.clone());
+                            }
                             if ui.button("Play next").clicked() {}
                             if ui.button("Add to queue").clicked() {}
 

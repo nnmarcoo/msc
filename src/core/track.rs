@@ -6,7 +6,7 @@ use lofty::{
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Track {
     pub file_path: String,
     pub title: String,
