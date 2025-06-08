@@ -15,9 +15,7 @@ pub struct AudioControls {
 
 impl AudioControls {
     pub fn new() -> Self {
-        AudioControls {
-            seek_pos: -1.,
-        }
+        AudioControls { seek_pos: -1. }
     }
 
     pub fn show(&mut self, ctx: &Context, state: &mut State) {

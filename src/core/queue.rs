@@ -87,33 +87,69 @@ impl Queue {
     }
 
     pub fn play_next(&mut self) {
-        if self.tracks.is_empty() { return }
+        if self.tracks.is_empty() {
+            return;
+        }
         self.current_index = (self.current_index + 1) % self.tracks.len();
         self.timeline_pos = 0.;
         self.start();
     }
 
     pub fn play_previous(&mut self) {
-        if self.tracks.is_empty() { return }
+        if self.tracks.is_empty() {
+            return;
+        }
         self.current_index = (self.current_index + self.tracks.len() - 1) % self.tracks.len();
         self.timeline_pos = 0.;
         self.start();
     }
 
-    pub fn start(&mut self) {
+    pub fn start(&mut self) { // bad
         if let Some(sound) = &mut self.sound {
             sound.stop(Tween::default());
         }
 
-        if self.tracks.is_empty() { return; }
+        if self.tracks.is_empty() || self.current_index >= self.tracks.len() {
+            self.sound = None;
+            return;
+        }
 
-        let stream =
-            StreamingSoundData::from_file(&self.tracks.get(self.current_index).unwrap().file_path)
-                .unwrap().start_position(self.timeline_pos as f64)
-                .volume(amp_to_db(self.volume));
+        let path = &self.tracks[self.current_index].file_path;
 
-        if let Some(manager) = &mut self.manager {
-            self.sound = Some(manager.play(stream).unwrap());
+        let stream_result = StreamingSoundData::from_file(path).map(|data| {
+            data.start_position(self.timeline_pos as f64)
+                .volume(amp_to_db(self.volume))
+        });
+
+        match stream_result {
+            Ok(stream) => {
+                if let Some(manager) = &mut self.manager {
+                    match manager.play(stream) {
+                        Ok(sound) => {
+                            self.sound = Some(sound);
+                            return;
+                        }
+                        Err(e) => {
+                            eprintln!("Failed to play track '{}': {}", path, e);
+                            self.tracks.remove(self.current_index);
+                            if self.current_index > 0 {
+                                self.current_index -= 1;
+                            }
+                            self.start();
+                        }
+                    }
+                } else {
+                    eprintln!("No audio manager available.");
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to load track '{}': {}", path, e);
+                self.tracks.remove(self.current_index);
+                if self.current_index > 0 {
+                    self.current_index -= 1;
+                }
+                self.start();
+            }
         }
     }
 
