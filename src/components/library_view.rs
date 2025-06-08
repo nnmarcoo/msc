@@ -83,6 +83,7 @@ impl LibraryView {
 
                             if ui.button("Play").clicked() {
                                 state.queue.play(track.clone());
+                                ui.close_menu();
                             }
                             if ui.button("Play next").clicked() {}
                             if ui.button("Add to queue").clicked() {}

@@ -10,14 +10,12 @@ use egui::{include_image, vec2, Align, Color32, Context, Image, Label, Layout, R
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct AudioControls {
-    timeline_pos: f32,
     seek_pos: f32,
 }
 
 impl AudioControls {
     pub fn new() -> Self {
         AudioControls {
-            timeline_pos: 0.,
             seek_pos: -1.,
         }
     }
@@ -118,7 +116,7 @@ impl AudioControls {
 
                                         ui.label(format!(
                                             "{} / {}",
-                                            format_seconds(self.timeline_pos),
+                                            format_seconds(state.queue.timeline_pos),
                                             duration
                                         ));
                                     });
@@ -126,7 +124,7 @@ impl AudioControls {
                                     ui.add_space(1.);
 
                                     let timeline_res = ui.add(color_slider(
-                                        &mut self.timeline_pos,
+                                        &mut state.queue.timeline_pos,
                                         0.0..=current_track.duration,
                                         ui.available_width(),
                                         4.,
@@ -135,19 +133,19 @@ impl AudioControls {
                                     ));
 
                                     if timeline_res.drag_stopped() || timeline_res.clicked() {
-                                        self.seek_pos = self.timeline_pos;
-                                        state.queue.seek(self.timeline_pos);
+                                        self.seek_pos = state.queue.timeline_pos;
+                                        state.queue.seek(state.queue.timeline_pos);
                                     }
 
                                     if is_playing {
                                         // bad
-                                        ctx.request_repaint_after(Duration::from_micros(10));
+                                        ctx.request_repaint_after(Duration::from_millis(200));
 
                                         if !(timeline_res.is_pointer_button_down_on()
                                             || timeline_res.dragged())
                                             && self.seek_pos == -1.
                                         {
-                                            self.timeline_pos = state.queue.position();
+                                            state.queue.timeline_pos = state.queue.position();
                                         } else if self.seek_pos.floor()
                                             == state.queue.position().floor()
                                         {

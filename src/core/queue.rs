@@ -15,6 +15,7 @@ use super::{playlist::Playlist, track::Track};
 pub struct Queue {
     pub tracks: Vec<Track>, // should be Hash not Track?
     pub volume: f32,
+    pub timeline_pos: f32,
     pub current_index: usize,
     #[serde(skip)]
     manager: Option<AudioManager>,
@@ -28,6 +29,7 @@ impl Queue {
             tracks: Vec::new(),
             current_index: 0,
             volume: 0.5,
+            timeline_pos: 0.,
             manager: None,
             sound: None,
         }
@@ -49,6 +51,9 @@ impl Queue {
     pub fn clear(&mut self) {
         self.tracks.clear();
         self.current_index = 0;
+        if let Some(sound) = &mut self.sound {
+            sound.stop(Tween::default());
+        }
     }
 
     pub fn shuffle(&mut self) {
@@ -82,12 +87,16 @@ impl Queue {
     }
 
     pub fn play_next(&mut self) {
+        if self.tracks.is_empty() { return }
         self.current_index = (self.current_index + 1) % self.tracks.len();
+        self.timeline_pos = 0.;
         self.start();
     }
 
     pub fn play_previous(&mut self) {
+        if self.tracks.is_empty() { return }
         self.current_index = (self.current_index + self.tracks.len() - 1) % self.tracks.len();
+        self.timeline_pos = 0.;
         self.start();
     }
 
@@ -96,9 +105,11 @@ impl Queue {
             sound.stop(Tween::default());
         }
 
+        if self.tracks.is_empty() { return; }
+
         let stream =
             StreamingSoundData::from_file(&self.tracks.get(self.current_index).unwrap().file_path)
-                .unwrap()
+                .unwrap().start_position(self.timeline_pos as f64)
                 .volume(amp_to_db(self.volume));
 
         if let Some(manager) = &mut self.manager {
