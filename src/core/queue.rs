@@ -7,15 +7,15 @@ use kira::{
     AudioManager, AudioManagerSettings, DefaultBackend, Tween,
 };
 
-use crate::structs::State;
+use crate::{core::helps::amp_to_db, state::State};
 
 use super::{playlist::Playlist, track::Track};
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Queue {
-    pub tracks: Vec<Track>, // should be Hash not Track
-    current_index: usize,
+    pub tracks: Vec<Track>, // should be Hash not Track?
     pub volume: f32,
+    pub current_index: usize,
     #[serde(skip)]
     manager: Option<AudioManager>,
     #[serde(skip)]
@@ -39,8 +39,16 @@ impl Queue {
             Some(AudioManager::<DefaultBackend>::new(AudioManagerSettings::default()).unwrap())
     }
 
+    pub fn get_current_track(&self) -> Track {
+        if let Some(track) = self.tracks.get(self.current_index) {
+            return track.clone();
+        }
+        Track::default()
+    }
+
     pub fn clear(&mut self) {
         self.tracks.clear();
+        self.current_index = 0;
     }
 
     pub fn shuffle(&mut self) {
@@ -53,6 +61,13 @@ impl Queue {
         }
     }
 
+    pub fn position(&self) -> f32 {
+        if let Some(sound) = &self.sound {
+            return sound.position() as f32;
+        }
+        0.
+    }
+
     pub fn is_playing(&self) -> bool {
         if let Some(sound) = &self.sound {
             return sound.state() == PlaybackState::Playing;
@@ -62,7 +77,7 @@ impl Queue {
 
     pub fn update_volume(&mut self) {
         if let Some(sound) = &mut self.sound {
-            sound.set_volume(self.volume, Tween::default());
+            sound.set_volume(amp_to_db(self.volume), Tween::default());
         }
     }
 
@@ -84,7 +99,7 @@ impl Queue {
         let stream =
             StreamingSoundData::from_file(&self.tracks.get(self.current_index).unwrap().file_path)
                 .unwrap()
-                .volume(self.volume);
+                .volume(amp_to_db(self.volume));
 
         if let Some(manager) = &mut self.manager {
             self.sound = Some(manager.play(stream).unwrap());
@@ -98,7 +113,11 @@ impl Queue {
     }
 
     pub fn play(&mut self, track: Track) {
-        self.tracks.insert(self.current_index - 1, track);
+        if self.tracks.is_empty() {
+            self.tracks.push(track);
+        } else {
+            self.tracks.insert(self.current_index + 1, track);
+        }
         self.play_next();
     }
 

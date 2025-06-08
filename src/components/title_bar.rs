@@ -7,7 +7,7 @@ use eframe::egui::{
 use egui::{FontFamily, FontId, Image, RichText, Ui, Vec2};
 
 use crate::{
-    structs::{State, View},
+    state::{State, View},
     widgets::styled_button::StyledButton,
 };
 

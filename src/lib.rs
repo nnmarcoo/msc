@@ -7,4 +7,4 @@ mod components;
 mod core;
 mod widgets;
 pub use core::resize;
-pub use core::structs;
+pub use core::state;

@@ -1,3 +1,7 @@
+use egui::{Context, SidePanel};
+
+use crate::state::State;
+
 #[derive(serde::Serialize, serde::Deserialize, Default)]
 pub struct PlayPanel {}
 
@@ -6,9 +10,15 @@ impl PlayPanel {
         PlayPanel {}
     }
 
-    pub fn show(&mut self, ctx: &egui::Context) {
-        egui::SidePanel::right("Play panel").show(ctx, |ui| {
-            ui.label("Play panel");
+    pub fn show(&mut self, ctx: &Context, state: &mut State) {
+        SidePanel::right("Play panel").show(ctx, |ui| {
+            for (i, track) in state.queue.tracks.iter().enumerate() {
+                if i == state.queue.current_index {
+                    ui.strong(track.title.clone());
+                } else {
+                    ui.label(track.title.clone());
+                }
+            }
             ui.allocate_space(egui::vec2(200., 0.))
         });
     }

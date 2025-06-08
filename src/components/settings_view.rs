@@ -1,7 +1,7 @@
 use egui::{Color32, RichText, Ui};
 use rfd::FileDialog;
 
-use crate::structs::State;
+use crate::state::State;
 
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct SettingsView {}

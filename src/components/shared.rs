@@ -1,7 +1,7 @@
 use egui::{Color32, Direction, Label, Layout, RichText, Spinner, Ui};
 
 use crate::{
-    structs::{State, View},
+    state::{State, View},
     widgets::link_label::link_label,
 };
 

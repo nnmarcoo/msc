@@ -1,6 +1,6 @@
 use egui::{CentralPanel, Context};
 
-use crate::structs::{State, View};
+use crate::state::{State, View};
 
 use super::{cover_view::CoverView, library_view::LibraryView, settings_view::SettingsView};
 

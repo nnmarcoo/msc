@@ -20,7 +20,7 @@ fn main() -> eframe::Result {
     };
 
     eframe::run_native(
-        "eframe template",
+        "msc",
         native_options,
         Box::new(|cc| Ok(Box::new(msc::Msc::new(cc)))),
     )

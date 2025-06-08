@@ -5,7 +5,7 @@ use egui::{
 };
 use egui_extras::{Column, TableBuilder};
 
-use crate::{components::shared::show_loading, core::helps::format_seconds, structs::State};
+use crate::{components::shared::show_loading, core::helps::format_seconds, state::State};
 
 use super::shared::show_empty_library;
 

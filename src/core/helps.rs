@@ -15,6 +15,10 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use super::track::Track;
 
+pub fn amp_to_db(v: f32) -> f32 {
+    20. * v.log10()
+}
+
 pub fn format_seconds(seconds: f32) -> String {
     let minutes = (seconds / 60.) as u32;
     let seconds = (seconds % 60.) as u32;

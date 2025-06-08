@@ -1,6 +1,8 @@
+use std::time::Duration;
+
 use crate::{
     core::helps::format_seconds,
-    structs::{State, View},
+    state::{State, View},
     widgets::{color_slider::color_slider, styled_button::StyledButton},
 };
 use eframe::egui::TopBottomPanel;
@@ -21,6 +23,7 @@ impl AudioControls {
     }
 
     pub fn show(&mut self, ctx: &Context, state: &mut State) {
+        let current_track = state.queue.get_current_track();
         let is_playing = state.queue.is_playing();
 
         TopBottomPanel::bottom("audio_controls")
@@ -105,12 +108,13 @@ impl AudioControls {
                                 ui.vertical(|ui| {
                                     ui.with_layout(Layout::left_to_right(Align::LEFT), |ui| {
                                         ui.add(
-                                            Label::new(RichText::new("Title").strong()).truncate(),
+                                            Label::new(RichText::new(current_track.title).strong())
+                                                .truncate(),
                                         );
-                                        ui.add(Label::new("Artist").truncate());
+                                        ui.add(Label::new(current_track.artist).truncate());
                                         ui.add_space(ui.available_width());
 
-                                        let duration = format_seconds(0.);
+                                        let duration = format_seconds(current_track.duration);
 
                                         ui.label(format!(
                                             "{} / {}",
@@ -123,7 +127,7 @@ impl AudioControls {
 
                                     let timeline_res = ui.add(color_slider(
                                         &mut self.timeline_pos,
-                                        0.0..=0.,
+                                        0.0..=current_track.duration,
                                         ui.available_width(),
                                         4.,
                                         4.,
@@ -132,6 +136,23 @@ impl AudioControls {
 
                                     if timeline_res.drag_stopped() || timeline_res.clicked() {
                                         self.seek_pos = self.timeline_pos;
+                                        state.queue.seek(self.timeline_pos);
+                                    }
+
+                                    if is_playing {
+                                        // bad
+                                        ctx.request_repaint_after(Duration::from_micros(10));
+
+                                        if !(timeline_res.is_pointer_button_down_on()
+                                            || timeline_res.dragged())
+                                            && self.seek_pos == -1.
+                                        {
+                                            self.timeline_pos = state.queue.position();
+                                        } else if self.seek_pos.floor()
+                                            == state.queue.position().floor()
+                                        {
+                                            self.seek_pos = -1.;
+                                        }
                                     }
                                 });
                             });
@@ -140,7 +161,9 @@ impl AudioControls {
 
                     ui.add_space(30.);
 
-                    if ui.button("🔀").clicked() {}
+                    if ui.button("🔀").clicked() {
+                        state.queue.clear();
+                    }
                     if ui.button("⟲").clicked() {}
                     if ui.button("🔜").clicked() {}
                     if ui.button("⛭").clicked() {

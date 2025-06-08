@@ -7,7 +7,7 @@ use egui::{
 
 use crate::{
     core::playlist::Playlist,
-    structs::{State, View},
+    state::{State, View},
     widgets::link_label::link_label,
 };
 

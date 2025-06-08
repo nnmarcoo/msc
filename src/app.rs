@@ -8,7 +8,7 @@ use crate::{
     },
     core::helps::add_font,
     resize::handle_resize,
-    structs::State,
+    state::State,
 };
 
 #[derive(serde::Deserialize, serde::Serialize)]
@@ -66,7 +66,7 @@ impl eframe::App for Msc {
             handle_resize(self, ctx);
             self.titel_bar.show(ctx, &mut self.state);
             self.audio_controls.show(ctx, &mut self.state);
-            //self.play_panel.show(ctx);
+            self.play_panel.show(ctx, &mut self.state);
             self.main_panel.show(ctx, &mut self.state);
         });
     }

@@ -16,6 +16,16 @@ pub struct Track {
 }
 
 impl Track {
+    pub fn default() -> Self {
+        Track {
+            file_path: String::new(),
+            title: "Title".to_string(),
+            artist: "Artist".to_string(),
+            album: "Album".to_string(),
+            duration: 0.,
+        }
+    }
+
     pub fn new(path: &str) -> Option<Self> {
         let tagged_file = Probe::open(path).ok()?.read().ok()?;
         let properties = tagged_file.properties();
