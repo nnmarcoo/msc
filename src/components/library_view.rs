@@ -92,6 +92,13 @@ impl LibraryView {
 
                             if ui.button("Clear selection").clicked() {}
                             if ui.button("Select all").clicked() {}
+
+                            ui.separator();
+
+                            if ui.button("Edit metadata").clicked() {
+                                // Should this open a small window
+                                // or be a separate View
+                            }
                         });
                     });
                 }
