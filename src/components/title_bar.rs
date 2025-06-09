@@ -4,7 +4,7 @@ use eframe::egui::{
     vec2, Align, Color32, Context, Frame, Layout, Margin, PointerButton, Sense, TopBottomPanel,
     ViewportCommand,
 };
-use egui::{FontFamily, FontId, Image, RichText, Ui, Vec2};
+use egui::{FontFamily, FontId, Image, RichText, TextEdit, Ui, Vec2};
 
 use crate::{
     state::{State, View},
@@ -66,6 +66,16 @@ impl TitleBar {
 
                     ui.with_layout(Layout::right_to_left(Align::Center), |ui| {
                         self.window_control_buttons(ctx, ui, self.size, state);
+
+                        ui.add_space(8.);
+
+                        if ui.add(
+                            TextEdit::singleline(&mut state.query)
+                                .hint_text("🔍 Search a song")
+                                .desired_width(150.),
+                        ).changed() {
+                            
+                        }
                     });
                 });
             });

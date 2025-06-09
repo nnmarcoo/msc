@@ -39,6 +39,7 @@ pub struct State {
     pub playlists: Vec<Playlist>,
     pub queue: Queue,
     pub show_play_panel: bool,
+    pub query: String,
 }
 
 impl Default for State {
@@ -55,6 +56,7 @@ impl Default for State {
             queue: Queue::new(),
             library_loaded: Arc::new(AtomicBool::new(false)),
             show_play_panel: false,
+            query: String::new(),
         }
     }
 }
