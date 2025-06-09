@@ -104,7 +104,8 @@ impl Queue {
         self.start();
     }
 
-    pub fn start(&mut self) { // bad
+    pub fn start(&mut self) {
+        // bad
         if let Some(sound) = &mut self.sound {
             sound.stop(Tween::default());
         }

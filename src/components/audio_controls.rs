@@ -161,7 +161,9 @@ impl AudioControls {
                         state.queue.clear();
                     }
                     if ui.button("⟲").clicked() {}
-                    if ui.button("🔜").clicked() {}
+                    if ui.button("🔜").clicked() {
+                        state.show_play_panel = !state.show_play_panel;
+                    }
                     if ui.button("⛭").clicked() {
                         state.view = View::Settings;
                     }
