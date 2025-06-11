@@ -1,3 +1,4 @@
+pub mod async_image;
 pub mod helps;
 pub mod playlist;
 pub mod queue;

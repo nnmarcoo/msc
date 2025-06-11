@@ -2,12 +2,15 @@ use std::{borrow::Cow, path::Path};
 
 use lofty::{
     file::{AudioFile, TaggedFileExt},
+    picture::PictureType,
     probe::Probe,
     tag::Accessor,
 };
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+use crate::core::async_image::{AsyncImage, ImageLoader, RawImage};
+
+#[derive(Serialize, Deserialize, Clone)]
 pub struct Track {
     pub file_path: String,
     pub title: String,
@@ -15,6 +18,8 @@ pub struct Track {
     pub album: String,
     pub genre: String,
     pub duration: f32,
+    #[serde(skip)]
+    pub image: AsyncImage,
 }
 
 impl Track {
@@ -26,6 +31,7 @@ impl Track {
             album: "Album".to_string(),
             genre: "Genre".to_string(),
             duration: 0.,
+            image: AsyncImage::default(),
         }
     }
 
@@ -44,27 +50,47 @@ impl Track {
             .and_then(|stem| stem.to_str())
             .unwrap_or("Unknown");
 
-        let (title, artist, album, genre) = if let Some(tag) = tag {
-            (
-                tag.title()
-                    .unwrap_or_else(|| Cow::Borrowed(fallback_title))
-                    .to_string(),
-                tag.artist()
-                    .unwrap_or_else(|| Cow::Borrowed("Unknown"))
-                    .to_string(),
-                tag.album()
-                    .unwrap_or_else(|| Cow::Borrowed("Unknown"))
-                    .to_string(),
-                tag.genre()
-                    .unwrap_or_else(|| Cow::Borrowed("Unknown"))
-                    .to_string(),
-            )
+        let (title, artist, album, genre, image_loader): (
+            String,
+            String,
+            String,
+            String,
+            Box<dyn ImageLoader>,
+        ) = if let Some(tag) = tag {
+            let title = tag
+                .title()
+                .unwrap_or(Cow::Borrowed(fallback_title))
+                .to_string();
+            let artist = tag.artist().unwrap_or(Cow::Borrowed("Unknown")).to_string();
+            let album = tag.album().unwrap_or(Cow::Borrowed("Unknown")).to_string();
+            let genre = tag.genre().unwrap_or(Cow::Borrowed("Unknown")).to_string();
+
+            let image_loader: Box<dyn ImageLoader> = tag
+                .pictures()
+                .iter()
+                .find(|pic| pic.pic_type() == PictureType::CoverFront)
+                .or_else(|| tag.pictures().first())
+                .map(|pic| {
+                    Box::new(RawImage {
+                        data: pic.data().to_vec(),
+                    }) as Box<dyn ImageLoader>
+                })
+                .unwrap_or_else(|| {
+                    Box::new(RawImage {
+                        data: include_bytes!("../../assets/default.png").to_vec(),
+                    })
+                });
+
+            (title, artist, album, genre, image_loader)
         } else {
             (
                 fallback_title.to_string(),
                 "Unknown".to_string(),
                 "Unknown".to_string(),
                 "Unknown".to_string(),
+                Box::new(RawImage {
+                    data: include_bytes!("../../assets/default.png").to_vec(),
+                }),
             )
         };
 
@@ -75,6 +101,7 @@ impl Track {
             album,
             genre,
             duration,
+            image: AsyncImage::new(image_loader),
         })
     }
 }

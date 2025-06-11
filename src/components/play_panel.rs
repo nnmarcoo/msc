@@ -1,4 +1,4 @@
-use egui::{include_image, vec2, Context, Image, Rangef, ScrollArea, SidePanel};
+use egui::{vec2, Context, Image, ScrollArea, SidePanel};
 
 use crate::{state::State, widgets::styled_button::StyledButton};
 
@@ -15,6 +15,8 @@ impl PlayPanel {
             return;
         }
 
+        let current_track = state.queue.get_current_track();
+
         SidePanel::right("Play panel")
             .max_width(350.)
             .min_width(0.)
@@ -27,11 +29,16 @@ impl PlayPanel {
 
                 ScrollArea::vertical().show(ui, |ui| {
                     ui.strong("Album");
-                    ui.add(StyledButton::new(
-                        vec2(ui.available_width(), ui.available_width()),
-                        &Image::new(include_image!("../../assets/default.png")),
-                        || {},
-                    ));
+
+                    if let Some(texture) = current_track.image.get_texture_handle() {
+                        ui.add(StyledButton::new(
+                            vec2(ui.available_width(), ui.available_width()),
+                            &Image::new(&texture),
+                            || {},
+                        ));
+                    } else {
+                        current_track.image.load(ui.available_width() as u32, ctx);
+                    }
 
                     ui.separator();
 

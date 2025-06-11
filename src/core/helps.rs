@@ -82,7 +82,8 @@ pub fn collect_audio_files(dir: &Path) -> DashMap<Hash, Track> {
                 if path.is_file() {
                     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                         let ext = ext.to_lowercase();
-                        if ["mp3", "flac", "m4a", "wav", "ogg"].contains(&ext.as_str()) { // m4a isn't even supported by symphonia lol
+                        if ["mp3", "flac", "m4a", "wav", "ogg"].contains(&ext.as_str()) {
+                            // m4a isn't even supported by symphonia lol
                             if let Some(path_str) = path.to_str() {
                                 if let Some(track) = Track::new(path_str) {
                                     let mut hasher = Hasher::new();

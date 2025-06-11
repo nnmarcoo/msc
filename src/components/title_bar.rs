@@ -69,13 +69,14 @@ impl TitleBar {
 
                         ui.add_space(8.);
 
-                        if ui.add(
-                            TextEdit::singleline(&mut state.query)
-                                .hint_text("🔍 Search a song")
-                                .desired_width(150.),
-                        ).changed() {
-                            
-                        }
+                        if ui
+                            .add(
+                                TextEdit::singleline(&mut state.query)
+                                    .hint_text("🔍 Search a song")
+                                    .desired_width(150.),
+                            )
+                            .changed()
+                        {}
                     });
                 });
             });
