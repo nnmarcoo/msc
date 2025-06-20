@@ -8,7 +8,7 @@ use lofty::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::core::async_image::{AsyncImage, ImageLoader, RawImage};
+use crate::core::async_image::AsyncImage;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Track {
@@ -24,7 +24,7 @@ pub struct Track {
 
 impl Track {
     pub fn default() -> Self {
-        Track {
+        Self {
             file_path: String::new(),
             title: "Title".to_string(),
             artist: "Artist".to_string(),
@@ -37,7 +37,6 @@ impl Track {
 
     pub fn new(path: &str) -> Option<Self> {
         let tagged_file = Probe::open(path).ok()?.read().ok()?;
-
         let tag = tagged_file
             .primary_tag()
             .or_else(|| tagged_file.first_tag());
@@ -50,58 +49,43 @@ impl Track {
             .and_then(|stem| stem.to_str())
             .unwrap_or("Unknown");
 
-        let (title, artist, album, genre, image_loader): (
-            String,
-            String,
-            String,
-            String,
-            Box<dyn ImageLoader>,
-        ) = if let Some(tag) = tag {
-            let title = tag
-                .title()
-                .unwrap_or(Cow::Borrowed(fallback_title))
-                .to_string();
-            let artist = tag.artist().unwrap_or(Cow::Borrowed("Unknown")).to_string();
-            let album = tag.album().unwrap_or(Cow::Borrowed("Unknown")).to_string();
-            let genre = tag.genre().unwrap_or(Cow::Borrowed("Unknown")).to_string();
+        let (title, artist, album, genre, image_data): (String, String, String, String, Vec<u8>) =
+            if let Some(tag) = tag {
+                let title = tag
+                    .title()
+                    .unwrap_or(Cow::Borrowed(fallback_title))
+                    .to_string();
+                let artist = tag.artist().unwrap_or(Cow::Borrowed("Unknown")).to_string();
+                let album = tag.album().unwrap_or(Cow::Borrowed("Unknown")).to_string();
+                let genre = tag.genre().unwrap_or(Cow::Borrowed("Unknown")).to_string();
 
-            let image_loader: Box<dyn ImageLoader> = tag
-                .pictures()
-                .iter()
-                .find(|pic| pic.pic_type() == PictureType::CoverFront)
-                .or_else(|| tag.pictures().first())
-                .map(|pic| {
-                    Box::new(RawImage {
-                        data: pic.data().to_vec(),
-                    }) as Box<dyn ImageLoader>
-                })
-                .unwrap_or_else(|| {
-                    Box::new(RawImage {
-                        data: include_bytes!("../../assets/default.png").to_vec(),
-                    })
-                });
+                let image_data = tag
+                    .pictures()
+                    .iter()
+                    .find(|pic| pic.pic_type() == PictureType::CoverFront)
+                    .or_else(|| tag.pictures().first())
+                    .map(|pic| pic.data().to_vec())
+                    .unwrap_or_else(|| include_bytes!("../../assets/default.png").to_vec());
 
-            (title, artist, album, genre, image_loader)
-        } else {
-            (
-                fallback_title.to_string(),
-                "Unknown".to_string(),
-                "Unknown".to_string(),
-                "Unknown".to_string(),
-                Box::new(RawImage {
-                    data: include_bytes!("../../assets/default.png").to_vec(),
-                }),
-            )
-        };
+                (title, artist, album, genre, image_data)
+            } else {
+                (
+                    fallback_title.to_string(),
+                    "Unknown".to_string(),
+                    "Unknown".to_string(),
+                    "Unknown".to_string(),
+                    include_bytes!("../../assets/default.png").to_vec(),
+                )
+            };
 
-        Some(Track {
+        Some(Self {
             file_path: path.to_string(),
             title,
             artist,
             album,
             genre,
             duration,
-            image: AsyncImage::new(image_loader),
+            image: AsyncImage::new(image_data),
         })
     }
 }
