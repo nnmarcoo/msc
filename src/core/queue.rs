@@ -116,7 +116,6 @@ impl Queue {
             return;
         }
         self.current_index = (self.current_index + 1) % self.tracks.len();
-        self.timeline_pos = 0.0;
         self.start(library);
     }
 
@@ -125,7 +124,6 @@ impl Queue {
             return;
         }
         self.current_index = (self.current_index + self.tracks.len() - 1) % self.tracks.len();
-        self.timeline_pos = 0.0;
         self.start(library);
     }
 
@@ -142,6 +140,8 @@ impl Queue {
         if path.is_empty() {
             return;
         }
+
+        self.timeline_pos = 0.;
 
         let stream_result = StreamingSoundData::from_file(&path).map(|data| {
             data.start_position(self.timeline_pos as f64)
