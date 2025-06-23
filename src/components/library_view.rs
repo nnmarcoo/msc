@@ -50,7 +50,7 @@ impl LibraryView {
                     });
                 }
             })
-            .body(|mut body| {
+            .body(|body| {
                 body.rows(row_height, row_count, |mut row| {
                     let index = row.index();
                     let track = &tracks[index];
@@ -98,7 +98,7 @@ impl LibraryView {
                         ui.separator();
 
                         if ui.button("Play").clicked() {
-                            state.queue.play(track.clone());
+                            state.queue.play(track.hash, &state.library);
                             ui.close_menu();
                         }
                         if ui.button("Play next").clicked() {}

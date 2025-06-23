@@ -1,5 +1,8 @@
 use std::{borrow::Cow, path::Path};
 
+use blake3::{Hash, Hasher};
+use egui::{ColorImage, Context, TextureFilter, TextureHandle, TextureOptions};
+use image::load_from_memory;
 use lofty::{
     file::{AudioFile, TaggedFileExt},
     picture::PictureType,
@@ -7,8 +10,6 @@ use lofty::{
     tag::Accessor,
 };
 use serde::{Deserialize, Serialize};
-
-use crate::core::async_image::AsyncImage;
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct Track {
@@ -18,8 +19,10 @@ pub struct Track {
     pub album: String,
     pub genre: String,
     pub duration: f32,
+    pub image_data: Vec<u8>,
+    pub hash: Hash,
     #[serde(skip)]
-    pub image: AsyncImage,
+    pub texture: Option<TextureHandle>,
 }
 
 impl Track {
@@ -30,12 +33,18 @@ impl Track {
             artist: "Artist".to_string(),
             album: "Album".to_string(),
             genre: "Genre".to_string(),
-            duration: 0.,
-            image: AsyncImage::default(),
+            duration: 0.0,
+            image_data: include_bytes!("../../assets/default.png").to_vec(),
+            hash: blake3::hash(&[]),
+            texture: None,
         }
     }
 
     pub fn new(path: &str) -> Option<Self> {
+        // Hash file using memory-mapped I/O
+        let mut hasher = Hasher::new();
+        let file_hash = hasher.update_mmap(Path::new(path)).ok()?.finalize();
+
         let tagged_file = Probe::open(path).ok()?.read().ok()?;
         let tag = tagged_file
             .primary_tag()
@@ -85,7 +94,28 @@ impl Track {
             album,
             genre,
             duration,
-            image: AsyncImage::new(image_data),
+            image_data,
+            hash: file_hash,
+            texture: None,
         })
+    }
+
+    pub fn load_texture(&mut self, ctx: &Context) -> Option<&TextureHandle> {
+        if self.texture.is_none() {
+            let img = load_from_memory(&self.image_data).ok()?.to_rgba8();
+            let (w, h) = img.dimensions();
+            let color_image =
+                ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &img.into_raw());
+
+            let texture = ctx.load_texture(
+                self.title.clone(),
+                color_image,
+                TextureOptions::LINEAR.with_mipmap_mode(Some(TextureFilter::Linear)),
+            );
+
+            self.texture = Some(texture);
+        }
+
+        self.texture.as_ref()
     }
 }

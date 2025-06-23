@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use blake3::{Hash, Hasher};
+use blake3::Hash;
 use dashmap::DashMap;
 use egui::{
     epaint::text::{FontInsert, InsertFontFamily},
@@ -86,11 +86,7 @@ pub fn collect_audio_files(dir: &Path) -> DashMap<Hash, Track> {
                             // m4a isn't even supported by symphonia lol
                             if let Some(path_str) = path.to_str() {
                                 if let Some(track) = Track::new(path_str) {
-                                    let mut hasher = Hasher::new();
-                                    if let Ok(_) = hasher.update_mmap(&path) {
-                                        let hash = hasher.finalize();
-                                        map.insert(hash, track);
-                                    }
+                                    map.insert(track.hash, track);
                                 }
                             }
                         }

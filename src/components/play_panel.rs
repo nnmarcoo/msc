@@ -1,4 +1,4 @@
-use egui::{vec2, Context, Image, ScrollArea, SidePanel};
+use egui::{include_image, vec2, Context, Image, ScrollArea, SidePanel};
 
 use crate::{state::State, widgets::styled_button::StyledButton};
 
@@ -15,7 +15,7 @@ impl PlayPanel {
             return;
         }
 
-        let current_track = state.queue.get_current_track();
+        let current_track_ref = state.queue.get_track_mut_ref(&state.library);
 
         SidePanel::right("Play panel")
             .max_width(350.)
@@ -30,23 +30,32 @@ impl PlayPanel {
                 ScrollArea::vertical().show(ui, |ui| {
                     ui.strong("Album");
 
-                    if let Some(texture) = current_track.image.get_texture_handle() {
-                        ui.add(StyledButton::new(
-                            vec2(ui.available_width(), ui.available_width()),
-                            &Image::new(&texture),
-                            || {},
-                        ));
+                    if let Some(mut current_track) = current_track_ref {
+                        if let Some(texture) = &current_track.texture {
+                            ui.add(StyledButton::new(
+                                vec2(ui.available_width(), ui.available_width()),
+                                &Image::new(texture),
+                                || {},
+                            ));
+                        } else {
+                            // Should I fill the space with a spinner or image?
+                            current_track.load_texture(ui.ctx());
+                        }
                     } else {
-                        current_track.image.load(ui.available_width() as u32, ctx);
+                        ui.label("No track playing");
                     }
 
                     ui.separator();
 
-                    for (i, track) in state.queue.tracks.iter().enumerate() {
-                        if i == state.queue.current_index {
-                            ui.strong(track.title.clone());
-                        } else {
-                            ui.label(track.title.clone());
+                    for (i, hash) in state.queue.tracks.iter().enumerate() {
+                        if let Some(track_ref) = state.library.get(hash) {
+                            let track = track_ref.value();
+
+                            if i == state.queue.current_index {
+                                ui.strong(track.title.clone());
+                            } else {
+                                ui.label(track.title.clone());
+                            }
                         }
                     }
                 });

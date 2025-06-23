@@ -19,7 +19,7 @@ impl AudioControls {
     }
 
     pub fn show(&mut self, ctx: &Context, state: &mut State) {
-        let current_track = state.queue.get_current_track();
+        let current_track = state.queue.get_track_copy(&state.library);
         let is_playing = state.queue.is_playing();
 
         TopBottomPanel::bottom("audio_controls")
@@ -31,7 +31,7 @@ impl AudioControls {
                             vec2(22., 22.),
                             &Image::new(include_image!("../../assets/icons/previous.png")),
                             || {
-                                state.queue.play_previous();
+                                state.queue.play_previous(&state.library);
                             },
                         )
                         .with_hover_text("Previous")
@@ -46,7 +46,7 @@ impl AudioControls {
 
                     ui.add(
                         StyledButton::new(vec2(28., 28.), &Image::new(playback_icon), || {
-                            state.queue.toggle_playback();
+                            state.queue.toggle_playback(&state.library);
                         })
                         .with_hover_text(playback_text)
                         .with_rounding(5.),
@@ -56,7 +56,7 @@ impl AudioControls {
                             vec2(22., 22.),
                             &Image::new(include_image!("../../assets/icons/next.png")),
                             || {
-                                state.queue.play_next();
+                                state.queue.play_next(&state.library);
                             },
                         )
                         .with_hover_text("Next")
