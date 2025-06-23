@@ -1,4 +1,4 @@
-use egui::{include_image, vec2, Context, Image, ScrollArea, SidePanel};
+use egui::{vec2, Context, Image, ScrollArea, SidePanel};
 
 use crate::{state::State, widgets::styled_button::StyledButton};
 

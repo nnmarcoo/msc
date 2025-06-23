@@ -137,7 +137,7 @@ impl AudioControls {
 
                                     if is_playing {
                                         // bad
-                                        ctx.request_repaint_after(Duration::from_millis(200));
+                                        ctx.request_repaint_after(Duration::from_millis(250));
 
                                         if !(timeline_res.is_pointer_button_down_on()
                                             || timeline_res.dragged())
