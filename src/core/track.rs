@@ -1,8 +1,8 @@
 use std::{borrow::Cow, path::Path};
 
 use blake3::{Hash, Hasher};
-use egui::{ColorImage, Context, TextureFilter, TextureHandle, TextureOptions};
-use image::load_from_memory;
+use egui::{ColorImage, Context, TextureHandle, TextureOptions};
+use image::{imageops::FilterType, load_from_memory};
 use lofty::{
     file::{AudioFile, TaggedFileExt},
     picture::PictureType,
@@ -107,11 +107,8 @@ impl Track {
             let color_image =
                 ColorImage::from_rgba_unmultiplied([w as usize, h as usize], &img.into_raw());
 
-            let texture = ctx.load_texture(
-                self.title.clone(),
-                color_image,
-                TextureOptions::LINEAR.with_mipmap_mode(Some(TextureFilter::Linear)),
-            );
+            let texture =
+                ctx.load_texture(self.title.clone(), color_image, TextureOptions::NEAREST);
 
             self.texture = Some(texture);
         }
