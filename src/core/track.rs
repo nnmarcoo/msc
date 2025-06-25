@@ -2,7 +2,7 @@ use std::{borrow::Cow, path::Path};
 
 use blake3::{Hash, Hasher};
 use egui::{ColorImage, Context, TextureHandle, TextureOptions};
-use image::{imageops::FilterType, load_from_memory};
+use image::load_from_memory;
 use lofty::{
     file::{AudioFile, TaggedFileExt},
     picture::PictureType,
