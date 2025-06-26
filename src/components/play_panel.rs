@@ -1,14 +1,19 @@
-use egui::{vec2, Context, FontId, Image, Label, RichText, ScrollArea, SidePanel};
+use egui::{
+    scroll_area::ScrollBarVisibility, vec2, Color32, Context, FontId, Frame, Image, Label,
+    RichText, ScrollArea, SidePanel, Stroke,
+};
 
 use crate::{state::State, widgets::styled_button::StyledButton};
 use egui_dnd::dnd;
 
 #[derive(serde::Serialize, serde::Deserialize, Default)]
-pub struct PlayPanel {}
+pub struct PlayPanel {
+    hover_idx: Option<usize>,
+}
 
 impl PlayPanel {
     pub fn new() -> Self {
-        PlayPanel {}
+        PlayPanel { hover_idx: None }
     }
 
     pub fn show(&mut self, ctx: &Context, app_state: &mut State) {
@@ -28,47 +33,90 @@ impl PlayPanel {
                     return;
                 }
 
-                ScrollArea::vertical().show(ui, |ui| {
-                    ui.strong("Album");
+                ScrollArea::vertical()
+                    .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
+                    .show(ui, |ui| {
+                        ui.strong("Album");
 
-                    if let Some(mut current_track) = current_track_ref {
-                        if let Some(texture) = &current_track.texture {
-                            ui.add(StyledButton::new(
-                                vec2(ui.available_width(), ui.available_width()),
-                                &Image::new(texture),
-                                || {},
-                            ));
+                        if let Some(mut current_track) = current_track_ref {
+                            if let Some(texture) = &current_track.texture {
+                                ui.add(StyledButton::new(
+                                    vec2(ui.available_width(), ui.available_width()),
+                                    &Image::new(texture),
+                                    || {},
+                                ));
+                            } else {
+                                // Should I fill the space with a spinner or image?
+                                current_track.load_texture(ui.ctx());
+                            }
                         } else {
-                            // Should I fill the space with a spinner or image?
-                            current_track.load_texture(ui.ctx());
+                            ui.label("No track playing");
                         }
-                    } else {
-                        ui.label("No track playing");
-                    }
 
-                    ui.separator();
+                        ui.separator();
 
-                    dnd(ui, "queue").show_vec(
-                        &mut app_state.queue.tracks.clone(),
-                        |ui, item, handle, state| {
-                            ui.horizontal(|ui| {
-                                ui.allocate_ui(vec2(ui.available_width() - 16., 16.), |ui| {
-                                    if let Some(track_ref) = app_state.library.get(item) {
-                                        ui.add(
-                                            Label::new(track_ref.value().title.clone()).truncate(),
-                                        );
-                                    }
-                                });
+                        let mut hovered_any = false;
 
-                                handle.ui(ui, |ui| {
-                                    ui.add(Label::new(
-                                        RichText::new("▩").font(FontId::monospace(16.)),
-                                    ));
-                                });
-                            });
-                        },
-                    );
-                });
+                        dnd(ui, "queue").show_vec(
+                            &mut app_state.queue.tracks.clone(),
+                            |ui, item, handle, state| {
+                                if Frame::group(ui.style())
+                                    .corner_radius(5.)
+                                    .stroke(Stroke::NONE)
+                                    .fill(if Some(state.index) == self.hover_idx {
+                                        Color32::from_rgb(40, 40, 40)
+                                    } else {
+                                        Color32::TRANSPARENT
+                                    })
+                                    .show(ui, |ui| {
+                                        ui.horizontal(|ui| {
+                                            if let Some(track_ref) = app_state.library.get(item) {
+                                                ui.allocate_ui(
+                                                    vec2(ui.available_width() - 20., 20.),
+                                                    |ui| {
+                                                        ui.vertical(|ui| {
+                                                            ui.add(
+                                                            Label::new(
+                                                                RichText::new(
+                                                                    track_ref.value().title.clone(),
+                                                                )
+                                                                .strong(),
+                                                            )
+                                                            .truncate(),
+                                                        );
+
+                                                        ui.add(
+                                                            Label::new(
+                                                                track_ref.value().artist.clone(),
+                                                            )
+                                                            .truncate(),
+                                                        );
+                                                        });
+                                                    },
+                                                );
+                                                ui.add_space(ui.available_width() - 10.);
+                                            }
+
+                                            handle.ui(ui, |ui| {
+                                                ui.add(Label::new(
+                                                    RichText::new("▩").font(FontId::monospace(16.)),
+                                                ));
+                                            });
+                                        });
+                                    })
+                                    .response
+                                    .hovered()
+                                {
+                                    self.hover_idx = Some(state.index);
+                                    hovered_any = true;
+                                }
+                            },
+                        );
+
+                        if !hovered_any {
+                            self.hover_idx = None;
+                        }
+                    });
             });
     }
 }
