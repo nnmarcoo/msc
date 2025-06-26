@@ -60,10 +60,10 @@ impl PlayPanel {
                         dnd(ui, "queue").show_vec(
                             &mut app_state.queue.tracks.clone(),
                             |ui, item, handle, state| {
+                                let hovered = Some(state.index) == self.hover_idx;
                                 if Frame::group(ui.style())
-                                    .corner_radius(5.)
                                     .stroke(Stroke::NONE)
-                                    .fill(if Some(state.index) == self.hover_idx {
+                                    .fill(if hovered {
                                         Color32::from_rgb(40, 40, 40)
                                     } else {
                                         Color32::TRANSPARENT
@@ -72,36 +72,45 @@ impl PlayPanel {
                                         ui.horizontal(|ui| {
                                             if let Some(track_ref) = app_state.library.get(item) {
                                                 ui.allocate_ui(
-                                                    vec2(ui.available_width() - 20., 20.),
+                                                    vec2((ui.available_width() - 20.).max(0.), 20.),
                                                     |ui| {
                                                         ui.vertical(|ui| {
                                                             ui.add(
-                                                            Label::new(
-                                                                RichText::new(
-                                                                    track_ref.value().title.clone(),
+                                                                Label::new(
+                                                                    RichText::new(
+                                                                        track_ref
+                                                                            .value()
+                                                                            .title
+                                                                            .clone(),
+                                                                    )
+                                                                    .strong(),
                                                                 )
-                                                                .strong(),
-                                                            )
-                                                            .truncate(),
-                                                        );
+                                                                .truncate(),
+                                                            );
 
-                                                        ui.add(
-                                                            Label::new(
-                                                                track_ref.value().artist.clone(),
-                                                            )
-                                                            .truncate(),
-                                                        );
+                                                            ui.add(
+                                                                Label::new(
+                                                                    track_ref
+                                                                        .value()
+                                                                        .artist
+                                                                        .clone(),
+                                                                )
+                                                                .truncate(),
+                                                            );
                                                         });
                                                     },
                                                 );
                                                 ui.add_space(ui.available_width() - 10.);
                                             }
 
-                                            handle.ui(ui, |ui| {
-                                                ui.add(Label::new(
-                                                    RichText::new("▩").font(FontId::monospace(16.)),
-                                                ));
-                                            });
+                                            if hovered {
+                                                handle.ui(ui, |ui| {
+                                                    ui.add(Label::new(
+                                                        RichText::new("▩")
+                                                            .font(FontId::monospace(16.)),
+                                                    ));
+                                                });
+                                            }
                                         });
                                     })
                                     .response
