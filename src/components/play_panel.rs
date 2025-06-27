@@ -1,6 +1,6 @@
 use egui::{
-    scroll_area::ScrollBarVisibility, vec2, Color32, Context, FontId, Frame, Image, Label,
-    RichText, ScrollArea, SidePanel, Stroke,
+    scroll_area::ScrollBarVisibility, vec2, Align, Color32, Context, FontId, Frame, Image, Label,
+    Layout, RichText, ScrollArea, SidePanel, Stroke,
 };
 
 use crate::{state::State, widgets::styled_button::StyledButton};
@@ -61,6 +61,8 @@ impl PlayPanel {
                             &mut app_state.queue.tracks.clone(),
                             |ui, item, handle, state| {
                                 let hovered = Some(state.index) == self.hover_idx;
+                                let handle_size = if hovered || state.dragged { 20. } else { 0. };
+
                                 if Frame::group(ui.style())
                                     .stroke(Stroke::NONE)
                                     .fill(if hovered {
@@ -72,7 +74,11 @@ impl PlayPanel {
                                         ui.horizontal(|ui| {
                                             if let Some(track_ref) = app_state.library.get(item) {
                                                 ui.allocate_ui(
-                                                    vec2((ui.available_width() - 20.).max(0.), 20.),
+                                                    vec2(
+                                                        (ui.available_width() - handle_size)
+                                                            .max(0.),
+                                                        30., // fix this weird aligning
+                                                    ),
                                                     |ui| {
                                                         ui.vertical(|ui| {
                                                             ui.add(
@@ -100,18 +106,26 @@ impl PlayPanel {
                                                         });
                                                     },
                                                 );
-                                                ui.add_space(ui.available_width() - 10.);
                                             }
 
-                                            if hovered {
-                                                handle.ui(ui, |ui| {
-                                                    ui.add(Label::new(
-                                                        RichText::new("▩")
-                                                            .font(FontId::monospace(16.)),
-                                                    ));
-                                                });
-                                            }
+                                            ui.with_layout(
+                                                Layout::right_to_left(Align::Center),
+                                                |ui| {
+                                                    handle.ui(ui, |ui| {
+                                                        let icon = if hovered || state.dragged { // jank?
+                                                            RichText::new("▩")
+                                                                .font(FontId::monospace(16.))
+                                                        } else {
+                                                            RichText::new("▩")
+                                                                .font(FontId::monospace(16.))
+                                                                .color(Color32::TRANSPARENT)
+                                                        };
+                                                        ui.add(Label::new(icon));
+                                                    });
+                                                },
+                                            );
                                         });
+                                        ui.allocate_space(vec2(ui.available_width(), 0.));
                                     })
                                     .response
                                     .hovered()
