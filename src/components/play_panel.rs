@@ -1,6 +1,6 @@
 use egui::{
-    scroll_area::ScrollBarVisibility, vec2, Align, Color32, Context, FontId, Frame, Image, Label,
-    Layout, RichText, ScrollArea, SidePanel, Stroke,
+    scroll_area::ScrollBarVisibility, vec2, Align, Color32, Context, CursorIcon, FontId, Frame,
+    Image, Label, Layout, RichText, ScrollArea, SidePanel, Stroke,
 };
 
 use crate::{state::State, widgets::styled_button::StyledButton};
@@ -61,7 +61,7 @@ impl PlayPanel {
                             &mut app_state.queue.tracks.clone(),
                             |ui, item, handle, state| {
                                 let hovered = Some(state.index) == self.hover_idx;
-                                let handle_size = if hovered || state.dragged { 20. } else { 0. };
+                                let handle_width = if hovered { 40. } else { 5. };
 
                                 if Frame::group(ui.style())
                                     .stroke(Stroke::NONE)
@@ -75,9 +75,9 @@ impl PlayPanel {
                                             if let Some(track_ref) = app_state.library.get(item) {
                                                 ui.allocate_ui(
                                                     vec2(
-                                                        (ui.available_width() - handle_size)
+                                                        (ui.available_width() - handle_width)
                                                             .max(0.),
-                                                        30., // fix this weird aligning
+                                                        70., // fix this weird aligning
                                                     ),
                                                     |ui| {
                                                         ui.vertical(|ui| {
@@ -111,17 +111,23 @@ impl PlayPanel {
                                             ui.with_layout(
                                                 Layout::right_to_left(Align::Center),
                                                 |ui| {
-                                                    handle.ui(ui, |ui| {
-                                                        let icon = if hovered || state.dragged { // jank?
-                                                            RichText::new("▩")
-                                                                .font(FontId::monospace(16.))
-                                                        } else {
-                                                            RichText::new("▩")
-                                                                .font(FontId::monospace(16.))
-                                                                .color(Color32::TRANSPARENT)
-                                                        };
-                                                        ui.add(Label::new(icon));
-                                                    });
+                                                    if handle
+                                                        .ui(ui, |ui| {
+                                                            let icon = if hovered {
+                                                                // jank
+                                                                RichText::new("▩")
+                                                                    .font(FontId::monospace(16.))
+                                                            } else {
+                                                                RichText::new("▩")
+                                                                    .font(FontId::monospace(16.))
+                                                                    .color(Color32::TRANSPARENT)
+                                                            };
+                                                            ui.add(Label::new(icon));
+                                                        })
+                                                        .hovered()
+                                                    {
+                                                        ctx.set_cursor_icon(CursorIcon::Default);
+                                                    }
                                                 },
                                             );
                                         });
