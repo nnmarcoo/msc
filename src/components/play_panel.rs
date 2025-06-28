@@ -1,6 +1,6 @@
 use egui::{
-    scroll_area::ScrollBarVisibility, vec2, Align, Color32, Context, CursorIcon, FontId, Frame,
-    Image, Label, Layout, RichText, ScrollArea, SidePanel, Stroke,
+    scroll_area::ScrollBarVisibility, vec2, Color32, Context, CursorIcon, Frame, Image, Label,
+    RichText, ScrollArea, SidePanel, Stroke,
 };
 
 use crate::{state::State, widgets::styled_button::StyledButton};
@@ -61,8 +61,6 @@ impl PlayPanel {
                             &mut app_state.queue.tracks.clone(),
                             |ui, item, handle, state| {
                                 let hovered = Some(state.index) == self.hover_idx;
-                                let handle_width = if hovered { 40. } else { 5. };
-
                                 if Frame::group(ui.style())
                                     .stroke(Stroke::NONE)
                                     .fill(if hovered {
@@ -71,67 +69,35 @@ impl PlayPanel {
                                         Color32::TRANSPARENT
                                     })
                                     .show(ui, |ui| {
-                                        ui.horizontal(|ui| {
-                                            if let Some(track_ref) = app_state.library.get(item) {
-                                                ui.allocate_ui(
-                                                    vec2(
-                                                        (ui.available_width() - handle_width)
-                                                            .max(0.),
-                                                        70., // fix this weird aligning
-                                                    ),
-                                                    |ui| {
-                                                        ui.vertical(|ui| {
-                                                            ui.add(
-                                                                Label::new(
-                                                                    RichText::new(
-                                                                        track_ref
-                                                                            .value()
-                                                                            .title
-                                                                            .clone(),
-                                                                    )
-                                                                    .strong(),
+                                        if handle
+                                            .ui(ui, |ui| {
+                                                if let Some(track_ref) = app_state.library.get(item)
+                                                {
+                                                    ui.vertical(|ui| {
+                                                        ui.add(
+                                                            Label::new(
+                                                                RichText::new(
+                                                                    track_ref.value().title.clone(),
                                                                 )
-                                                                .truncate(),
-                                                            );
+                                                                .strong(),
+                                                            )
+                                                            .truncate(),
+                                                        );
 
-                                                            ui.add(
-                                                                Label::new(
-                                                                    track_ref
-                                                                        .value()
-                                                                        .artist
-                                                                        .clone(),
-                                                                )
-                                                                .truncate(),
-                                                            );
-                                                        });
-                                                    },
-                                                );
-                                            }
-
-                                            ui.with_layout(
-                                                Layout::right_to_left(Align::Center),
-                                                |ui| {
-                                                    if handle
-                                                        .ui(ui, |ui| {
-                                                            let icon = if hovered {
-                                                                // jank
-                                                                RichText::new("▩")
-                                                                    .font(FontId::monospace(16.))
-                                                            } else {
-                                                                RichText::new("▩")
-                                                                    .font(FontId::monospace(16.))
-                                                                    .color(Color32::TRANSPARENT)
-                                                            };
-                                                            ui.add(Label::new(icon));
-                                                        })
-                                                        .hovered()
-                                                    {
-                                                        ctx.set_cursor_icon(CursorIcon::Default);
-                                                    }
-                                                },
-                                            );
-                                        });
-                                        ui.allocate_space(vec2(ui.available_width(), 0.));
+                                                        ui.add(
+                                                            Label::new(
+                                                                track_ref.value().artist.clone(),
+                                                            )
+                                                            .truncate(),
+                                                        );
+                                                    });
+                                                }
+                                                ui.allocate_space(vec2(ui.available_width(), 0.));
+                                            })
+                                            .hovered()
+                                        {
+                                            ctx.set_cursor_icon(CursorIcon::Default);
+                                        }
                                     })
                                     .response
                                     .hovered()
