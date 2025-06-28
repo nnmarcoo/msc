@@ -38,6 +38,7 @@ pub struct State {
     pub view: View,
     pub playlists: Vec<Playlist>,
     pub queue: Queue,
+    #[serde(skip)]
     pub show_play_panel: bool,
     pub query: String,
 }
