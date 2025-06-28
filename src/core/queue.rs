@@ -76,6 +76,7 @@ impl Queue {
     pub fn clear(&mut self) {
         self.tracks.clear();
         self.current_index = 0;
+        self.timeline_pos = 0.;
         if let Some(sound) = &mut self.sound {
             sound.stop(Tween::default());
         }
@@ -191,6 +192,7 @@ impl Queue {
             self.tracks.insert(self.current_index + 1, hash);
             self.current_index += 1;
         }
+        self.timeline_pos = 0.;
         self.start(library);
     }
 
