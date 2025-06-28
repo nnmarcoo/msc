@@ -21,8 +21,6 @@ impl PlayPanel {
             return;
         }
 
-        let current_track_ref = app_state.queue.get_track_mut_ref(&app_state.library);
-
         SidePanel::right("Play panel")
             .max_width(350.)
             .min_width(0.)
@@ -38,7 +36,9 @@ impl PlayPanel {
                     .show(ui, |ui| {
                         ui.strong("Album");
 
-                        if let Some(mut current_track) = current_track_ref {
+                        if let Some(mut current_track) =
+                            app_state.queue.get_track_mut_ref(&app_state.library)
+                        {
                             if let Some(texture) = &current_track.texture {
                                 ui.add(StyledButton::new(
                                     vec2(ui.available_width(), ui.available_width()),
@@ -58,7 +58,7 @@ impl PlayPanel {
                         let mut hovered_any = false;
 
                         dnd(ui, "queue").show_vec(
-                            &mut app_state.queue.tracks.clone(),
+                            &mut app_state.queue.tracks,
                             |ui, item, handle, state| {
                                 let hovered = Some(state.index) == self.hover_idx;
                                 if Frame::group(ui.style())
@@ -91,8 +91,11 @@ impl PlayPanel {
                                                             .truncate(),
                                                         );
                                                     });
+                                                    ui.allocate_space(vec2(
+                                                        ui.available_width(),
+                                                        0.,
+                                                    ));
                                                 }
-                                                ui.allocate_space(vec2(ui.available_width(), 0.));
                                             })
                                             .hovered()
                                         {
