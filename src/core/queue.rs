@@ -178,6 +178,13 @@ impl Queue {
         }
     }
 
+    pub fn queue_track_next(&mut self, hash: Hash, library: &DashMap<Hash, Track>) {
+        if library.contains_key(&hash) {
+            let insert_index = (self.current_index + 1).min(self.tracks.len()); // slow?
+            self.tracks.insert(insert_index, hash);
+        }
+    }
+
     pub fn queue_track(&mut self, hash: Hash, library: &DashMap<Hash, Track>) {
         if library.contains_key(&hash) {
             self.tracks.push(hash);

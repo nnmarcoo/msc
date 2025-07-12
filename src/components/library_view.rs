@@ -101,8 +101,13 @@ impl LibraryView {
                             state.queue.play(track.hash, &state.library);
                             ui.close_menu();
                         }
-                        if ui.button("Play next").clicked() {}
-                        if ui.button("Add to queue").clicked() {}
+                        if ui.button("Play next").clicked() {
+                            state.queue.queue_track_next(track.hash, &state.library);
+                        }
+                        if ui.button("Add to queue").clicked() {
+                            state.queue.queue_track(track.hash, &state.library);
+                            ui.close_menu();
+                        }
 
                         ui.separator();
 
