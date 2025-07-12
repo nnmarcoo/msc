@@ -1,5 +1,5 @@
 use egui::{
-    scroll_area::ScrollBarVisibility, vec2, Color32, Context, CursorIcon, Frame, Id, Image, Label,
+    scroll_area::ScrollBarVisibility, vec2, Color32, Context, CursorIcon, Frame, Image, Label,
     RichText, ScrollArea, SidePanel, Stroke, TextWrapMode,
 };
 
