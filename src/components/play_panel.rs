@@ -79,7 +79,7 @@ impl PlayPanel {
                                                         .stroke(Stroke::NONE)
                                                         .show(ui, |ui| {
                                                             if let Some(track_ref) =
-                                                                app_state.library.get(track)
+                                                                app_state.library.get(&track.hash)
                                                             {
                                                                 ui.vertical(|ui| {
                                                                     ui.add(

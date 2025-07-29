@@ -14,9 +14,15 @@ use kira::{
 use super::track::Track;
 use crate::core::helps::amp_to_db;
 
+#[derive(serde::Deserialize, serde::Serialize, Hash)]
+pub struct QueueHash {
+    pub hash: Hash,
+    pub id: usize,
+}
+
 #[derive(serde::Deserialize, serde::Serialize)]
 pub struct Queue {
-    pub tracks: Vec<Hash>,
+    pub tracks: Vec<QueueHash>,
     pub volume: f32,
     pub timeline_pos: f32,
     pub current_index: usize,
@@ -53,7 +59,7 @@ impl Queue {
     ) -> Option<Ref<'a, Hash, Track>> {
         self.tracks
             .get(self.current_index)
-            .and_then(|hash| map.get(hash))
+            .and_then(|queue_hash| map.get(&queue_hash.hash))
     }
 
     pub fn get_track_mut_ref<'a>(
@@ -62,13 +68,13 @@ impl Queue {
     ) -> Option<RefMut<'a, Hash, Track>> {
         self.tracks
             .get(self.current_index)
-            .and_then(|hash| map.get_mut(hash))
+            .and_then(|queue_hash| map.get_mut(&queue_hash.hash))
     }
 
     pub fn get_track_copy(&self, map: &DashMap<Hash, Track>) -> Track {
         self.tracks
             .get(self.current_index)
-            .and_then(|hash| map.get(hash))
+            .and_then(|queue_hash| map.get(&queue_hash.hash))
             .map(|track_ref| track_ref.clone())
             .unwrap_or_else(Track::default)
     }
@@ -181,22 +187,40 @@ impl Queue {
     pub fn queue_track_next(&mut self, hash: Hash, library: &DashMap<Hash, Track>) {
         if library.contains_key(&hash) {
             let insert_index = (self.current_index + 1).min(self.tracks.len()); // slow?
-            self.tracks.insert(insert_index, hash);
+            self.tracks.insert(
+                insert_index,
+                QueueHash {
+                    hash: hash,
+                    id: self.tracks.len() + 1,
+                },
+            );
         }
     }
 
     pub fn queue_track(&mut self, hash: Hash, library: &DashMap<Hash, Track>) {
         if library.contains_key(&hash) {
-            self.tracks.push(hash);
+            self.tracks.push(QueueHash {
+                hash: hash,
+                id: self.tracks.len() + 1,
+            });
         }
     }
 
     pub fn play(&mut self, hash: Hash, library: &DashMap<Hash, Track>) {
         if self.tracks.is_empty() {
-            self.tracks.push(hash);
+            self.tracks.push(QueueHash {
+                hash: hash,
+                id: self.tracks.len() + 1,
+            });
             self.current_index = 0;
         } else {
-            self.tracks.insert(self.current_index + 1, hash);
+            self.tracks.insert(
+                self.current_index + 1,
+                QueueHash {
+                    hash: hash,
+                    id: self.tracks.len() + 1,
+                },
+            );
             self.current_index += 1;
         }
         self.timeline_pos = 0.;
