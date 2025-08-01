@@ -41,7 +41,6 @@ impl Track {
     }
 
     pub fn new(path: &str) -> Option<Self> {
-        // Hash file using memory-mapped I/O
         let mut hasher = Hasher::new();
         let file_hash = hasher.update_mmap(Path::new(path)).ok()?.finalize();
 
