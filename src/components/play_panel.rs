@@ -40,6 +40,20 @@ impl PlayPanel {
                             let image_size = vec2(ui.available_width(), ui.available_width());
                             if let Some(texture) = &current_track.texture {
                                 ui.add(StyledButton::new(image_size, &Image::new(texture), || {}));
+                                ui.add_space(5.);
+                                ui.horizontal(|ui| {
+                                    ui.add(
+                                        Label::new(
+                                            RichText::new(&current_track.title).strong().size(16.),
+                                        )
+                                        .truncate(),
+                                    );
+                                    ui.add(
+                                        Label::new(RichText::new(&current_track.artist).size(16.))
+                                            .truncate(),
+                                    );
+                                });
+                                ui.add_space(5.);
                             } else {
                                 ui.allocate_space(image_size);
                                 current_track.load_texture(ui.ctx());
@@ -85,10 +99,9 @@ impl PlayPanel {
                                                                     ui.add(
                                                                         Label::new(
                                                                             RichText::new(
-                                                                                track_ref
+                                                                                &track_ref
                                                                                     .value()
-                                                                                    .title
-                                                                                    .clone(),
+                                                                                    .title,
                                                                             )
                                                                             .strong(),
                                                                         )
@@ -97,10 +110,9 @@ impl PlayPanel {
 
                                                                     ui.add(
                                                                         Label::new(
-                                                                            track_ref
+                                                                            &track_ref
                                                                                 .value()
-                                                                                .artist
-                                                                                .clone(),
+                                                                                .artist,
                                                                         )
                                                                         .truncate(),
                                                                     );

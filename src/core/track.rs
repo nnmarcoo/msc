@@ -33,7 +33,7 @@ impl Track {
             artist: "Artist".to_string(),
             album: "Album".to_string(),
             genre: "Genre".to_string(),
-            duration: 0.0,
+            duration: 0.,
             image_data: include_bytes!("../../assets/default.png").to_vec(),
             hash: blake3::hash(&[]),
             texture: None,
