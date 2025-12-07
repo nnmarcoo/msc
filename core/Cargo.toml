@@ -1,0 +1,8 @@
+[package]
+name = "msc-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+kira = "0.11.0"
+image = "0.25.9"

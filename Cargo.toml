@@ -1,6 +1,10 @@
-[package]
-name = "msc"
-version = "0.1.0"
-edition = "2024"
+[workspace]
+members = ["core", "tui", "gui"]
+resolver = "2"
 
-[dependencies]
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = 3
+strip = true
