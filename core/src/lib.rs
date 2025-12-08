@@ -1,10 +1,10 @@
+mod backend;
+mod metadata;
 mod player;
 mod queue;
-mod backend;
 mod track;
-mod metadata;
 
-pub use player::Player;
 pub use backend::Backend;
-pub use queue::Queue;
 pub use metadata::Metadata;
+pub use player::Player;
+pub use queue::Queue;

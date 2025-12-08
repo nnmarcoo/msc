@@ -5,7 +5,6 @@ use lofty::error::LoftyError;
 
 use crate::Metadata;
 
-
 #[derive(Debug)]
 pub enum TrackError {
     Lofty(LoftyError),
@@ -36,14 +35,14 @@ impl From<io::Error> for TrackError {
 }
 
 pub struct Track {
-    id: Hash,  
+    id: Hash,
     path: PathBuf,
     data: Metadata,
 }
 
 impl Track {
     pub fn from_path(path: PathBuf) -> Result<Self, TrackError> {
-        let mut hasher = Hasher::new(); 
+        let mut hasher = Hasher::new();
         let id = hasher.update_mmap(&path)?.finalize();
 
         let data = Metadata::from_path(&path)?;

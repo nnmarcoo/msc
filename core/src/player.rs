@@ -1,3 +1,5 @@
+use kira::backend::cpal;
+
 use crate::Backend;
 
 pub struct Player {
@@ -5,21 +7,15 @@ pub struct Player {
 }
 
 impl Player {
-    pub fn new() -> Self {
-       Player {
-            backend: Backend::new(),
-        } 
+    pub fn new() -> Result<Self, cpal::Error> {
+        Ok(Player {
+            backend: Backend::new()?,
+        })
     }
 
-    pub fn play() {
+    pub fn play() {}
 
-    }
+    pub fn pause() {}
 
-    pub fn pause() {
-
-    }
-
-    pub fn seek(pos: f32) {
-        
-    }
+    pub fn seek(pos: f32) {}
 }
