@@ -95,7 +95,6 @@ impl Backend {
         }
     }
 
-    // this converts amp to db
     pub fn set_volume(&mut self, volume: f32) {
         if let Some(sound) = &mut self.sound {
             sound.set_volume(Self::amp_to_db(volume), Tween::default());
