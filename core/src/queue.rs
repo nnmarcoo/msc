@@ -56,4 +56,12 @@ impl Queue {
         tracks.shuffle(&mut rand::rng());
         self.upcoming = VecDeque::from(tracks);
     }
+
+    pub fn upcoming(&self) -> &VecDeque<Hash> {
+        &self.upcoming
+    }
+
+    pub fn history(&self) -> &VecDeque<Hash> {
+        &self.history
+    }
 }

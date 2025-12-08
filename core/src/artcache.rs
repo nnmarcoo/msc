@@ -1,11 +1,15 @@
 use dashmap::DashMap;
-use blake3::Hash;
-use image::DynamicImage;
+use blake3::{Hash, hash};
+use image::{imageops::FilterType, DynamicImage, GenericImageView};
 use lofty::file::TaggedFileExt;
 use lofty::probe::Probe;
 use std::{path::Path, sync::Arc};
 
 use crate::Track;
+
+// redo this it sucks
+
+const THUMBNAIL_SIZE: u32 = 512;
 
 pub struct ArtCache {
     cache: DashMap<Hash, Arc<DynamicImage>>,
@@ -18,6 +22,14 @@ impl ArtCache {
         }
     }
 
+    // non blocking
+    pub fn try_get(&self, track: &Track) -> Option<Arc<DynamicImage>> {
+        track.metadata.art_id
+            .and_then(|id| self.cache.get(&id))
+            .map(|entry| entry.value().clone())
+    }
+
+    // blocking
     pub fn get_or_load(&self, track: &Track) -> Option<Arc<DynamicImage>> {
         if let Some(id) = track.metadata.art_id {
             if let Some(img) = self.cache.get(&id) {
@@ -25,20 +37,20 @@ impl ArtCache {
             }
         }
 
-        // Need to extract from file
         let (image_data, image) = Self::extract_and_decode(&track.path)?;
 
-        // Hash the image data to get unique ID
-        let id = blake3::hash(&image_data);
+        let id = hash(&image_data);
 
-        // Cache it
-        let arc_image = Arc::new(image);
-        self.cache.insert(id, arc_image.clone());
+        if let Some(img) = self.cache.get(&id) {
+            return Some(img.value().clone());
+        }
 
-        // Note: We can't mutate track.metadata.artwork_id here since track is borrowed
-        // The ID will be recomputed next time, but it will find it in cache
+        let thumbnail = Self::resize_to_thumbnail(image);
 
-        Some(arc_image)
+        let arc_thumbnail = Arc::new(thumbnail);
+        self.cache.insert(id, arc_thumbnail.clone());
+
+        Some(arc_thumbnail)
     }
 
     pub fn get(&self, id: &Hash) -> Option<Arc<DynamicImage>> {
@@ -52,6 +64,16 @@ impl ArtCache {
         let data = picture.data().to_vec();
         let image = image::load_from_memory(&data).ok()?;
         Some((data, image))
+    }
+
+    fn resize_to_thumbnail(image: DynamicImage) -> DynamicImage {
+        let (width, height) = image.dimensions();
+
+        if width <= THUMBNAIL_SIZE && height <= THUMBNAIL_SIZE {
+            return image;
+        }
+
+        image.resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, FilterType::Lanczos3)
     }
 
     pub fn clear(&self) {

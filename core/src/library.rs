@@ -1,6 +1,7 @@
 use std::{
     fs::read_dir,
     path::{Path, PathBuf},
+    sync::Arc,
 };
 
 use blake3::Hash;
@@ -11,7 +12,7 @@ use crate::{track::Track, ArtCache};
 
 pub struct Library {
     pub tracks: Option<DashMap<Hash, Track>>,
-    pub artwork: ArtCache,
+    pub artwork: Arc<ArtCache>,
     root: Option<PathBuf>,
 }
 
@@ -19,7 +20,7 @@ impl Library {
     pub fn new() -> Self {
         Library {
             tracks: None,
-            artwork: ArtCache::new(),
+            artwork: Arc::new(ArtCache::new()),
             root: None,
         }
     }

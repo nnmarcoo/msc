@@ -1,7 +1,10 @@
-use iced::widget::{button, column, container, horizontal_rule, row, slider, text, vertical_space};
-use iced::{Element, Length, Subscription, Task, Theme};
+use blake3::Hash;
+use iced::widget::{button, column, container, horizontal_rule, image as iced_image, row, scrollable, slider, text, vertical_space};
+use iced::{Color, Element, Length, Subscription, Task, Theme};
+use image::{DynamicImage, GenericImageView};
 use msc_core::Player;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
 use std::time::Duration;
 
 pub fn main() -> iced::Result {
@@ -16,8 +19,12 @@ struct MusicPlayer {
     status: String,
     volume: f32,
     library_path: String,
-
     timeline: f64,
+
+    // Artwork state
+    current_artwork: Option<iced::widget::image::Handle>,
+    current_track_id: Option<Hash>,
+    loading_artwork: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -31,6 +38,7 @@ enum Message {
     ShuffleQueue,
     VolumeChanged(f32),
     Tick,
+    ArtworkLoaded(Hash, Option<Arc<DynamicImage>>),
 }
 
 impl Default for MusicPlayer {
@@ -43,6 +51,9 @@ impl Default for MusicPlayer {
             volume: 0.5,
             library_path: String::from("D:\\audio"),
             timeline: 0.0,
+            current_artwork: None,
+            current_track_id: None,
+            loading_artwork: false,
         }
     }
 }
@@ -94,15 +105,81 @@ impl MusicPlayer {
                     self.status = format!("Update error: {}", e);
                 }
                 self.timeline = self.player.position();
+
+                // Check if track changed and load artwork
+                if let Some(track) = self.player.current_track() {
+                    if self.current_track_id != Some(track.id) {
+                        self.current_track_id = Some(track.id);
+
+                        // Clear old artwork immediately when track changes
+                        self.current_artwork = None;
+
+                        // Try instant get first
+                        if let Some(artwork) = self.player.artwork().try_get(&track) {
+                            self.current_artwork = Some(convert_to_handle(&artwork));
+                            self.loading_artwork = false;
+                        } else {
+                            // Not cached - load in background
+                            // Note: we don't check loading_artwork, we always spawn new task
+                            // The ArtworkLoaded handler will ignore stale results
+                            self.loading_artwork = true;
+                            let track_id = track.id;
+                            let track_path = track.path.clone();
+
+                            // Clone the Arc to the cache (cheap operation)
+                            let cache = self.player.artwork();
+
+                            return Task::perform(
+                                load_artwork_async_with_cache(track_path, track_id, cache),
+                                |(id, img)| Message::ArtworkLoaded(id, img)
+                            );
+                        }
+                    }
+                } else {
+                    // No track playing
+                    self.current_track_id = None;
+                    self.current_artwork = None;
+                    self.loading_artwork = false;
+                }
+            }
+            Message::ArtworkLoaded(track_id, artwork) => {
+                // Only update if it's still the current track
+                if self.current_track_id == Some(track_id) {
+                    if let Some(img) = artwork {
+                        self.current_artwork = Some(convert_to_handle(&img));
+                    }
+                    self.loading_artwork = false;
+                }
             }
         }
         Task::none()
     }
 
     fn view(&self) -> Element<Message> {
+        // ALBUM ARTWORK
+        let artwork_widget: Element<Message> = if let Some(handle) = &self.current_artwork {
+            iced_image(handle.clone())
+                .width(256)
+                .height(256)
+                .into()
+        } else if self.loading_artwork {
+            container(text("Loading...").size(14))
+                .width(256)
+                .height(256)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .into()
+        } else {
+            container(text("No artwork").size(14))
+                .width(256)
+                .height(256)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .into()
+        };
+
         // TRACK INFO
         let track_info = if let Some(track) = self.player.current_track() {
-
             format!(
                 "Title: {}\nArtist: {}\nAlbum: {}\nGenre: {}\nDuration: {:.2} sec",
                 track.metadata.title_or_default(),
@@ -115,12 +192,21 @@ impl MusicPlayer {
             "No track loaded".into()
         };
 
-        let top_bar = column![
-            text("MSC Music Player").size(32),
+        let track_info_column = column![
             text(track_info).size(16),
             text(self.status.clone()).size(14),
         ]
         .spacing(4);
+
+        let top_bar = row![
+            artwork_widget,
+            column![
+                text("MSC Music Player").size(32),
+                track_info_column,
+            ]
+            .spacing(10)
+        ]
+        .spacing(20);
 
         // TIMELINE (seek bar)
         let pos = self.timeline;
@@ -160,8 +246,11 @@ impl MusicPlayer {
         ]
         .spacing(20);
 
-        // MASTER LAYOUT
-        let content = column![
+        // QUEUE DISPLAY
+        let queue_widget = self.build_queue_view();
+
+        // MASTER LAYOUT with two columns
+        let left_panel = column![
             top_bar,
             vertical_space(),
             horizontal_rule(1),
@@ -174,11 +263,20 @@ impl MusicPlayer {
             library_controls,
         ]
         .padding(20)
-        .spacing(20);
+        .spacing(20)
+        .width(Length::FillPortion(2));
+
+        let right_panel = container(queue_widget)
+            .width(Length::FillPortion(1))
+            .height(Length::Fill)
+            .padding(20);
+
+        let content = row![left_panel, right_panel]
+            .spacing(0)
+            .width(Length::Fill)
+            .height(Length::Fill);
 
         container(content)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
@@ -187,4 +285,87 @@ impl MusicPlayer {
     fn subscription(&self) -> Subscription<Message> {
         iced::time::every(Duration::from_millis(100)).map(|_| Message::Tick)
     }
+
+    fn build_queue_view(&self) -> Element<Message> {
+        let title = text("Queue").size(24);
+
+        let mut queue_items = column![].spacing(4);
+
+        // Add upcoming tracks
+        let current_id = self.player.current_track().map(|t| t.id);
+
+        // Get queue from player
+        if let Some(tracks) = &self.player.library().tracks {
+            // Current track (highlighted)
+            if let Some(current) = current_id {
+                if let Some(track) = tracks.get(&current) {
+                    let track_name = format!(
+                        "▶ {} - {}",
+                        track.metadata.artist_or_default(),
+                        track.metadata.title_or_default()
+                    );
+                    queue_items = queue_items.push(
+                        container(text(track_name).size(14))
+                            .style(|_theme: &Theme| {
+                                container::Style {
+                                    background: Some(Color::from_rgb(0.2, 0.4, 0.6).into()),
+                                    text_color: Some(Color::WHITE),
+                                    ..Default::default()
+                                }
+                            })
+                            .padding(8)
+                            .width(Length::Fill)
+                    );
+                }
+            }
+
+            // Upcoming tracks
+            for track_id in self.player.queue().upcoming() {
+                if let Some(track) = tracks.get(track_id) {
+                    let track_name = format!(
+                        "{} - {}",
+                        track.metadata.artist_or_default(),
+                        track.metadata.title_or_default()
+                    );
+                    queue_items = queue_items.push(
+                        container(text(track_name).size(14))
+                            .padding(8)
+                            .width(Length::Fill)
+                    );
+                }
+            }
+        }
+
+        let queue_container = scrollable(queue_items)
+            .height(Length::Fill);
+
+        column![title, horizontal_rule(1), queue_container]
+            .spacing(10)
+            .into()
+    }
+}
+
+// Helper function to load artwork in background using the existing cache
+async fn load_artwork_async_with_cache(
+    track_path: PathBuf,
+    track_id: Hash,
+    cache: Arc<msc_core::ArtCache>
+) -> (Hash, Option<Arc<DynamicImage>>) {
+    use msc_core::Track;
+
+    // Load track and extract artwork (blocking, but in background task)
+    let artwork = Track::from_path(&track_path)
+        .ok()
+        .and_then(|track| cache.get_or_load(&track));
+
+    (track_id, artwork)
+}
+
+// Convert DynamicImage to iced Handle
+fn convert_to_handle(img: &DynamicImage) -> iced::widget::image::Handle {
+    let rgba = img.to_rgba8();
+    let (width, height) = img.dimensions();
+    let pixels = rgba.into_raw();
+
+    iced::widget::image::Handle::from_rgba(width, height, pixels)
 }

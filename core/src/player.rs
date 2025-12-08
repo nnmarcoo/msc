@@ -1,4 +1,5 @@
 use std::path::Path;
+use std::sync::Arc;
 
 use blake3::Hash;
 use kira::backend::cpal;
@@ -98,7 +99,15 @@ impl Player {
         self.library.track_from_id(current)
     }
 
-    pub fn artwork(&self) -> &crate::ArtCache {
-        &self.library.artwork
+    pub fn artwork(&self) -> Arc<crate::ArtCache> {
+        Arc::clone(&self.library.artwork)
+    }
+
+    pub fn library(&self) -> &Library {
+        &self.library
+    }
+
+    pub fn queue(&self) -> &Queue {
+        &self.queue
     }
 }
