@@ -6,7 +6,7 @@ use crossterm::{
 use msc_core::Player;
 use ratatui::{
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout, Rect},
+    layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Gauge, List, ListItem, Paragraph},
@@ -160,7 +160,7 @@ fn ui(f: &mut Frame, app: &App) {
         .constraints([
             Constraint::Length(3), // Title
             Constraint::Length(3), // Status
-            Constraint::Length(3), // Track info
+            Constraint::Length(5), // Track info
             Constraint::Length(3), // Position
             Constraint::Length(3), // Volume
             Constraint::Min(5),    // Help
@@ -169,7 +169,11 @@ fn ui(f: &mut Frame, app: &App) {
 
     // Title
     let title = Paragraph::new("MSC Music Player - TUI")
-        .style(Style::default().fg(Color::Cyan).add_modifier(Modifier::BOLD))
+        .style(
+            Style::default()
+                .fg(Color::Cyan)
+                .add_modifier(Modifier::BOLD),
+        )
         .block(Block::default().borders(Borders::ALL));
     f.render_widget(title, chunks[0]);
 
@@ -179,15 +183,43 @@ fn ui(f: &mut Frame, app: &App) {
         .block(Block::default().borders(Borders::ALL).title("Status"));
     f.render_widget(status, chunks[1]);
 
-    // Track info
-    let track_text = if let Some(track_id) = app.player.current_track_id() {
-        format!("Track ID: {}...", &track_id.to_hex()[..16])
+    // TRACK INFO
+    let track_text: Vec<Line> = if let Some(track) = app.player.current_track() {
+        let meta = &track.metadata;
+
+        vec![
+            Line::from(vec![
+                Span::styled("Title: ", Style::default().fg(Color::Yellow)),
+                Span::raw(meta.title_or_default().to_string()),
+            ]),
+            Line::from(vec![
+                Span::styled("Artist: ", Style::default().fg(Color::Yellow)),
+                Span::raw(meta.artist_or_default().to_string()),
+            ]),
+            Line::from(vec![
+                Span::styled("Album:  ", Style::default().fg(Color::Yellow)),
+                Span::raw(meta.album_or_default().to_string()),
+            ]),
+            Line::from(vec![
+                Span::styled("Genre:  ", Style::default().fg(Color::Yellow)),
+                Span::raw(meta.genre_or_default().to_string()),
+            ]),
+            Line::from(vec![
+                Span::styled("Duration: ", Style::default().fg(Color::Yellow)),
+                Span::raw(format!("{:.2}s", meta.duration())),
+            ]),
+        ]
     } else {
-        String::from("No track loaded")
+        vec![Line::from(Span::raw("No track loaded".to_string()))]
     };
+
     let track_info = Paragraph::new(track_text)
-        .style(Style::default().fg(Color::Yellow))
-        .block(Block::default().borders(Borders::ALL).title("Current Track"));
+        .block(
+            Block::default()
+                .borders(Borders::ALL)
+                .title("Current Track"),
+        )
+        .style(Style::default().fg(Color::White));
     f.render_widget(track_info, chunks[2]);
 
     // Position

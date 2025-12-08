@@ -1,20 +1,14 @@
-use iced::widget::{
-    button, column, container, row, slider, text, horizontal_rule, vertical_space,
-};
-use iced::{Element, Subscription, Task, Theme, Length};
+use iced::widget::{button, column, container, horizontal_rule, row, slider, text, vertical_space};
+use iced::{Element, Length, Subscription, Task, Theme};
 use msc_core::Player;
 use std::path::Path;
 use std::time::Duration;
 
 pub fn main() -> iced::Result {
-    iced::application(
-        "MSC - Music Player",
-        MusicPlayer::update,
-        MusicPlayer::view,
-    )
-    .subscription(MusicPlayer::subscription)
-    .theme(|_| Theme::Dark)
-    .run()
+    iced::application("MSC - Music Player", MusicPlayer::update, MusicPlayer::view)
+        .subscription(MusicPlayer::subscription)
+        .theme(|_| Theme::Dark)
+        .run()
 }
 
 struct MusicPlayer {
@@ -106,20 +100,30 @@ impl MusicPlayer {
     }
 
     fn view(&self) -> Element<Message> {
-        let track_label = if let Some(track_id) = self.player.current_track_id() {
-    format!("Track: {}...", &track_id.to_hex()[..16])
-} else {
-    "No track loaded".into()
-};
+        // TRACK INFO
+        let track_info = if let Some(track) = self.player.current_track() {
+            let meta = &track.metadata;
 
-let top_bar = column![
-    text("MSC Music Player").size(32),
-    text(track_label).size(16),
-    text(self.status.clone()).size(14),
-]
-.spacing(4);
+            format!(
+                "Title: {}\nArtist: {}\nAlbum: {}\nGenre: {}\nDuration: {:.2} sec",
+                meta.title_or_default(),
+                meta.artist_or_default(),
+                meta.album_or_default(),
+                meta.genre_or_default(),
+                meta.duration()
+            )
+        } else {
+            "No track loaded".into()
+        };
 
-        // --- TIMELINE (seek bar)
+        let top_bar = column![
+            text("MSC Music Player").size(32),
+            text(track_info).size(16),
+            text(self.status.clone()).size(14),
+        ]
+        .spacing(4);
+
+        // TIMELINE (seek bar)
         let pos = self.timeline;
         let timeline = column![
             text(format!("Time: {:.2}s", pos)).size(14),
@@ -129,7 +133,7 @@ let top_bar = column![
         ]
         .spacing(10);
 
-        // --- PLAYBACK CONTROLS
+        // PLAYBACK CONTROLS
         let controls = row![
             button("⏮ Prev").on_press(Message::PlayPrevious),
             button("▶ Play").on_press(Message::Play),
@@ -139,7 +143,7 @@ let top_bar = column![
         .spacing(20)
         .padding(5);
 
-        // --- VOLUME
+        // VOLUME
         let volume = row![
             text("🔊 Volume").size(14),
             slider(0.0..=1.0, self.volume, Message::VolumeChanged)
@@ -150,20 +154,20 @@ let top_bar = column![
         .spacing(10)
         .padding([10, 0]);
 
-        // --- LIBRARY
+        // LIBRARY
         let library_controls = row![
             button("Load Library").on_press(Message::LoadLibrary),
             button("Shuffle").on_press(Message::ShuffleQueue),
         ]
         .spacing(20);
 
-        // --- MASTER LAYOUT
+        // MASTER LAYOUT
         let content = column![
             top_bar,
             vertical_space(),
             horizontal_rule(1),
             timeline,
-            vertical_space(),    
+            vertical_space(),
             controls,
             volume,
             vertical_space(),

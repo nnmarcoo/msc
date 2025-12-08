@@ -60,4 +60,8 @@ impl Library {
         }
         map
     }
+
+    pub fn track_from_id(&self, id: Hash) -> Option<dashmap::mapref::one::Ref<'_, Hash, Track>> {
+        self.tracks.as_ref()?.get(&id)
+    }
 }

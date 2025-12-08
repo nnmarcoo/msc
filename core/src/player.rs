@@ -3,7 +3,7 @@ use std::path::Path;
 use blake3::Hash;
 use kira::backend::cpal;
 
-use crate::{backend::PlaybackError, Backend, Library, Queue};
+use crate::{backend::PlaybackError, Backend, Library, Queue, Track};
 
 pub struct Player {
     backend: Backend,
@@ -97,7 +97,8 @@ impl Player {
         self.backend.position()
     }
 
-    pub fn current_track_id(&self) -> Option<Hash> {
-        self.queue.current()
+    pub fn current_track(&self) -> Option<dashmap::mapref::one::Ref<'_, Hash, Track>> {
+        let current = self.queue.current()?;
+        self.library.track_from_id(current)
     }
 }
