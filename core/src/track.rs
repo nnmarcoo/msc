@@ -38,9 +38,9 @@ impl From<io::Error> for TrackError {
 }
 
 pub struct Track {
-    id: Hash,
-    path: PathBuf,
-    metadata: Metadata,
+    pub id: Hash,
+    pub path: PathBuf,
+    pub metadata: Metadata,
 }
 
 impl Track {
@@ -63,17 +63,5 @@ impl Track {
             path: path.to_path_buf(),
             metadata: data,
         })
-    }
-
-    pub fn id(&self) -> Hash {
-        self.id
-    }
-
-    pub fn path(&self) -> &Path {
-        &self.path
-    }
-
-    pub fn metadata(&self) -> &Metadata {
-        &self.metadata
     }
 }

@@ -59,7 +59,7 @@ impl Player {
         if let Some(track_id) = self.queue.next() {
             if let Some(tracks) = &self.library.tracks {
                 if let Some(track) = tracks.get(&track_id) {
-                    self.backend.load_and_play(track.path(), self.volume)?;
+                    self.backend.load_and_play(&track.path, self.volume)?;
                 }
             }
         }
@@ -70,7 +70,7 @@ impl Player {
         if let Some(track_id) = self.queue.previous() {
             if let Some(tracks) = &self.library.tracks {
                 if let Some(track) = tracks.get(&track_id) {
-                    self.backend.load_and_play(track.path(), self.volume)?;
+                    self.backend.load_and_play(&track.path, self.volume)?;
                 }
             }
         }

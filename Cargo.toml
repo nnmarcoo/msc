@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "gui"] 
+members = ["core", "gui", "tui"] 
 resolver = "2"
 
 [profile.release]

@@ -45,7 +45,7 @@ impl Library {
                             let ext = ext.to_lowercase();
                             if ["mp3", "flac", "wav", "ogg"].contains(&ext.as_str()) {
                                 if let Ok(track) = Track::from_path(&path) {
-                                    map.insert(track.id(), track);
+                                    map.insert(track.id, track);
                                 }
                             }
                         }
