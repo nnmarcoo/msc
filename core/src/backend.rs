@@ -40,16 +40,12 @@ impl Backend {
     }
 
     // should I set the start position?
-    pub fn load_and_play<P: AsRef<Path>>(
-        &mut self,
-        path: P,
-        volume: f32,
-    ) -> Result<(), PlaybackError> {
+    pub fn load_and_play(&mut self, path: &Path, volume: f32) -> Result<(), PlaybackError> {
         self.stop();
 
-        let sound_data = StreamingSoundData::from_file(path.as_ref())
+        let sound_data = StreamingSoundData::from_file(path)
             .map_err(PlaybackError::LoadError)?
-            .volume(volume);
+            .volume(Self::amp_to_db(volume));
 
         let handle = self
             .manager
@@ -93,16 +89,44 @@ impl Backend {
         }
     }
 
-    pub fn seek(&mut self, position: f64) {
+    pub fn seek(&mut self, pos: f64) {
         if let Some(sound) = &mut self.sound {
-            sound.seek_to(position);
+            sound.seek_to(pos);
         }
     }
 
     // this converts amp to db
     pub fn set_volume(&mut self, volume: f32) {
         if let Some(sound) = &mut self.sound {
-            sound.set_volume(35. * volume.log10(), Tween::default());
+            sound.set_volume(Self::amp_to_db(volume), Tween::default());
+        }
+    }
+
+    fn amp_to_db(volume: f32) -> f32 {
+        45.0 * volume.log10()
+    }
+
+    pub fn is_playing(&self) -> bool {
+        if let Some(sound) = &self.sound {
+            sound.state() == PlaybackState::Playing
+        } else {
+            false
+        }
+    }
+
+    pub fn is_stopped(&self) -> bool {
+        if let Some(sound) = &self.sound {
+            sound.state() == PlaybackState::Stopped
+        } else {
+            true
+        }
+    }
+
+    pub fn position(&self) -> f64 {
+        if let Some(sound) = &self.sound {
+            sound.position()
+        } else {
+            0.
         }
     }
 }

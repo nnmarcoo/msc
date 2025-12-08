@@ -1,4 +1,7 @@
-use std::{io, path::PathBuf};
+use std::{
+    fs, io,
+    path::{Path, PathBuf},
+};
 
 use blake3::{Hash, Hasher};
 use lofty::error::LoftyError;
@@ -37,16 +40,40 @@ impl From<io::Error> for TrackError {
 pub struct Track {
     id: Hash,
     path: PathBuf,
-    data: Metadata,
+    metadata: Metadata,
 }
 
 impl Track {
-    pub fn from_path(path: PathBuf) -> Result<Self, TrackError> {
-        let mut hasher = Hasher::new();
-        let id = hasher.update_mmap(&path)?.finalize();
+    pub fn from_path(path: &Path) -> Result<Self, TrackError> {
+        let data = Metadata::from_path(path)?;
 
-        let data = Metadata::from_path(&path)?;
+        let id = {
+            let mut hasher = Hasher::new();
+            hasher.update(data.artist_or_default().as_bytes());
+            hasher.update(data.title_or_default().as_bytes());
+            hasher.update(data.album_or_default().as_bytes());
+            hasher.update(data.genre_or_default().as_bytes());
+            hasher.update(&data.duration().to_le_bytes());
+            hasher.update(&fs::metadata(path)?.len().to_le_bytes());
+            hasher.finalize()
+        };
 
-        Ok(Track { id, path, data })
+        Ok(Track {
+            id,
+            path: path.to_path_buf(),
+            metadata: data,
+        })
+    }
+
+    pub fn id(&self) -> Hash {
+        self.id
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn metadata(&self) -> &Metadata {
+        &self.metadata
     }
 }
