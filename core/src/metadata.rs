@@ -1,5 +1,6 @@
 use std::path::Path;
 
+use blake3::Hash;
 use lofty::{
     error::LoftyError,
     file::{AudioFile, TaggedFileExt},
@@ -8,11 +9,12 @@ use lofty::{
 };
 
 pub struct Metadata {
-    title: Option<String>,
-    artist: Option<String>,
-    album: Option<String>,
-    genre: Option<String>,
-    duration: f32,
+    pub art_id: Option<Hash>,
+    pub title: Option<String>,
+    pub artist: Option<String>,
+    pub album: Option<String>,
+    pub genre: Option<String>,
+    pub duration: f32,
 }
 
 impl Metadata {
@@ -39,6 +41,7 @@ impl Metadata {
             album,
             genre,
             duration,
+            art_id: None,
         })
     }
 

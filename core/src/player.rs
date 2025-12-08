@@ -9,8 +9,6 @@ pub struct Player {
     backend: Backend,
     library: Library,
     queue: Queue,
-
-    volume: f32,
 }
 
 impl Player {
@@ -19,7 +17,6 @@ impl Player {
             backend: Backend::new()?,
             library: Library::new(),
             queue: Queue::new(),
-            volume: 0.5,
         })
     }
 
@@ -59,7 +56,7 @@ impl Player {
         if let Some(track_id) = self.queue.next() {
             if let Some(tracks) = &self.library.tracks {
                 if let Some(track) = tracks.get(&track_id) {
-                    self.backend.load_and_play(&track.path, self.volume)?;
+                    self.backend.load_and_play(&track.path)?;
                 }
             }
         }
@@ -70,7 +67,7 @@ impl Player {
         if let Some(track_id) = self.queue.previous() {
             if let Some(tracks) = &self.library.tracks {
                 if let Some(track) = tracks.get(&track_id) {
-                    self.backend.load_and_play(&track.path, self.volume)?;
+                    self.backend.load_and_play(&track.path)?;
                 }
             }
         }
@@ -85,7 +82,6 @@ impl Player {
     }
 
     pub fn set_volume(&mut self, vol: f32) {
-        self.volume = vol;
         self.backend.set_volume(vol);
     }
 
@@ -100,5 +96,9 @@ impl Player {
     pub fn current_track(&self) -> Option<dashmap::mapref::one::Ref<'_, Hash, Track>> {
         let current = self.queue.current()?;
         self.library.track_from_id(current)
+    }
+
+    pub fn artwork(&self) -> &crate::ArtCache {
+        &self.library.artwork
     }
 }

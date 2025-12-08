@@ -102,15 +102,14 @@ impl MusicPlayer {
     fn view(&self) -> Element<Message> {
         // TRACK INFO
         let track_info = if let Some(track) = self.player.current_track() {
-            let meta = &track.metadata;
 
             format!(
                 "Title: {}\nArtist: {}\nAlbum: {}\nGenre: {}\nDuration: {:.2} sec",
-                meta.title_or_default(),
-                meta.artist_or_default(),
-                meta.album_or_default(),
-                meta.genre_or_default(),
-                meta.duration()
+                track.metadata.title_or_default(),
+                track.metadata.artist_or_default(),
+                track.metadata.album_or_default(),
+                track.metadata.genre_or_default(),
+                track.metadata.duration()
             )
         } else {
             "No track loaded".into()

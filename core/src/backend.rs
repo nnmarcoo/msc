@@ -27,8 +27,9 @@ impl std::fmt::Display for PlaybackError {
 impl std::error::Error for PlaybackError {}
 
 pub struct Backend {
-    pub manager: AudioManager,
-    pub sound: Option<StreamingSoundHandle<FromFileError>>,
+    manager: AudioManager,
+    sound: Option<StreamingSoundHandle<FromFileError>>,
+    volume: f32,
 }
 
 impl Backend {
@@ -36,16 +37,17 @@ impl Backend {
         Ok(Backend {
             manager: AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())?,
             sound: None,
+            volume: 0.5,
         })
     }
 
     // should I set the start position?
-    pub fn load_and_play(&mut self, path: &Path, volume: f32) -> Result<(), PlaybackError> {
+    pub fn load_and_play(&mut self, path: &Path) -> Result<(), PlaybackError> {
         self.stop();
 
         let sound_data = StreamingSoundData::from_file(path)
             .map_err(PlaybackError::LoadError)?
-            .volume(Self::amp_to_db(volume));
+            .volume(self.volume);
 
         let handle = self
             .manager
@@ -96,13 +98,10 @@ impl Backend {
     }
 
     pub fn set_volume(&mut self, volume: f32) {
+        self.volume = 45. * volume.log10();
         if let Some(sound) = &mut self.sound {
-            sound.set_volume(Self::amp_to_db(volume), Tween::default());
+            sound.set_volume(self.volume, Tween::default());
         }
-    }
-
-    fn amp_to_db(volume: f32) -> f32 {
-        45.0 * volume.log10()
     }
 
     pub fn is_playing(&self) -> bool {

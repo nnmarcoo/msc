@@ -185,28 +185,27 @@ fn ui(f: &mut Frame, app: &App) {
 
     // TRACK INFO
     let track_text: Vec<Line> = if let Some(track) = app.player.current_track() {
-        let meta = &track.metadata;
 
         vec![
             Line::from(vec![
                 Span::styled("Title: ", Style::default().fg(Color::Yellow)),
-                Span::raw(meta.title_or_default().to_string()),
+                Span::raw(track.metadata.title_or_default().to_string()),
             ]),
             Line::from(vec![
                 Span::styled("Artist: ", Style::default().fg(Color::Yellow)),
-                Span::raw(meta.artist_or_default().to_string()),
+                Span::raw(track.metadata.artist_or_default().to_string()),
             ]),
             Line::from(vec![
                 Span::styled("Album:  ", Style::default().fg(Color::Yellow)),
-                Span::raw(meta.album_or_default().to_string()),
+                Span::raw(track.metadata.album_or_default().to_string()),
             ]),
             Line::from(vec![
                 Span::styled("Genre:  ", Style::default().fg(Color::Yellow)),
-                Span::raw(meta.genre_or_default().to_string()),
+                Span::raw(track.metadata.genre_or_default().to_string()),
             ]),
             Line::from(vec![
                 Span::styled("Duration: ", Style::default().fg(Color::Yellow)),
-                Span::raw(format!("{:.2}s", meta.duration())),
+                Span::raw(format!("{:.2}s", track.metadata.duration())),
             ]),
         ]
     } else {

@@ -7,10 +7,11 @@ use blake3::Hash;
 use dashmap::DashMap;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
-use crate::track::Track;
+use crate::{track::Track, ArtCache};
 
 pub struct Library {
     pub tracks: Option<DashMap<Hash, Track>>,
+    pub artwork: ArtCache,
     root: Option<PathBuf>,
 }
 
@@ -18,6 +19,7 @@ impl Library {
     pub fn new() -> Self {
         Library {
             tracks: None,
+            artwork: ArtCache::new(),
             root: None,
         }
     }
