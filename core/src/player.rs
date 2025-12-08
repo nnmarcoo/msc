@@ -39,12 +39,12 @@ impl Player {
         self.backend.seek(pos);
     }
 
-    pub fn queue_track(&mut self, track_id: Hash) {
-        self.queue.add(track_id);
-    }
-
     pub fn shuffle_queue(&mut self) {
         self.queue.shuffle();
+    }
+
+    pub fn queue_track(&mut self, track_id: Hash) {
+        self.queue.add(track_id);
     }
 
     pub fn queue_library(&mut self) {
