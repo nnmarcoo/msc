@@ -3,58 +3,90 @@ use blake3::{Hash, hash};
 use image::{imageops::FilterType, DynamicImage, GenericImageView};
 use lofty::file::TaggedFileExt;
 use lofty::probe::Probe;
-use std::{path::Path, sync::Arc};
+use std::{path::{Path, PathBuf}, sync::Arc};
 
 use crate::Track;
 
-// redo this it sucks
-
 const THUMBNAIL_SIZE: u32 = 512;
 
+enum CacheState {
+    /// Image is fully loaded and cached
+    Ready(Arc<DynamicImage>),
+    /// Image is currently being loaded
+    Loading,
+}
+
 pub struct ArtCache {
-    cache: DashMap<Hash, Arc<DynamicImage>>,
+    cache: Arc<DashMap<Hash, CacheState>>,
 }
 
 impl ArtCache {
     pub fn new() -> Self {
         Self {
-            cache: DashMap::new(),
+            cache: Arc::new(DashMap::new()),
         }
     }
 
-    // non blocking
-    pub fn try_get(&self, track: &Track) -> Option<Arc<DynamicImage>> {
-        track.metadata.art_id
-            .and_then(|id| self.cache.get(&id))
-            .map(|entry| entry.value().clone())
-    }
+    /// Try to get an image from cache. Returns None if not cached or still loading.
+    /// If None is returned and the image hasn't been requested yet, it will start
+    /// loading it asynchronously in a background thread.
+    pub fn get(&self, track: &Track) -> Option<Arc<DynamicImage>> {
+        let art_id = track.metadata.art_id?;
 
-    // blocking
-    pub fn get_or_load(&self, track: &Track) -> Option<Arc<DynamicImage>> {
-        if let Some(id) = track.metadata.art_id {
-            if let Some(img) = self.cache.get(&id) {
-                return Some(img.value().clone());
+        // Check if already in cache
+        if let Some(entry) = self.cache.get(&art_id) {
+            match entry.value() {
+                CacheState::Ready(img) => return Some(img.clone()),
+                CacheState::Loading => return None,
             }
         }
 
-        let (image_data, image) = Self::extract_and_decode(&track.path)?;
+        // Not in cache - mark as loading and spawn background task
+        if self.cache.insert(art_id, CacheState::Loading).is_none() {
+            // We just inserted Loading state, so we're the ones to start loading
+            let cache = self.cache.clone();
+            let path = track.path.clone();
 
-        let id = hash(&image_data);
-
-        if let Some(img) = self.cache.get(&id) {
-            return Some(img.value().clone());
+            // Spawn on rayon thread pool
+            rayon::spawn(move || {
+                Self::load_image_sync(cache, art_id, path);
+            });
         }
 
-        let thumbnail = Self::resize_to_thumbnail(image);
-
-        let arc_thumbnail = Arc::new(thumbnail);
-        self.cache.insert(id, arc_thumbnail.clone());
-
-        Some(arc_thumbnail)
+        None
     }
 
-    pub fn get(&self, id: &Hash) -> Option<Arc<DynamicImage>> {
-        self.cache.get(id).map(|entry| entry.value().clone())
+    /// Load an image on a background thread and update the cache when done
+    fn load_image_sync(cache: Arc<DashMap<Hash, CacheState>>, art_id: Hash, path: PathBuf) {
+        match Self::extract_and_decode(&path) {
+            Some((data, image)) => {
+                // Verify the hash matches
+                let actual_hash = hash(&data);
+                if actual_hash != art_id {
+                    // Hash mismatch - remove loading state
+                    cache.remove(&art_id);
+                    return;
+                }
+
+                let thumbnail = Self::resize_to_thumbnail(image);
+                let arc_thumbnail = Arc::new(thumbnail);
+                cache.insert(art_id, CacheState::Ready(arc_thumbnail));
+            }
+            None => {
+                // Failed to load - remove loading state so it can be retried
+                cache.remove(&art_id);
+            }
+        }
+    }
+
+    /// Get image directly by hash (if already cached)
+    pub fn get_by_hash(&self, id: &Hash) -> Option<Arc<DynamicImage>> {
+        self.cache.get(id).and_then(|entry| {
+            match entry.value() {
+                CacheState::Ready(img) => Some(img.clone()),
+                CacheState::Loading => None,
+            }
+        })
     }
 
     fn extract_and_decode(path: &Path) -> Option<(Vec<u8>, DynamicImage)> {

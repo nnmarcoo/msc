@@ -3,8 +3,7 @@ use iced::widget::{button, column, container, horizontal_rule, image as iced_ima
 use iced::{Color, Element, Length, Subscription, Task, Theme};
 use image::{DynamicImage, GenericImageView};
 use msc_core::Player;
-use std::path::{Path, PathBuf};
-use std::sync::Arc;
+use std::path::Path;
 use std::time::Duration;
 
 pub fn main() -> iced::Result {
@@ -38,7 +37,6 @@ enum Message {
     ShuffleQueue,
     VolumeChanged(f32),
     Tick,
-    ArtworkLoaded(Hash, Option<Arc<DynamicImage>>),
 }
 
 impl Default for MusicPlayer {
@@ -114,40 +112,26 @@ impl MusicPlayer {
                         // Clear old artwork immediately when track changes
                         self.current_artwork = None;
 
-                        // Try instant get first
-                        if let Some(artwork) = self.player.artwork().try_get(&track) {
+                        // Try to get artwork - this will return immediately if cached,
+                        // or return None and start loading in background if not
+                        if let Some(artwork) = self.player.artwork().get(&track) {
                             self.current_artwork = Some(convert_to_handle(&artwork));
                             self.loading_artwork = false;
                         } else {
-                            // Not cached - load in background
-                            // Note: we don't check loading_artwork, we always spawn new task
-                            // The ArtworkLoaded handler will ignore stale results
+                            // Not cached yet - it's now loading in background
                             self.loading_artwork = true;
-                            let track_id = track.id;
-                            let track_path = track.path.clone();
-
-                            // Clone the Arc to the cache (cheap operation)
-                            let cache = self.player.artwork();
-
-                            return Task::perform(
-                                load_artwork_async_with_cache(track_path, track_id, cache),
-                                |(id, img)| Message::ArtworkLoaded(id, img)
-                            );
+                        }
+                    } else if self.loading_artwork {
+                        // Same track but still loading - check again
+                        if let Some(artwork) = self.player.artwork().get(&track) {
+                            self.current_artwork = Some(convert_to_handle(&artwork));
+                            self.loading_artwork = false;
                         }
                     }
                 } else {
                     // No track playing
                     self.current_track_id = None;
                     self.current_artwork = None;
-                    self.loading_artwork = false;
-                }
-            }
-            Message::ArtworkLoaded(track_id, artwork) => {
-                // Only update if it's still the current track
-                if self.current_track_id == Some(track_id) {
-                    if let Some(img) = artwork {
-                        self.current_artwork = Some(convert_to_handle(&img));
-                    }
                     self.loading_artwork = false;
                 }
             }
@@ -345,21 +329,6 @@ impl MusicPlayer {
     }
 }
 
-// Helper function to load artwork in background using the existing cache
-async fn load_artwork_async_with_cache(
-    track_path: PathBuf,
-    track_id: Hash,
-    cache: Arc<msc_core::ArtCache>
-) -> (Hash, Option<Arc<DynamicImage>>) {
-    use msc_core::Track;
-
-    // Load track and extract artwork (blocking, but in background task)
-    let artwork = Track::from_path(&track_path)
-        .ok()
-        .and_then(|track| cache.get_or_load(&track));
-
-    (track_id, artwork)
-}
 
 // Convert DynamicImage to iced Handle
 fn convert_to_handle(img: &DynamicImage) -> iced::widget::image::Handle {

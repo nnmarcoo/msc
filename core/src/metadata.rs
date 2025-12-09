@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use blake3::Hash;
+use blake3::{Hash, hash};
 use lofty::{
     error::LoftyError,
     file::{AudioFile, TaggedFileExt},
@@ -28,7 +28,7 @@ impl Metadata {
             if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
                 let art_hash = tag.pictures()
                     .first()
-                    .map(|pic| blake3::hash(pic.data()));
+                    .map(|pic| hash(pic.data()));
 
                 (
                     tag.title().map(|s| s.to_string()),
