@@ -37,6 +37,7 @@ impl From<io::Error> for TrackError {
     }
 }
 
+#[derive(Clone)]
 pub struct Track {
     pub id: Hash,
     pub path: PathBuf,

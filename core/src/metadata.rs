@@ -8,6 +8,7 @@ use lofty::{
     tag::Accessor,
 };
 
+#[derive(Clone)]
 pub struct Metadata {
     pub art_id: Option<Hash>,
     pub title: Option<String>,
@@ -23,16 +24,21 @@ impl Metadata {
         let props = file.properties();
         let duration = props.duration().as_secs_f32();
 
-        let (title, artist, album, genre) =
+        let (title, artist, album, genre, art_id) =
             if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
+                let art_hash = tag.pictures()
+                    .first()
+                    .map(|pic| blake3::hash(pic.data()));
+
                 (
                     tag.title().map(|s| s.to_string()),
                     tag.artist().map(|s| s.to_string()),
                     tag.album().map(|s| s.to_string()),
                     tag.genre().map(|s| s.to_string()),
+                    art_hash,
                 )
             } else {
-                (None, None, None, None)
+                (None, None, None, None, None)
             };
 
         Ok(Metadata {
@@ -41,7 +47,7 @@ impl Metadata {
             album,
             genre,
             duration,
-            art_id: None,
+            art_id,
         })
     }
 

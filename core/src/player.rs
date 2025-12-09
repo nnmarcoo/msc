@@ -4,7 +4,7 @@ use std::sync::Arc;
 use blake3::Hash;
 use kira::backend::cpal;
 
-use crate::{backend::PlaybackError, Backend, Library, Queue, Track};
+use crate::{ArtCache, Backend, Library, Queue, Track, backend::PlaybackError};
 
 pub struct Player {
     backend: Backend,
@@ -99,8 +99,8 @@ impl Player {
         self.library.track_from_id(current)
     }
 
-    pub fn artwork(&self) -> Arc<crate::ArtCache> {
-        Arc::clone(&self.library.artwork)
+    pub fn artwork(&self) -> Arc<ArtCache> {
+        Arc::clone(&self.library.art)
     }
 
     pub fn library(&self) -> &Library {

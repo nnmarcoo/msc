@@ -5,14 +5,14 @@ use std::{
 };
 
 use blake3::Hash;
-use dashmap::DashMap;
+use dashmap::{DashMap, mapref::one::Ref};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::{track::Track, ArtCache};
 
 pub struct Library {
     pub tracks: Option<DashMap<Hash, Track>>,
-    pub artwork: Arc<ArtCache>,
+    pub art: Arc<ArtCache>,
     root: Option<PathBuf>,
 }
 
@@ -20,7 +20,7 @@ impl Library {
     pub fn new() -> Self {
         Library {
             tracks: None,
-            artwork: Arc::new(ArtCache::new()),
+            art: Arc::new(ArtCache::new()),
             root: None,
         }
     }
@@ -64,7 +64,7 @@ impl Library {
         map
     }
 
-    pub fn track_from_id(&self, id: Hash) -> Option<dashmap::mapref::one::Ref<'_, Hash, Track>> {
+    pub fn track_from_id(&self, id: Hash) -> Option<Ref<'_, Hash, Track>> {
         self.tracks.as_ref()?.get(&id)
     }
 }
