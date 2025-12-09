@@ -1,16 +1,16 @@
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEventKind},
     execute,
-    terminal::{disable_raw_mode, enable_raw_mode, EnterAlternateScreen, LeaveAlternateScreen},
+    terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use msc_core::Player;
 use ratatui::{
+    Frame, Terminal,
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
     style::{Color, Modifier, Style},
     text::{Line, Span},
     widgets::{Block, Borders, Gauge, List, ListItem, Paragraph},
-    Frame, Terminal,
 };
 use std::{
     error::Error,
@@ -185,7 +185,6 @@ fn ui(f: &mut Frame, app: &App) {
 
     // TRACK INFO
     let track_text: Vec<Line> = if let Some(track) = app.player.current_track() {
-
         vec![
             Line::from(vec![
                 Span::styled("Title: ", Style::default().fg(Color::Yellow)),

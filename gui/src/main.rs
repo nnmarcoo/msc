@@ -1,5 +1,8 @@
 use blake3::Hash;
-use iced::widget::{button, column, container, horizontal_rule, image as iced_image, row, scrollable, slider, text, vertical_space};
+use iced::widget::{
+    button, column, container, horizontal_rule, image as iced_image, row, scrollable, slider, text,
+    vertical_space,
+};
 use iced::{Color, Element, Length, Subscription, Task, Theme};
 use image::{DynamicImage, GenericImageView};
 use msc_core::Player;
@@ -142,10 +145,7 @@ impl MusicPlayer {
     fn view(&self) -> Element<Message> {
         // ALBUM ARTWORK
         let artwork_widget: Element<Message> = if let Some(handle) = &self.current_artwork {
-            iced_image(handle.clone())
-                .width(256)
-                .height(256)
-                .into()
+            iced_image(handle.clone()).width(256).height(256).into()
         } else if self.loading_artwork {
             container(text("Loading...").size(14))
                 .width(256)
@@ -184,11 +184,7 @@ impl MusicPlayer {
 
         let top_bar = row![
             artwork_widget,
-            column![
-                text("MSC Music Player").size(32),
-                track_info_column,
-            ]
-            .spacing(10)
+            column![text("MSC Music Player").size(32), track_info_column,].spacing(10)
         ]
         .spacing(20);
 
@@ -290,15 +286,13 @@ impl MusicPlayer {
                     );
                     queue_items = queue_items.push(
                         container(text(track_name).size(14))
-                            .style(|_theme: &Theme| {
-                                container::Style {
-                                    background: Some(Color::from_rgb(0.2, 0.4, 0.6).into()),
-                                    text_color: Some(Color::WHITE),
-                                    ..Default::default()
-                                }
+                            .style(|_theme: &Theme| container::Style {
+                                background: Some(Color::from_rgb(0.2, 0.4, 0.6).into()),
+                                text_color: Some(Color::WHITE),
+                                ..Default::default()
                             })
                             .padding(8)
-                            .width(Length::Fill)
+                            .width(Length::Fill),
                     );
                 }
             }
@@ -314,21 +308,19 @@ impl MusicPlayer {
                     queue_items = queue_items.push(
                         container(text(track_name).size(14))
                             .padding(8)
-                            .width(Length::Fill)
+                            .width(Length::Fill),
                     );
                 }
             }
         }
 
-        let queue_container = scrollable(queue_items)
-            .height(Length::Fill);
+        let queue_container = scrollable(queue_items).height(Length::Fill);
 
         column![title, horizontal_rule(1), queue_container]
             .spacing(10)
             .into()
     }
 }
-
 
 // Convert DynamicImage to iced Handle
 fn convert_to_handle(img: &DynamicImage) -> iced::widget::image::Handle {

@@ -8,7 +8,7 @@ use blake3::Hash;
 use dashmap::{DashMap, mapref::one::Ref};
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
-use crate::{track::Track, ArtCache};
+use crate::{ArtCache, track::Track};
 
 pub struct Library {
     pub tracks: Option<DashMap<Hash, Track>>,

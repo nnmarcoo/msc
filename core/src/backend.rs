@@ -1,12 +1,12 @@
 use std::path::Path;
 
 use kira::{
+    AudioManager, AudioManagerSettings, DefaultBackend, PlaySoundError, Tween,
     backend::cpal,
     sound::{
-        streaming::{StreamingSoundData, StreamingSoundHandle},
         FromFileError, PlaybackState,
+        streaming::{StreamingSoundData, StreamingSoundHandle},
     },
-    AudioManager, AudioManagerSettings, DefaultBackend, PlaySoundError, Tween,
 };
 
 #[derive(Debug)]
@@ -126,5 +126,9 @@ impl Backend {
         } else {
             0.
         }
+    }
+
+    pub fn has_sound(&self) -> bool {
+        self.sound.is_some()
     }
 }

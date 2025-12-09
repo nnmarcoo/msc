@@ -26,9 +26,7 @@ impl Metadata {
 
         let (title, artist, album, genre, art_id) =
             if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
-                let art_hash = tag.pictures()
-                    .first()
-                    .map(|pic| hash(pic.data()));
+                let art_hash = tag.pictures().first().map(|pic| hash(pic.data()));
 
                 (
                     tag.title().map(|s| s.to_string()),
