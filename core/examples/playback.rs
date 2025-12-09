@@ -15,7 +15,7 @@ fn main() {
     player.set_volume(0.1);
 
     println!("Starting playback...");
-    if let Err(e) = player.play_next() {
+    if let Err(e) = player.start_next() {
         eprintln!("Error playing track: {}", e);
         return;
     }

@@ -50,14 +50,14 @@ impl App {
                 self.status = String::from("Library loaded and queued");
             }
             KeyCode::Char('n') | KeyCode::Right => {
-                if let Err(e) = self.player.play_next() {
+                if let Err(e) = self.player.start_next() {
                     self.status = format!("Error: {}", e);
                 } else {
                     self.status = String::from("Playing next track");
                 }
             }
             KeyCode::Char('p') | KeyCode::Left => {
-                if let Err(e) = self.player.play_previous() {
+                if let Err(e) = self.player.start_previous() {
                     self.status = format!("Error: {}", e);
                 } else {
                     self.status = String::from("Playing previous track");

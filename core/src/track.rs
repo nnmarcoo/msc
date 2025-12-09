@@ -1,4 +1,6 @@
 use std::{
+    error::Error,
+    fmt::Display,
     fs, io,
     path::{Path, PathBuf},
 };
@@ -7,23 +9,6 @@ use blake3::{Hash, Hasher};
 use lofty::error::LoftyError;
 
 use crate::Metadata;
-
-#[derive(Debug)]
-pub enum TrackError {
-    Lofty(LoftyError),
-    Io(io::Error),
-}
-
-impl std::fmt::Display for TrackError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            TrackError::Lofty(e) => write!(f, "Lofty error: {}", e),
-            TrackError::Io(e) => write!(f, "IO error: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for TrackError {}
 
 impl From<LoftyError> for TrackError {
     fn from(err: LoftyError) -> Self {
@@ -66,3 +51,20 @@ impl Track {
         })
     }
 }
+
+#[derive(Debug)]
+pub enum TrackError {
+    Lofty(LoftyError),
+    Io(io::Error),
+}
+
+impl Display for TrackError {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            TrackError::Lofty(e) => write!(f, "Lofty error: {}", e),
+            TrackError::Io(e) => write!(f, "IO error: {}", e),
+        }
+    }
+}
+
+impl Error for TrackError {}

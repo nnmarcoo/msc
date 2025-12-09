@@ -26,8 +26,13 @@ impl Player {
         self.library.populate(root);
     }
 
-    pub fn play(&mut self) {
-        self.backend.play();
+    pub fn play(&mut self) -> Result<(), PlaybackError> {
+        if self.backend.has_sound() {
+            self.backend.play();
+        } else {
+            self.start_current()?
+        }
+        Ok(())
     }
 
     pub fn pause(&mut self) {
@@ -54,8 +59,8 @@ impl Player {
         }
     }
 
-    pub fn play_next(&mut self) -> Result<(), PlaybackError> {
-        if let Some(track_id) = self.queue.next() {
+    fn play_track(&mut self, track_id: Option<Hash>) -> Result<(), PlaybackError> {
+        if let Some(track_id) = track_id {
             if let Some(tracks) = &self.library.tracks {
                 if let Some(track) = tracks.get(&track_id) {
                     self.backend.load_and_play(&track.path)?;
@@ -65,20 +70,25 @@ impl Player {
         Ok(())
     }
 
-    pub fn play_previous(&mut self) -> Result<(), PlaybackError> {
-        if let Some(track_id) = self.queue.previous() {
-            if let Some(tracks) = &self.library.tracks {
-                if let Some(track) = tracks.get(&track_id) {
-                    self.backend.load_and_play(&track.path)?;
-                }
-            }
-        }
-        Ok(())
+    pub fn start_next(&mut self) -> Result<(), PlaybackError> {
+        let track_id = self.queue.next();
+        self.play_track(track_id)
+    }
+
+    pub fn start_previous(&mut self) -> Result<(), PlaybackError> {
+        let track_id = self.queue.previous();
+        self.play_track(track_id)
+    }
+
+    pub fn start_current(&mut self) -> Result<(), PlaybackError> {
+        let track_id = self.queue.current();
+        self.play_track(track_id)
     }
 
     pub fn update(&mut self) -> Result<(), PlaybackError> {
-        if self.backend.is_stopped() {
-            self.play_next()?;
+        // is the 2nd check necessary
+        if self.backend.is_stopped() && self.backend.has_sound() {
+            self.start_next()?;
         }
         Ok(())
     }
@@ -100,7 +110,7 @@ impl Player {
         self.library.track_from_id(current)
     }
 
-    pub fn artwork(&self) -> Arc<ArtCache> {
+    pub fn art(&self) -> Arc<ArtCache> {
         Arc::clone(&self.library.art)
     }
 

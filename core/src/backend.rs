@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{error::Error, fmt::Display, path::Path};
 
 use kira::{
     AudioManager, AudioManagerSettings, DefaultBackend, PlaySoundError, Tween,
@@ -8,23 +8,6 @@ use kira::{
         streaming::{StreamingSoundData, StreamingSoundHandle},
     },
 };
-
-#[derive(Debug)]
-pub enum PlaybackError {
-    LoadError(FromFileError),
-    PlayError(PlaySoundError<FromFileError>),
-}
-
-impl std::fmt::Display for PlaybackError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PlaybackError::LoadError(e) => write!(f, "Failed to load audio file: {}", e),
-            PlaybackError::PlayError(e) => write!(f, "Failed to play audio: {}", e),
-        }
-    }
-}
-
-impl std::error::Error for PlaybackError {}
 
 pub struct Backend {
     manager: AudioManager,
@@ -37,7 +20,7 @@ impl Backend {
         Ok(Backend {
             manager: AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())?,
             sound: None,
-            volume: 0.5,
+            volume: 0.1,
         })
     }
 
@@ -132,3 +115,20 @@ impl Backend {
         self.sound.is_some()
     }
 }
+
+#[derive(Debug)]
+pub enum PlaybackError {
+    LoadError(FromFileError),
+    PlayError(PlaySoundError<FromFileError>),
+}
+
+impl Display for PlaybackError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            PlaybackError::LoadError(e) => write!(f, "Failed to load audio file: {}", e),
+            PlaybackError::PlayError(e) => write!(f, "Failed to play audio: {}", e),
+        }
+    }
+}
+
+impl Error for PlaybackError {}

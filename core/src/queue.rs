@@ -18,7 +18,11 @@ impl Queue {
     }
 
     pub fn add(&mut self, track_id: Hash) {
-        self.upcoming.push_back(track_id);
+        if self.current.is_none() {
+            self.current = Some(track_id);
+        } else {
+            self.upcoming.push_back(track_id);
+        }
     }
 
     pub fn next(&mut self) -> Option<Hash> {

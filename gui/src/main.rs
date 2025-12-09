@@ -49,7 +49,7 @@ impl Default for MusicPlayer {
         MusicPlayer {
             player,
             status: String::from("Ready"),
-            volume: 0.5,
+            volume: 0.1,
             library_path: String::from("D:\\audio"),
             timeline: 0.0,
             current_artwork: None,
@@ -63,14 +63,14 @@ impl MusicPlayer {
     fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::PlayNext => {
-                if let Err(e) = self.player.play_next() {
+                if let Err(e) = self.player.start_next() {
                     self.status = format!("Error: {}", e);
                 } else {
                     self.status = "Next track".into();
                 }
             }
             Message::PlayPrevious => {
-                if let Err(e) = self.player.play_previous() {
+                if let Err(e) = self.player.start_previous() {
                     self.status = format!("Error: {}", e);
                 } else {
                     self.status = "Previous track".into();
@@ -117,7 +117,7 @@ impl MusicPlayer {
 
                         // Try to get artwork - this will return immediately if cached,
                         // or return None and start loading in background if not
-                        if let Some(artwork) = self.player.artwork().get(&track) {
+                        if let Some(artwork) = self.player.art().get(&track) {
                             self.current_artwork = Some(convert_to_handle(&artwork));
                             self.loading_artwork = false;
                         } else {
@@ -126,7 +126,7 @@ impl MusicPlayer {
                         }
                     } else if self.loading_artwork {
                         // Same track but still loading - check again
-                        if let Some(artwork) = self.player.artwork().get(&track) {
+                        if let Some(artwork) = self.player.art().get(&track) {
                             self.current_artwork = Some(convert_to_handle(&artwork));
                             self.loading_artwork = false;
                         }
