@@ -41,46 +41,92 @@ impl Pane {
         total_panes: usize,
         edit_mode: bool,
     ) -> iced::widget::pane_grid::Content<'_, crate::layout::Message> {
-        // In edit mode, show pane with title bar and simplified content
         if edit_mode {
-            let close_button: Element<'_, crate::layout::Message> = if total_panes > 1 {
-                button("✕")
-                    .on_press(crate::layout::Message::Close(pane))
-                    .padding([2, 6])
-                    .style(|_theme: &Theme, status| {
-                        match status {
-                            iced::widget::button::Status::Hovered => iced::widget::button::Style {
-                                background: Some(iced::Color::from_rgb(0.8, 0.2, 0.2).into()),
-                                text_color: iced::Color::WHITE,
-                                ..Default::default()
-                            },
-                            _ => iced::widget::button::Style {
-                                background: Some(iced::Color::from_rgb(0.3, 0.3, 0.3).into()),
-                                text_color: iced::Color::from_rgb(0.8, 0.8, 0.8),
-                                ..Default::default()
-                            }
-                        }
+            use iced::widget::row;
+
+            // Title bar with pane name
+            let title = row![text(self.content.title()).size(14)]
+                .spacing(5)
+                .align_y(iced::alignment::Vertical::Center);
+
+            // Close button (X) in title bar
+            let close_button: Element<'_, crate::layout::Message> =
+                button(text("X").size(14))
+                    .style(button::danger)
+                    .padding(3)
+                    .on_press_maybe(if total_panes > 1 {
+                        Some(crate::layout::Message::Close(pane))
+                    } else {
+                        None
                     })
-                    .into()
-            } else {
-                text("").into()
-            };
+                    .into();
 
-            let title_bar = {
-                use iced::widget::row;
-                iced::widget::pane_grid::TitleBar::new(
-                    row![
-                        text(self.content.title()).size(14),
-                    ]
-                    .spacing(10)
-                    .align_y(iced::alignment::Vertical::Center)
-                )
+            let title_bar = iced::widget::pane_grid::TitleBar::new(title)
                 .controls(close_button)
-                .padding(8)
+                .padding(10)
+                .style(|theme: &Theme| {
+                    let palette = theme.extended_palette();
+                    iced::widget::container::Style {
+                        text_color: Some(palette.background.strong.text),
+                        background: Some(palette.background.strong.color.into()),
+                        ..Default::default()
+                    }
+                });
+
+            // Content area with split and close buttons
+            let button_style = |label, message| {
+                button(text(label).align_x(iced::alignment::Horizontal::Center).size(16))
+                    .width(Length::Fill)
+                    .padding(8)
+                    .on_press(message)
             };
 
-            // Create simplified edit mode content
-            let edit_content = self.render_edit_content(pane, total_panes);
+            let mut controls_col = column![
+                button_style(
+                    "Split horizontally",
+                    crate::layout::Message::Split(iced::widget::pane_grid::Axis::Horizontal, pane),
+                ),
+                button_style(
+                    "Split vertically",
+                    crate::layout::Message::Split(iced::widget::pane_grid::Axis::Vertical, pane),
+                ),
+            ]
+            .spacing(5)
+            .max_width(160)
+            .align_x(iced::alignment::Horizontal::Center);
+
+            if total_panes > 1 {
+                controls_col = controls_col.push(
+                    button(text("Close").align_x(iced::alignment::Horizontal::Center).size(16))
+                        .width(Length::Fill)
+                        .padding(8)
+                        .style(button::danger)
+                        .on_press(crate::layout::Message::Close(pane))
+                );
+            }
+
+            let controls = controls_col;
+
+            let edit_content = container(
+                column![controls].spacing(10).align_x(iced::alignment::Horizontal::Center)
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .padding(5)
+            .style(|theme: &Theme| {
+                let palette = theme.extended_palette();
+                iced::widget::container::Style {
+                    background: Some(palette.background.weak.color.into()),
+                    border: iced::Border {
+                        width: 2.0,
+                        color: palette.background.strong.color,
+                        ..Default::default()
+                    },
+                    ..Default::default()
+                }
+            });
 
             iced::widget::pane_grid::Content::new(edit_content).title_bar(title_bar)
         } else {
@@ -88,53 +134,6 @@ impl Pane {
             let content = self.render_content();
             iced::widget::pane_grid::Content::new(content)
         }
-    }
-
-    fn render_edit_content(
-        &self,
-        pane: iced::widget::pane_grid::Pane,
-        total_panes: usize,
-    ) -> Element<'_, crate::layout::Message> {
-        let delete_button: Element<'_, crate::layout::Message> = if total_panes > 1 {
-            button("Delete")
-                .on_press(crate::layout::Message::Close(pane))
-                .padding([8, 16])
-                .style(|_theme: &Theme, status| {
-                    match status {
-                        iced::widget::button::Status::Hovered => iced::widget::button::Style {
-                            background: Some(iced::Color::from_rgb(0.8, 0.2, 0.2).into()),
-                            text_color: iced::Color::WHITE,
-                            ..Default::default()
-                        },
-                        _ => iced::widget::button::Style {
-                            background: Some(iced::Color::from_rgb(0.4, 0.4, 0.4).into()),
-                            text_color: iced::Color::from_rgb(0.9, 0.9, 0.9),
-                            ..Default::default()
-                        }
-                    }
-                })
-                .into()
-        } else {
-            text("(Last pane)").size(12).color(iced::Color::from_rgb(0.5, 0.5, 0.5)).into()
-        };
-
-        container(
-            column![
-                text(self.content.title()).size(24),
-                delete_button
-            ]
-            .spacing(20)
-            .align_x(iced::alignment::Horizontal::Center)
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill)
-        .style(|_theme: &Theme| container::Style {
-            background: Some(iced::Color::from_rgb(0.12, 0.12, 0.12).into()),
-            ..Default::default()
-        })
-        .into()
     }
 
     fn render_content(&self) -> Element<'_, crate::layout::Message> {

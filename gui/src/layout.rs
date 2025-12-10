@@ -118,7 +118,7 @@ impl Layout {
             .align_x(iced::alignment::Horizontal::Right)
         };
 
-        // Build the pane grid
+        // Build the pane grid with spacing in edit mode for resize handles
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
             pane.view(id, total_panes, edit_mode)
         })
@@ -134,7 +134,22 @@ impl Layout {
                 .on_resize(10, Message::Resized);
         }
 
-        column![top_bar, pane_grid].into()
+        // Wrap in container to show visible resize handles in edit mode
+        let pane_grid_container = if edit_mode {
+            container(pane_grid)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(|_theme| container::Style {
+                    background: Some(iced::Background::Color(iced::Color::from_rgb(0.35, 0.35, 0.35))),
+                    ..Default::default()
+                })
+        } else {
+            container(pane_grid)
+                .width(Length::Fill)
+                .height(Length::Fill)
+        };
+
+        column![top_bar, pane_grid_container].into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
