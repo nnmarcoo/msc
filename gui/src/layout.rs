@@ -55,7 +55,9 @@ impl Layout {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Split(axis, pane) => {
-                if let Some((new_pane, _)) = self.panes.split(axis, pane, Pane::new(PaneContent::Empty)) {
+                if let Some((new_pane, _)) =
+                    self.panes.split(axis, pane, Pane::new(PaneContent::Empty))
+                {
                     self.focus = Some(new_pane);
                 }
             }
@@ -77,9 +79,7 @@ impl Layout {
             Message::ToggleEditMode => {
                 self.edit_mode = !self.edit_mode;
             }
-            Message::Tick => {
-                // Player state updates, etc.
-            }
+            Message::Tick => {}
         }
 
         Task::none()
@@ -91,18 +91,16 @@ impl Layout {
         let total_panes = self.panes.len();
         let edit_mode = self.edit_mode;
 
-        // Top bar with edit mode toggle
         let top_bar = if edit_mode {
             container(
                 row![
-                    text("Edit Mode: Drag panes • Resize borders • Delete panes")
-                        .size(14),
+                    text("Edit Mode: Drag panes • Resize borders • Delete panes").size(14),
                     button("✓ Done")
                         .on_press(Message::ToggleEditMode)
                         .padding(10)
                 ]
                 .spacing(20)
-                .align_y(iced::alignment::Vertical::Center)
+                .align_y(iced::alignment::Vertical::Center),
             )
             .width(Length::Fill)
             .padding(10)
@@ -111,14 +109,13 @@ impl Layout {
             container(
                 button("⚙ Edit Layout")
                     .on_press(Message::ToggleEditMode)
-                    .padding(10)
+                    .padding(10),
             )
             .width(Length::Fill)
             .padding(10)
             .align_x(iced::alignment::Horizontal::Right)
         };
 
-        // Build the pane grid with spacing in edit mode for resize handles
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
             pane.view(id, total_panes, edit_mode)
         })
@@ -126,7 +123,6 @@ impl Layout {
         .height(Length::Fill)
         .spacing(if edit_mode { 4 } else { 0 });
 
-        // Only enable drag/resize interactions in edit mode
         if edit_mode {
             pane_grid = pane_grid
                 .on_click(Message::Clicked)
@@ -134,13 +130,14 @@ impl Layout {
                 .on_resize(10, Message::Resized);
         }
 
-        // Wrap in container to show visible resize handles in edit mode
         let pane_grid_container = if edit_mode {
             container(pane_grid)
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .style(|_theme| container::Style {
-                    background: Some(iced::Background::Color(iced::Color::from_rgb(0.35, 0.35, 0.35))),
+                    background: Some(iced::Background::Color(iced::Color::from_rgb(
+                        0.35, 0.35, 0.35,
+                    ))),
                     ..Default::default()
                 })
         } else {

@@ -13,7 +13,7 @@ use ratatui::{
     text::{Line, Span},
     widgets::{Block, Borders, Gauge, List, ListItem, Paragraph, Wrap},
 };
-use ratatui_image::{picker::Picker, protocol::StatefulProtocol, Resize, StatefulImage};
+use ratatui_image::{Resize, StatefulImage, picker::Picker, protocol::StatefulProtocol};
 use std::{
     error::Error,
     io,
@@ -244,11 +244,11 @@ fn render_player_view(f: &mut Frame, app: &App) {
     let main_chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Header
-            Constraint::Min(10),    // Content (art + track info)
-            Constraint::Length(3),  // Progress bar
-            Constraint::Length(3),  // Volume
-            Constraint::Length(1),  // Status/message
+            Constraint::Length(3), // Header
+            Constraint::Min(10),   // Content (art + track info)
+            Constraint::Length(3), // Progress bar
+            Constraint::Length(3), // Volume
+            Constraint::Length(1), // Status/message
         ])
         .split(f.area());
 
@@ -258,8 +258,8 @@ fn render_player_view(f: &mut Frame, app: &App) {
     let content_chunks = Layout::default()
         .direction(Direction::Horizontal)
         .constraints([
-            Constraint::Percentage(40),  // Album art
-            Constraint::Percentage(60),  // Track info
+            Constraint::Percentage(40), // Album art
+            Constraint::Percentage(60), // Track info
         ])
         .split(main_chunks[1]);
 
@@ -287,9 +287,7 @@ fn render_header(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_album_art(f: &mut Frame, area: Rect, app: &App) {
-    let block = Block::default()
-        .borders(Borders::ALL)
-        .title("Album Art");
+    let block = Block::default().borders(Borders::ALL).title("Album Art");
 
     if let Some(ref protocol) = app.current_image {
         let image = StatefulImage::new(None).resize(Resize::Fit(None));
@@ -315,50 +313,54 @@ fn render_track_info(f: &mut Frame, area: Rect, app: &App) {
 
         vec![
             Line::from(""),
-            Line::from(
-                Span::styled(
-                    title.to_string(),
-                    Style::default().fg(Color::White).bold().add_modifier(Modifier::UNDERLINED),
-                )
-            ).alignment(Alignment::Center),
+            Line::from(Span::styled(
+                title.to_string(),
+                Style::default()
+                    .fg(Color::White)
+                    .bold()
+                    .add_modifier(Modifier::UNDERLINED),
+            ))
+            .alignment(Alignment::Center),
             Line::from(""),
-            Line::from(
-                Span::styled(
-                    artist.to_string(),
-                    Style::default().fg(Color::LightYellow),
-                )
-            ).alignment(Alignment::Center),
+            Line::from(Span::styled(
+                artist.to_string(),
+                Style::default().fg(Color::LightYellow),
+            ))
+            .alignment(Alignment::Center),
             Line::from(""),
             Line::from(vec![
                 Span::styled("Album: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(album.to_string(), Style::default().fg(Color::Gray)),
-            ]).alignment(Alignment::Center),
+            ])
+            .alignment(Alignment::Center),
             Line::from(""),
             Line::from(vec![
                 Span::styled("Genre: ", Style::default().fg(Color::DarkGray)),
                 Span::styled(genre.to_string(), Style::default().fg(Color::Gray)),
                 Span::raw("  "),
                 Span::styled("Duration: ", Style::default().fg(Color::DarkGray)),
-                Span::styled(format_duration(duration as f64), Style::default().fg(Color::Gray)),
-            ]).alignment(Alignment::Center),
+                Span::styled(
+                    format_duration(duration as f64),
+                    Style::default().fg(Color::Gray),
+                ),
+            ])
+            .alignment(Alignment::Center),
         ]
     } else {
         vec![
             Line::from(""),
             Line::from(""),
-            Line::from(
-                Span::styled(
-                    "No track loaded",
-                    Style::default().fg(Color::DarkGray).italic(),
-                )
-            ).alignment(Alignment::Center),
+            Line::from(Span::styled(
+                "No track loaded",
+                Style::default().fg(Color::DarkGray).italic(),
+            ))
+            .alignment(Alignment::Center),
             Line::from(""),
-            Line::from(
-                Span::styled(
-                    "Press 'l' to load library",
-                    Style::default().fg(Color::DarkGray),
-                )
-            ).alignment(Alignment::Center),
+            Line::from(Span::styled(
+                "Press 'l' to load library",
+                Style::default().fg(Color::DarkGray),
+            ))
+            .alignment(Alignment::Center),
         ]
     };
 
@@ -382,7 +384,11 @@ fn render_progress(f: &mut Frame, area: Rect, app: &App) {
         0.0
     };
 
-    let label = format!("{} / {}", format_duration(position), format_duration(duration as f64));
+    let label = format!(
+        "{} / {}",
+        format_duration(position),
+        format_duration(duration as f64)
+    );
 
     let progress = Gauge::default()
         .block(Block::default().borders(Borders::ALL).title("Progress"))
@@ -411,9 +417,9 @@ fn render_queue_view(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Header
-            Constraint::Min(5),     // Queue list
-            Constraint::Length(1),  // Status
+            Constraint::Length(3), // Header
+            Constraint::Min(5),    // Queue list
+            Constraint::Length(1), // Status
         ])
         .split(f.area());
 
@@ -431,10 +437,7 @@ fn render_queue_view(f: &mut Frame, app: &App) {
         } else {
             "▶ Unknown Track".to_string()
         };
-        queue_items.push(
-            ListItem::new(track_text)
-                .style(Style::default().fg(Color::Cyan).bold())
-        );
+        queue_items.push(ListItem::new(track_text).style(Style::default().fg(Color::Cyan).bold()));
     }
 
     // Add upcoming tracks
@@ -446,10 +449,7 @@ fn render_queue_view(f: &mut Frame, app: &App) {
         } else {
             "  Unknown Track".to_string()
         };
-        queue_items.push(
-            ListItem::new(track_text)
-                .style(Style::default().fg(Color::White))
-        );
+        queue_items.push(ListItem::new(track_text).style(Style::default().fg(Color::White)));
     }
 
     let queue_list = List::new(queue_items)
@@ -464,9 +464,9 @@ fn render_help_view(f: &mut Frame, app: &App) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([
-            Constraint::Length(3),  // Header
-            Constraint::Min(5),     // Help content
-            Constraint::Length(1),  // Status
+            Constraint::Length(3), // Header
+            Constraint::Min(5),    // Help content
+            Constraint::Length(1), // Status
         ])
         .split(f.area());
 
@@ -474,25 +474,40 @@ fn render_help_view(f: &mut Frame, app: &App) {
 
     let help_text = vec![
         Line::from(""),
-        Line::from(Span::styled("Views", Style::default().fg(Color::Cyan).bold())),
+        Line::from(Span::styled(
+            "Views",
+            Style::default().fg(Color::Cyan).bold(),
+        )),
         Line::from("  1 / F1     Player view"),
         Line::from("  2 / F2     Queue view"),
         Line::from("  ? / F6     Help (this screen)"),
         Line::from(""),
-        Line::from(Span::styled("Playback", Style::default().fg(Color::Cyan).bold())),
+        Line::from(Span::styled(
+            "Playback",
+            Style::default().fg(Color::Cyan).bold(),
+        )),
         Line::from("  Space      Play / Pause"),
         Line::from("  n / →      Next track"),
         Line::from("  p / ←      Previous track"),
         Line::from(""),
-        Line::from(Span::styled("Library", Style::default().fg(Color::Cyan).bold())),
+        Line::from(Span::styled(
+            "Library",
+            Style::default().fg(Color::Cyan).bold(),
+        )),
         Line::from("  l          Load library"),
         Line::from("  s          Shuffle queue"),
         Line::from(""),
-        Line::from(Span::styled("Audio", Style::default().fg(Color::Cyan).bold())),
+        Line::from(Span::styled(
+            "Audio",
+            Style::default().fg(Color::Cyan).bold(),
+        )),
         Line::from("  + / =      Volume up"),
         Line::from("  - / _      Volume down"),
         Line::from(""),
-        Line::from(Span::styled("General", Style::default().fg(Color::Cyan).bold())),
+        Line::from(Span::styled(
+            "General",
+            Style::default().fg(Color::Cyan).bold(),
+        )),
         Line::from("  q          Quit"),
     ];
 

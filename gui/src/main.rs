@@ -1,7 +1,7 @@
 use iced::Theme;
 
-mod pane;
 mod layout;
+mod pane;
 
 use layout::Layout;
 
