@@ -1,5 +1,7 @@
+use iced::alignment::{Horizontal, Vertical};
 use iced::widget::pane_grid::{self, PaneGrid};
-use iced::{Element, Length, Subscription, Task};
+use iced::widget::{button, column, container, row, text};
+use iced::{Background, Color, Element, Length, Subscription, Task};
 use std::time::Duration;
 
 use crate::pane::{Pane, PaneContent};
@@ -86,8 +88,6 @@ impl Layout {
     }
 
     pub fn view(&self) -> Element<Message> {
-        use iced::widget::{button, column, container, row, text};
-
         let total_panes = self.panes.len();
         let edit_mode = self.edit_mode;
 
@@ -100,11 +100,11 @@ impl Layout {
                         .padding(10)
                 ]
                 .spacing(20)
-                .align_y(iced::alignment::Vertical::Center),
+                .align_y(Vertical::Center),
             )
             .width(Length::Fill)
             .padding(10)
-            .align_x(iced::alignment::Horizontal::Right)
+            .align_x(Horizontal::Right)
         } else {
             container(
                 button("⚙ Edit Layout")
@@ -113,7 +113,7 @@ impl Layout {
             )
             .width(Length::Fill)
             .padding(10)
-            .align_x(iced::alignment::Horizontal::Right)
+            .align_x(Horizontal::Right)
         };
 
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
@@ -135,7 +135,7 @@ impl Layout {
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .style(|_theme| container::Style {
-                    background: Some(iced::Background::Color(iced::Color::from_rgb(
+                    background: Some(Background::Color(Color::from_rgb(
                         0.35, 0.35, 0.35,
                     ))),
                     ..Default::default()

@@ -1,5 +1,8 @@
-use iced::widget::{button, column, container, text};
-use iced::{Element, Length, Theme};
+use iced::alignment::{Horizontal, Vertical};
+use iced::widget::{button, column, container, pane_grid, row, text};
+use iced::{Border, Element, Length, Theme};
+
+use crate::layout::Message;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaneContent {
@@ -35,33 +38,32 @@ impl Pane {
     }
     pub fn view(
         &self,
-        pane: iced::widget::pane_grid::Pane,
+        pane: pane_grid::Pane,
         total_panes: usize,
         edit_mode: bool,
-    ) -> iced::widget::pane_grid::Content<'_, crate::layout::Message> {
+    ) -> pane_grid::Content<'_, Message> {
         if edit_mode {
-            use iced::widget::row;
 
             let title = row![text(self.content.title()).size(14)]
                 .spacing(5)
-                .align_y(iced::alignment::Vertical::Center);
+                .align_y(Vertical::Center);
 
-            let close_button: Element<'_, crate::layout::Message> = button(text("X").size(14))
+            let close_button: Element<'_, Message> = button(text("X").size(14))
                 .style(button::danger)
                 .padding(3)
                 .on_press_maybe(if total_panes > 1 {
-                    Some(crate::layout::Message::Close(pane))
+                    Some(Message::Close(pane))
                 } else {
                     None
                 })
                 .into();
 
-            let title_bar = iced::widget::pane_grid::TitleBar::new(title)
+            let title_bar = pane_grid::TitleBar::new(title)
                 .controls(close_button)
                 .padding(10)
                 .style(|theme: &Theme| {
                     let palette = theme.extended_palette();
-                    iced::widget::container::Style {
+                    container::Style {
                         text_color: Some(palette.background.strong.text),
                         background: Some(palette.background.strong.color.into()),
                         ..Default::default()
@@ -71,7 +73,7 @@ impl Pane {
             let button_style = |label, message| {
                 button(
                     text(label)
-                        .align_x(iced::alignment::Horizontal::Center)
+                        .align_x(Horizontal::Center)
                         .size(16),
                 )
                 .width(Length::Fill)
@@ -82,35 +84,35 @@ impl Pane {
             let mut controls = column![
                 button_style(
                     "Split horizontally",
-                    crate::layout::Message::Split(iced::widget::pane_grid::Axis::Horizontal, pane),
+                    Message::Split(pane_grid::Axis::Horizontal, pane),
                 ),
                 button_style(
                     "Split vertically",
-                    crate::layout::Message::Split(iced::widget::pane_grid::Axis::Vertical, pane),
+                    Message::Split(pane_grid::Axis::Vertical, pane),
                 ),
             ]
             .spacing(5)
             .max_width(160)
-            .align_x(iced::alignment::Horizontal::Center);
+            .align_x(Horizontal::Center);
 
             if total_panes > 1 {
                 controls = controls.push(
                     button(
                         text("Close")
-                            .align_x(iced::alignment::Horizontal::Center)
+                            .align_x(Horizontal::Center)
                             .size(16),
                     )
                     .width(Length::Fill)
                     .padding(8)
                     .style(button::danger)
-                    .on_press(crate::layout::Message::Close(pane)),
+                    .on_press(Message::Close(pane)),
                 );
             }
 
             let edit_content = container(
                 column![controls]
                     .spacing(10)
-                    .align_x(iced::alignment::Horizontal::Center),
+                    .align_x(Horizontal::Center),
             )
             .width(Length::Fill)
             .height(Length::Fill)
@@ -119,9 +121,9 @@ impl Pane {
             .padding(5)
             .style(|theme: &Theme| {
                 let palette = theme.extended_palette();
-                iced::widget::container::Style {
+                container::Style {
                     background: Some(palette.background.weak.color.into()),
-                    border: iced::Border {
+                    border: Border {
                         width: 2.0,
                         color: palette.background.strong.color,
                         ..Default::default()
@@ -130,13 +132,13 @@ impl Pane {
                 }
             });
 
-            iced::widget::pane_grid::Content::new(edit_content).title_bar(title_bar)
+            pane_grid::Content::new(edit_content).title_bar(title_bar)
         } else {
-            iced::widget::pane_grid::Content::new(self.render_content())
+            pane_grid::Content::new(self.render_content())
         }
     }
 
-    fn render_content(&self) -> Element<'_, crate::layout::Message> {
+    fn render_content(&self) -> Element<'_, Message> {
         let content_text = match self.content {
             PaneContent::PlayerControls => column![
                 text("▶ Play / ⏸ Pause").size(20),
