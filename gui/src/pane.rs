@@ -35,29 +35,14 @@ impl Pane {
     pub fn new(content: PaneContent) -> Self {
         Self { content }
     }
-}
-
-#[derive(Debug, Clone)]
-pub enum Message {
-    Split(iced::widget::pane_grid::Axis),
-    Close,
-    Maximize,
-}
-
-impl Pane {
     pub fn view(
         &self,
         pane: iced::widget::pane_grid::Pane,
         total_panes: usize,
-        _is_maximized: bool,
         edit_mode: bool,
     ) -> iced::widget::pane_grid::Content<'_, crate::layout::Message> {
-        let content = self.render_content();
-
         // In edit mode, show pane with title bar and simplified content
         if edit_mode {
-            use iced::widget::row;
-
             let close_button: Element<'_, crate::layout::Message> = if total_panes > 1 {
                 button("✕")
                     .on_press(crate::layout::Message::Close(pane))
@@ -81,21 +66,26 @@ impl Pane {
                 text("").into()
             };
 
-            let title_bar = iced::widget::pane_grid::TitleBar::new(
-                row![
-                    text(self.content.title()).size(14),
-                ]
-                .spacing(10)
-                .align_y(iced::alignment::Vertical::Center)
-            )
-            .controls(close_button)
-            .padding(8);
+            let title_bar = {
+                use iced::widget::row;
+                iced::widget::pane_grid::TitleBar::new(
+                    row![
+                        text(self.content.title()).size(14),
+                    ]
+                    .spacing(10)
+                    .align_y(iced::alignment::Vertical::Center)
+                )
+                .controls(close_button)
+                .padding(8)
+            };
 
             // Create simplified edit mode content
             let edit_content = self.render_edit_content(pane, total_panes);
 
             iced::widget::pane_grid::Content::new(edit_content).title_bar(title_bar)
         } else {
+            // Normal mode: show actual content without title bar
+            let content = self.render_content();
             iced::widget::pane_grid::Content::new(content)
         }
     }
@@ -105,8 +95,6 @@ impl Pane {
         pane: iced::widget::pane_grid::Pane,
         total_panes: usize,
     ) -> Element<'_, crate::layout::Message> {
-        use iced::widget::row;
-
         let delete_button: Element<'_, crate::layout::Message> = if total_panes > 1 {
             button("Delete")
                 .on_press(crate::layout::Message::Close(pane))

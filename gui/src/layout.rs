@@ -1,5 +1,5 @@
-use iced::widget::pane_grid::{self, Highlight, PaneGrid};
-use iced::{Background, Border, Color, Element, Length, Subscription, Task};
+use iced::widget::pane_grid::{self, PaneGrid};
+use iced::{Element, Length, Subscription, Task};
 use std::time::Duration;
 
 use crate::pane::{Pane, PaneContent};
@@ -7,7 +7,6 @@ use crate::pane::{Pane, PaneContent};
 pub struct Layout {
     panes: pane_grid::State<Pane>,
     focus: Option<pane_grid::Pane>,
-    maximized: Option<pane_grid::Pane>,
     edit_mode: bool,
 }
 
@@ -18,7 +17,6 @@ pub enum Message {
     Clicked(pane_grid::Pane),
     Dragged(pane_grid::DragEvent),
     Resized(pane_grid::ResizeEvent),
-    ToggleMaximize(pane_grid::Pane),
     ToggleEditMode,
     Tick,
 }
@@ -48,7 +46,6 @@ impl Default for Layout {
         Self {
             panes,
             focus: None,
-            maximized: None,
             edit_mode: false,
         }
     }
@@ -66,10 +63,6 @@ impl Layout {
                 if let Some((_, sibling)) = self.panes.close(pane) {
                     self.focus = Some(sibling);
                 }
-
-                if self.maximized == Some(pane) {
-                    self.maximized = None;
-                }
             }
             Message::Clicked(pane) => {
                 self.focus = Some(pane);
@@ -81,19 +74,11 @@ impl Layout {
             Message::Resized(pane_grid::ResizeEvent { split, ratio }) => {
                 self.panes.resize(split, ratio);
             }
-            Message::ToggleMaximize(pane) => {
-                if self.maximized == Some(pane) {
-                    self.maximized = None;
-                } else {
-                    self.maximized = Some(pane);
-                    self.focus = Some(pane);
-                }
-            }
             Message::ToggleEditMode => {
                 self.edit_mode = !self.edit_mode;
             }
             Message::Tick => {
-                // player state updates, etc.
+                // Player state updates, etc.
             }
         }
 
@@ -101,18 +86,16 @@ impl Layout {
     }
 
     pub fn view(&self) -> Element<Message> {
-        use iced::widget::{button, column, container};
+        use iced::widget::{button, column, container, row, text};
 
         let total_panes = self.panes.len();
-        let focus = self.focus;
-        let maximized = self.maximized;
         let edit_mode = self.edit_mode;
 
+        // Top bar with edit mode toggle
         let top_bar = if edit_mode {
-            use iced::widget::{row, text};
             container(
                 row![
-                    text("Edit Mode: Drag panes from ANYWHERE • Drag borders to resize • Click Delete to remove")
+                    text("Edit Mode: Drag panes • Resize borders • Delete panes")
                         .size(14),
                     button("✓ Done")
                         .on_press(Message::ToggleEditMode)
@@ -135,18 +118,15 @@ impl Layout {
             .align_x(iced::alignment::Horizontal::Right)
         };
 
-        let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _maximized_in_grid| {
-            let _is_focused = focus == Some(id);
-            let is_maximized = maximized == Some(id);
-
-            pane.view(id, total_panes, is_maximized, edit_mode)
+        // Build the pane grid
+        let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
+            pane.view(id, total_panes, edit_mode)
         })
         .width(Length::Fill)
         .height(Length::Fill)
-        .spacing(if edit_mode { 4 } else { 0 })
-;
+        .spacing(if edit_mode { 4 } else { 0 });
 
-        // Only enable interactions in edit mode
+        // Only enable drag/resize interactions in edit mode
         if edit_mode {
             pane_grid = pane_grid
                 .on_click(Message::Clicked)
@@ -154,11 +134,7 @@ impl Layout {
                 .on_resize(10, Message::Resized);
         }
 
-        column![
-            top_bar,
-            pane_grid,
-        ]
-        .into()
+        column![top_bar, pane_grid].into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
