@@ -1,5 +1,6 @@
 use iced::Theme;
 
+mod elements;
 mod layout;
 mod pane;
 

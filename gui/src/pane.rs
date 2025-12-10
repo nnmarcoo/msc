@@ -2,6 +2,7 @@ use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{button, column, container, pane_grid, row, text};
 use iced::{Border, Element, Length, Theme};
 
+use crate::elements;
 use crate::layout::Message;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -139,44 +140,16 @@ impl Pane {
     }
 
     fn render_content(&self) -> Element<'_, Message> {
-        let content_text = match self.content {
-            PaneContent::PlayerControls => column![
-                text("▶ Play / ⏸ Pause").size(20),
-                text("⏮ Previous / ⏭ Next").size(20),
-                text("Volume Control").size(16),
-            ]
-            .spacing(10)
-            .padding(20),
-            PaneContent::Queue => column![
-                text("Track 1 - Artist Name").size(14),
-                text("Track 2 - Artist Name").size(14),
-                text("Track 3 - Artist Name").size(14),
-            ]
-            .spacing(5)
-            .padding(20),
-            PaneContent::Library => column![
-                text("Library Browser").size(18),
-                text("Albums / Artists / Tracks").size(14),
-            ]
-            .spacing(10)
-            .padding(20),
-            PaneContent::Artwork => column![
-                container(text("🎵 Album Art").size(32))
-                    .width(Length::Fill)
-                    .height(Length::Fill)
-                    .center_x(Length::Fill)
-                    .center_y(Length::Fill)
-            ],
-            PaneContent::Timeline => column![
-                text("Timeline / Seek Bar").size(16),
-                text("0:00 ━━━━━━━━━━ 3:45").size(14),
-            ]
-            .spacing(10)
-            .padding(20),
-            PaneContent::Empty => column![text("Empty Pane").size(14)].spacing(5).padding(20),
+        let content = match self.content {
+            PaneContent::PlayerControls => elements::player_controls::view(),
+            PaneContent::Queue => elements::queue::view(),
+            PaneContent::Library => elements::library::view(),
+            PaneContent::Artwork => elements::artwork::view(),
+            PaneContent::Timeline => elements::timeline::view(),
+            PaneContent::Empty => elements::empty::view(),
         };
 
-        container(content_text)
+        container(content)
             .width(Length::Fill)
             .height(Length::Fill)
             .center_x(Length::Fill)
