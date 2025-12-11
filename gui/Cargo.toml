@@ -8,3 +8,4 @@ iced = { version = "0.13.1", features = ["tokio", "image"] }
 msc-core = { path = "../core" }
 image = "0.25.9"
 blake3 = "1.8.2"
+rfd = "0.15"

@@ -5,7 +5,7 @@ use blake3::Hash;
 use dashmap::mapref::one::Ref;
 use kira::backend::cpal;
 
-use crate::{ArtCache, Backend, Library, Queue, Track, backend::PlaybackError};
+use crate::{ArtCache, Backend, Library, LibraryError, Queue, Track, backend::PlaybackError};
 
 pub struct Player {
     backend: Backend,
@@ -24,6 +24,10 @@ impl Player {
 
     pub fn populate_library(&mut self, root: &Path) {
         self.library.populate(root);
+    }
+
+    pub fn reload_library(&mut self) -> Result<(), LibraryError> {
+        self.library.reload()
     }
 
     pub fn play(&mut self) -> Result<(), PlaybackError> {

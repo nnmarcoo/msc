@@ -2,14 +2,21 @@ use iced::alignment::{Horizontal, Vertical};
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{button, column, container, row, text};
 use iced::{Background, Color, Element, Length, Subscription, Task};
+use msc_core::Player;
+use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::elements::player_controls;
 use crate::pane::{Pane, PaneContent};
 
 pub struct Layout {
     panes: pane_grid::State<Pane>,
     focus: Option<pane_grid::Pane>,
     edit_mode: bool,
+    player: Player,
+    volume: f32,
+    previous_volume: f32,
+    seeking_position: Option<f32>,
 }
 
 #[derive(Debug, Clone)]
@@ -21,6 +28,10 @@ pub enum Message {
     Resized(pane_grid::ResizeEvent),
     ToggleEditMode,
     Tick,
+    PlayerControls(crate::elements::player_controls::Message),
+    LoadLibrary,
+    LibraryPathSelected(Option<PathBuf>),
+    QueueLibrary,
 }
 
 impl Default for Layout {
@@ -44,11 +55,16 @@ impl Default for Layout {
         };
 
         let panes = pane_grid::State::with_configuration(pane_config);
+        let player = Player::new().expect("Failed to initialize player");
 
         Self {
             panes,
             focus: None,
             edit_mode: false,
+            player,
+            volume: 0.5,
+            previous_volume: 0.5,
+            seeking_position: None,
         }
     }
 }
@@ -81,7 +97,77 @@ impl Layout {
             Message::ToggleEditMode => {
                 self.edit_mode = !self.edit_mode;
             }
-            Message::Tick => {}
+            Message::Tick => {
+                let _ = self.player.update();
+            }
+            Message::LoadLibrary => {
+                // Try to reload first
+                if self.player.reload_library().is_ok() {
+                    // Library reloaded successfully (path was already set)
+                } else {
+                    // If reload fails, open folder picker
+                    return Task::perform(
+                        async {
+                            rfd::AsyncFileDialog::new()
+                                .set_title("Select Music Library Folder")
+                                .pick_folder()
+                                .await
+                                .map(|handle| handle.path().to_path_buf())
+                        },
+                        Message::LibraryPathSelected,
+                    );
+                }
+            }
+            Message::LibraryPathSelected(path) => {
+                if let Some(path) = path {
+                    self.player.populate_library(&path);
+                }
+            }
+            Message::QueueLibrary => {
+                // Queue all tracks from the library and start playing
+                self.player.queue_library();
+                let _ = self.player.play();
+            }
+            Message::PlayerControls(msg) => {
+                use player_controls::Message as PCMsg;
+                match msg {
+                    PCMsg::PlayPause => {
+                        if self.player.is_playing() {
+                            self.player.pause();
+                        } else {
+                            let _ = self.player.play();
+                        }
+                    }
+                    PCMsg::Previous => {
+                        let _ = self.player.start_previous();
+                    }
+                    PCMsg::Next => {
+                        let _ = self.player.start_next();
+                    }
+                    PCMsg::VolumeChanged(vol) => {
+                        self.volume = vol;
+                        self.player.set_volume(vol);
+                    }
+                    PCMsg::ToggleMute => {
+                        if self.volume > 0.0 {
+                            self.previous_volume = self.volume;
+                            self.volume = 0.0;
+                        } else {
+                            self.volume = self.previous_volume;
+                        }
+                        self.player.set_volume(self.volume);
+                    }
+                    PCMsg::SeekChanged(pos) => {
+                        self.seeking_position = Some(pos);
+                    }
+                    PCMsg::SeekReleased => {
+                        if let Some(pos) = self.seeking_position {
+                            self.player.seek(pos as f64);
+                            self.seeking_position = None;
+                        }
+                    }
+                }
+            }
         }
 
         Task::none()
@@ -107,17 +193,26 @@ impl Layout {
             .align_x(Horizontal::Right)
         } else {
             container(
-                button("⚙ Edit Layout")
-                    .on_press(Message::ToggleEditMode)
-                    .padding(10),
+                row![
+                    button("📁 Load Library")
+                        .on_press(Message::LoadLibrary)
+                        .padding(10),
+                    button("▶ Queue Library")
+                        .on_press(Message::QueueLibrary)
+                        .padding(10),
+                    button("⚙").on_press(Message::ToggleEditMode).padding(10),
+                ]
+                .spacing(10),
             )
             .width(Length::Fill)
             .padding(10)
             .align_x(Horizontal::Right)
         };
 
+        let player = &self.player;
+        let volume = self.volume;
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
-            pane.view(id, total_panes, edit_mode)
+            pane.view(id, total_panes, edit_mode, player, volume)
         })
         .width(Length::Fill)
         .height(Length::Fill)
@@ -135,9 +230,7 @@ impl Layout {
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .style(|_theme| container::Style {
-                    background: Some(Background::Color(Color::from_rgb(
-                        0.35, 0.35, 0.35,
-                    ))),
+                    background: Some(Background::Color(Color::from_rgb(0.35, 0.35, 0.35))),
                     ..Default::default()
                 })
         } else {
@@ -150,6 +243,6 @@ impl Layout {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        iced::time::every(Duration::from_millis(100)).map(|_| Message::Tick)
+        iced::time::every(Duration::from_millis(250)).map(|_| Message::Tick)
     }
 }

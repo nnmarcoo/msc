@@ -12,8 +12,15 @@ use crate::Track;
 
 const THUMBNAIL_SIZE: u32 = 512;
 
+#[derive(Clone)]
+pub struct RgbaImage {
+    pub width: u32,
+    pub height: u32,
+    pub data: Arc<Vec<u8>>,
+}
+
 enum CacheState {
-    Ready(Arc<DynamicImage>),
+    Ready(RgbaImage),
     Loading,
 }
 
@@ -28,7 +35,7 @@ impl ArtCache {
         }
     }
 
-    pub fn get(&self, track: &Track) -> Option<Arc<DynamicImage>> {
+    pub fn get(&self, track: &Track) -> Option<RgbaImage> {
         let art_id = track.metadata.art_id?;
 
         if let Some(entry) = self.cache.get(&art_id) {
@@ -60,8 +67,17 @@ impl ArtCache {
                 }
 
                 let thumbnail = Self::resize_to_thumbnail(image);
-                let arc_thumbnail = Arc::new(thumbnail);
-                cache.insert(art_id, CacheState::Ready(arc_thumbnail));
+                let rgba = thumbnail.to_rgba8();
+                let (width, height) = rgba.dimensions();
+                let bytes = rgba.into_raw();
+
+                let rgba_image = RgbaImage {
+                    width,
+                    height,
+                    data: Arc::new(bytes),
+                };
+
+                cache.insert(art_id, CacheState::Ready(rgba_image));
             }
             None => {
                 cache.remove(&art_id);
@@ -69,7 +85,7 @@ impl ArtCache {
         }
     }
 
-    pub fn get_by_hash(&self, id: &Hash) -> Option<Arc<DynamicImage>> {
+    pub fn get_by_hash(&self, id: &Hash) -> Option<RgbaImage> {
         self.cache.get(id).and_then(|entry| match entry.value() {
             CacheState::Ready(img) => Some(img.clone()),
             CacheState::Loading => None,

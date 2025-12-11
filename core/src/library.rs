@@ -1,4 +1,6 @@
 use std::{
+    error::Error,
+    fmt::{self, Display},
     fs::read_dir,
     path::{Path, PathBuf},
     sync::Arc,
@@ -27,12 +29,15 @@ impl Library {
 
     pub fn populate(&mut self, root: &Path) {
         self.root = Some(root.to_path_buf());
-        self.reload();
+        let _ = self.reload();
     }
 
-    pub fn reload(&mut self) {
+    pub fn reload(&mut self) -> Result<(), LibraryError> {
         if let Some(root) = &self.root {
             self.tracks = Some(Library::collect(&root));
+            Ok(())
+        } else {
+            Err(LibraryError::RootNotSet)
         }
     }
 
@@ -68,3 +73,18 @@ impl Library {
         self.tracks.as_ref()?.get(&id)
     }
 }
+
+#[derive(Debug)]
+pub enum LibraryError {
+    RootNotSet,
+}
+
+impl Display for LibraryError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            LibraryError::RootNotSet => write!(f, "Library root directory not set"),
+        }
+    }
+}
+
+impl Error for LibraryError {}
