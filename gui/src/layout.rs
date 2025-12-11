@@ -101,11 +101,7 @@ impl Layout {
                 let _ = self.player.update();
             }
             Message::LoadLibrary => {
-                // Try to reload first
-                if self.player.reload_library().is_ok() {
-                    // Library reloaded successfully (path was already set)
-                } else {
-                    // If reload fails, open folder picker
+                if self.player.reload_library().is_err() {
                     return Task::perform(
                         async {
                             rfd::AsyncFileDialog::new()
@@ -124,7 +120,6 @@ impl Layout {
                 }
             }
             Message::QueueLibrary => {
-                // Queue all tracks from the library and start playing
                 self.player.queue_library();
                 let _ = self.player.play();
             }

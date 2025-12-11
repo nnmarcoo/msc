@@ -1,5 +1,6 @@
 use iced::alignment::Vertical;
-use iced::widget::{Image, button, column, container, image, row, slider, text};
+use iced::widget::image::Handle;
+use iced::widget::{Image, button, column, container, row, slider, text};
 use iced::{Element, Length};
 use msc_core::Player;
 
@@ -29,9 +30,8 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
         ("-".to_string(), "-".to_string(), 0.0)
     };
 
-    // Playback controls
     let prev_button = button(
-        Image::new(image::Handle::from_bytes(
+        Image::new(Handle::from_bytes(
             include_bytes!("../../../assets/icons/previous.png").as_slice(),
         ))
         .width(22)
@@ -46,7 +46,7 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
         include_bytes!("../../../assets/icons/play.png")
     };
     let play_pause_button = button(
-        Image::new(image::Handle::from_bytes(play_pause_icon))
+        Image::new(Handle::from_bytes(play_pause_icon))
             .width(28)
             .height(28),
     )
@@ -54,7 +54,7 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
     .on_press(Message::PlayPause);
 
     let next_button = button(
-        Image::new(image::Handle::from_bytes(
+        Image::new(Handle::from_bytes(
             include_bytes!("../../../assets/icons/next.png").as_slice(),
         ))
         .width(22)
@@ -63,14 +63,13 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
     .padding(8)
     .on_press(Message::Next);
 
-    // Volume controls
     let vol_icon_bytes: &[u8] = if volume > 0.0 {
         include_bytes!("../../../assets/icons/vol_on.png")
     } else {
         include_bytes!("../../../assets/icons/vol_off.png")
     };
     let vol_button = button(
-        Image::new(image::Handle::from_bytes(vol_icon_bytes))
+        Image::new(Handle::from_bytes(vol_icon_bytes))
             .width(22)
             .height(22),
     )
@@ -80,7 +79,6 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
     let volume_slider =
         slider(0.0..=1.0, volume, Message::VolumeChanged).width(Length::Fixed(100.0));
 
-    // Timeline
     let timeline_slider = slider(0.0..=duration, position, Message::SeekChanged)
         .on_release(Message::SeekReleased)
         .width(Length::Fill);
@@ -91,7 +89,6 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
         format_seconds(duration)
     );
 
-    // Track info section
     let track_info = column![
         row![
             text(title).size(14),
@@ -105,7 +102,6 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
     .spacing(5)
     .width(Length::Fill);
 
-    // Main layout
     let controls_row = row![
         prev_button,
         play_pause_button,
