@@ -1,15 +1,17 @@
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{button, container, pane_grid, pick_list, responsive, row, text};
+use iced::widget::svg::Handle;
+use iced::widget::{button, container, pane_grid, pick_list, responsive, row, svg, text};
 use iced::{Border, Element, Length, Theme};
 use msc_core::Player;
 use std::fmt::{self, Display};
 
 use crate::app::Message;
-use crate::elements;
+use crate::components;
+use crate::widgets::square_button::square_button;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaneContent {
-    PlayerControls,
+    Controls,
     Queue,
     Library,
     Artwork,
@@ -19,7 +21,7 @@ pub enum PaneContent {
 
 impl PaneContent {
     pub const ALL: [PaneContent; 6] = [
-        PaneContent::PlayerControls,
+        PaneContent::Controls,
         PaneContent::Queue,
         PaneContent::Library,
         PaneContent::Artwork,
@@ -29,7 +31,7 @@ impl PaneContent {
 
     pub fn title(&self) -> &str {
         match self {
-            PaneContent::PlayerControls => "Player Controls",
+            PaneContent::Controls => "Controls",
             PaneContent::Queue => "Queue",
             PaneContent::Library => "Library",
             PaneContent::Artwork => "Artwork",
@@ -76,28 +78,22 @@ impl Pane {
             .spacing(5)
             .align_y(Vertical::Center);
 
-            let horizontal_split: Element<'_, Message> = button(
-                text("—")
-                    .align_x(Horizontal::Center)
-                    .align_y(Vertical::Center)
-                    .size(10),
+            let horizontal_split: Element<'_, Message> = square_button(
+                svg(Handle::from_memory(include_bytes!(
+                    "../../assets/icons/horizontal.svg"
+                ))),
+                20,
             )
-            .width(Length::Fixed(20.0))
-            .height(Length::Fixed(20.0))
-            .padding(0)
             .style(button::primary)
             .on_press(Message::Split(pane_grid::Axis::Horizontal, pane))
             .into();
 
-            let vertical_split: Element<'_, Message> = button(
-                text("|")
-                    .align_x(Horizontal::Center)
-                    .align_y(Vertical::Center)
-                    .size(10),
+            let vertical_split: Element<'_, Message> = square_button(
+                svg(Handle::from_memory(include_bytes!(
+                    "../../assets/icons/vertical.svg"
+                ))),
+                20,
             )
-            .width(Length::Fixed(20.0))
-            .height(Length::Fixed(20.0))
-            .padding(0)
             .style(button::primary)
             .on_press(Message::Split(pane_grid::Axis::Vertical, pane))
             .into();
@@ -107,12 +103,9 @@ impl Pane {
                 .align_y(Vertical::Center);
 
             if total_panes > 1 {
-                let close_btn: Element<'_, Message> = button(
-                    text("×")
-                        .align_x(Horizontal::Center)
-                        .align_y(Vertical::Center)
-                        .size(10),
-                )
+                let close_btn: Element<'_, Message> = button(svg(Handle::from_memory(
+                    include_bytes!("../../assets/icons/x.svg"),
+                )))
                 .width(Length::Fixed(20.0))
                 .height(Length::Fixed(20.0))
                 .padding(0)
@@ -167,14 +160,14 @@ impl Pane {
 
     fn render_content(&self, player: &Player, volume: f32) -> Element<'_, Message> {
         let content = match self.content {
-            PaneContent::PlayerControls => {
-                elements::player_controls::view(player, volume).map(Message::PlayerControls)
+            PaneContent::Controls => {
+                components::player_controls::view(player, volume).map(Message::PlayerControls)
             }
-            PaneContent::Queue => elements::queue::view(player),
-            PaneContent::Library => elements::library::view(),
-            PaneContent::Artwork => elements::artwork::view(player),
-            PaneContent::Timeline => elements::timeline::view(),
-            PaneContent::Empty => elements::empty::view(),
+            PaneContent::Queue => components::queue::view(player),
+            PaneContent::Library => components::library::view(),
+            PaneContent::Artwork => components::artwork::view(player),
+            PaneContent::Timeline => components::timeline::view(),
+            PaneContent::Empty => components::empty::view(),
         };
 
         container(content)

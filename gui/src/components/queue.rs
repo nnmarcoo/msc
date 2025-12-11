@@ -18,7 +18,7 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
             track_list = track_list.push(
                 container(
                     text(format!(
-                        "▶ {} - {}",
+                        "{} - {}",
                         track.metadata.title_or_default(),
                         track.metadata.artist_or_default()
                     ))

@@ -18,7 +18,6 @@ pub enum Message {
 pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
     let is_playing = player.is_playing();
     let current_track = player.clone_current_track();
-    println!("t");
     let position = player.position() as f32;
 
     let (title, artist, duration) = if let Some(track) = current_track {

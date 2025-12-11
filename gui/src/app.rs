@@ -1,14 +1,17 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
-use iced::widget::{button, column, container, row};
+use iced::widget::svg::Handle;
+use iced::widget::{column, container, row, svg};
 use iced::{Background, Color, Element, Length, Subscription, Task, Theme};
 use msc_core::Player;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::elements::player_controls;
+use crate::components::player_controls;
 use crate::pane::{Pane, PaneContent};
+use crate::widgets::sharp_button::sharp_button;
+use crate::widgets::square_button::square_button;
 
 pub struct App {
     panes: pane_grid::State<Pane>,
@@ -29,7 +32,7 @@ pub enum Message {
     Resized(pane_grid::ResizeEvent),
     ToggleEditMode,
     Tick,
-    PlayerControls(crate::elements::player_controls::Message),
+    PlayerControls(player_controls::Message),
     LoadLibrary,
     LibraryPathSelected(Option<PathBuf>),
     QueueLibrary,
@@ -39,20 +42,20 @@ pub enum Message {
 impl Default for App {
     fn default() -> Self {
         let pane_config = pane_grid::Configuration::Split {
-            axis: pane_grid::Axis::Vertical,
-            ratio: 0.6,
+            axis: pane_grid::Axis::Horizontal,
+            ratio: 0.9,
             a: Box::new(pane_grid::Configuration::Split {
-                axis: pane_grid::Axis::Horizontal,
+                axis: pane_grid::Axis::Vertical,
                 ratio: 0.7,
                 a: Box::new(pane_grid::Configuration::Pane(Pane::new(
                     PaneContent::Artwork,
                 ))),
                 b: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                    PaneContent::PlayerControls,
+                    PaneContent::Queue,
                 ))),
             }),
             b: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                PaneContent::Queue,
+                PaneContent::Controls,
             ))),
         };
 
@@ -190,18 +193,42 @@ impl App {
     pub fn view(&self) -> Element<Message> {
         let total_panes = self.panes.len();
         let edit_mode = self.edit_mode;
-
         let bottom_bar = if edit_mode {
-            container(row![button("S").on_press(Message::ToggleEditMode)].align_y(Vertical::Center))
-                .width(Length::Fill)
-                .align_x(Horizontal::Right)
-                .style(Self::bar_style)
+            container(
+                row![
+                    square_button(
+                        svg(Handle::from_memory(include_bytes!(
+                            "../../assets/icons/checkmark.svg"
+                        ))),
+                        20
+                    )
+                    .on_press(Message::ToggleEditMode)
+                ]
+                .spacing(5)
+                .align_y(Vertical::Center),
+            )
+            .width(Length::Fill)
+            .align_x(Horizontal::Right)
+            .style(Self::bar_style)
         } else {
-            container(row![
-                button("L").on_press(Message::LoadLibrary),
-                button("Q").on_press(Message::QueueLibrary),
-                button("S").on_press(Message::ToggleEditMode),
-            ])
+            container(
+                row![
+                    sharp_button("loadlib")
+                        .height(20)
+                        .on_press(Message::LoadLibrary),
+                    sharp_button("quelib")
+                        .height(20)
+                        .on_press(Message::QueueLibrary),
+                    square_button(
+                        svg(Handle::from_memory(include_bytes!(
+                            "../../assets/icons/settings.svg"
+                        ))),
+                        20
+                    )
+                    .on_press(Message::ToggleEditMode),
+                ]
+                .spacing(5),
+            )
             .width(Length::Fill)
             .align_x(Horizontal::Right)
             .style(Self::bar_style)

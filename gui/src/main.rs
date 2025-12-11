@@ -1,8 +1,9 @@
 use iced::Theme;
 
 mod app;
-mod elements;
+mod components;
 mod pane;
+mod widgets;
 
 use app::App;
 
