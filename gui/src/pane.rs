@@ -1,8 +1,8 @@
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{button, column, container, pane_grid, pick_list, row, text};
+use iced::widget::{button, container, pane_grid, pick_list, row, text};
 use iced::{Border, Element, Length, Theme};
 use msc_core::Player;
-use std::fmt;
+use std::fmt::{self, Display};
 
 use crate::elements;
 use crate::layout::Message;
@@ -39,7 +39,7 @@ impl PaneContent {
     }
 }
 
-impl fmt::Display for PaneContent {
+impl Display for PaneContent {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.title())
     }
@@ -67,28 +67,66 @@ impl Pane {
         volume: f32,
     ) -> pane_grid::Content<'_, Message> {
         if edit_mode {
-            let title = row![pick_list(
-                &PaneContent::ALL[..],
-                Some(self.content),
-                move |content| Message::PaneContentChanged(pane, content)
-            )
-            .text_size(14)]
+            let title = row![
+                pick_list(&PaneContent::ALL[..], Some(self.content), move |content| {
+                    Message::PaneContentChanged(pane, content)
+                })
+                .text_size(14)
+            ]
             .spacing(5)
             .align_y(Vertical::Center);
 
-            let close_button: Element<'_, Message> = button(text("X").size(14))
+            let horizontal_split: Element<'_, Message> = button(
+                text("—")
+                    .align_x(Horizontal::Center)
+                    .align_y(Vertical::Center)
+                    .size(10),
+            )
+            .width(Length::Fixed(20.0))
+            .height(Length::Fixed(20.0))
+            .padding(0)
+            .style(button::primary)
+            .on_press(Message::Split(pane_grid::Axis::Horizontal, pane))
+            .into();
+
+            let vertical_split: Element<'_, Message> = button(
+                text("|")
+                    .align_x(Horizontal::Center)
+                    .align_y(Vertical::Center)
+                    .size(10),
+            )
+            .width(Length::Fixed(20.0))
+            .height(Length::Fixed(20.0))
+            .padding(0)
+            .style(button::primary)
+            .on_press(Message::Split(pane_grid::Axis::Vertical, pane))
+            .into();
+
+            let mut controls = row![horizontal_split, vertical_split]
+                .spacing(5)
+                .align_y(Vertical::Center);
+
+            if total_panes > 1 {
+                let close_btn: Element<'_, Message> = button(
+                    text("×")
+                        .align_x(Horizontal::Center)
+                        .align_y(Vertical::Center)
+                        .size(10),
+                )
+                .width(Length::Fixed(20.0))
+                .height(Length::Fixed(20.0))
+                .padding(0)
                 .style(button::danger)
-                .padding(3)
-                .on_press_maybe(if total_panes > 1 {
-                    Some(Message::Close(pane))
-                } else {
-                    None
-                })
+                .on_press(Message::Close(pane))
                 .into();
 
+                controls = controls.push(close_btn);
+            }
+
+            let controls_element: Element<'_, Message> = container(controls).into();
+
             let title_bar = pane_grid::TitleBar::new(title)
-                .controls(close_button)
-                .padding(10)
+                .controls(controls_element)
                 .style(|theme: &Theme| {
                     let palette = theme.extended_palette();
                     container::Style {
@@ -98,38 +136,7 @@ impl Pane {
                     }
                 });
 
-            let button_style = |label, message| {
-                button(text(label).align_x(Horizontal::Center).size(16))
-                    .width(Length::Fill)
-                    .padding(8)
-                    .on_press(message)
-            };
-
-            let mut controls = column![
-                button_style(
-                    "Split horizontally",
-                    Message::Split(pane_grid::Axis::Horizontal, pane),
-                ),
-                button_style(
-                    "Split vertically",
-                    Message::Split(pane_grid::Axis::Vertical, pane),
-                ),
-            ]
-            .spacing(5)
-            .max_width(160)
-            .align_x(Horizontal::Center);
-
-            if total_panes > 1 {
-                controls = controls.push(
-                    button(text("Close").align_x(Horizontal::Center).size(16))
-                        .width(Length::Fill)
-                        .padding(8)
-                        .style(button::danger)
-                        .on_press(Message::Close(pane)),
-                );
-            }
-
-            let edit_content = container(column![controls].spacing(10).align_x(Horizontal::Center))
+            let edit_content = container("")
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .center_x(Length::Fill)

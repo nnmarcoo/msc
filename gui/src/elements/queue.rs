@@ -41,8 +41,11 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
         if idx >= MAX_DISPLAY {
             track_list = track_list.push(
                 container(
-                    text(format!("... and {} more tracks", total_upcoming - MAX_DISPLAY))
-                        .size(12),
+                    text(format!(
+                        "... and {} more tracks",
+                        total_upcoming - MAX_DISPLAY
+                    ))
+                    .size(12),
                 )
                 .padding(8)
                 .width(Length::Fill),

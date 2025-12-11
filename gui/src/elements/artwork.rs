@@ -1,5 +1,5 @@
 use iced::widget::image::Handle;
-use iced::widget::{container, Image};
+use iced::widget::{Image, container};
 use iced::{ContentFit, Element, Length};
 use msc_core::Player;
 

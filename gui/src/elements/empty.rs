@@ -1,5 +1,5 @@
-use iced::widget::Space;
 use iced::Element;
+use iced::widget::Space;
 
 use crate::layout::Message;
 
