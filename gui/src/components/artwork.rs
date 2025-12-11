@@ -14,7 +14,7 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
             let artwork = Image::new(Handle::from_rgba(
                 rgba_image.width,
                 rgba_image.height,
-                rgba_image.data.as_ref().clone(),
+                (*rgba_image.data).clone(),
             ))
             .width(Length::Fill)
             .height(Length::Fill)
