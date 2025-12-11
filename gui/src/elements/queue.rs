@@ -2,7 +2,7 @@ use iced::widget::{column, container, scrollable, text};
 use iced::{Element, Length};
 use msc_core::Player;
 
-use crate::layout::Message;
+use crate::app::Message;
 
 const MAX_DISPLAY: usize = 100;
 

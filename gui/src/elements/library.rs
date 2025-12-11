@@ -1,7 +1,7 @@
 use iced::Element;
 use iced::widget::{column, text};
 
-use crate::layout::Message;
+use crate::app::Message;
 
 pub fn view<'a>() -> Element<'a, Message> {
     column![

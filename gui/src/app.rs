@@ -1,8 +1,8 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
-use iced::widget::{button, column, container, row, text};
-use iced::{Background, Color, Element, Length, Subscription, Task};
+use iced::widget::{button, column, container, row};
+use iced::{Background, Color, Element, Length, Subscription, Task, Theme};
 use msc_core::Player;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -10,7 +10,7 @@ use std::time::Duration;
 use crate::elements::player_controls;
 use crate::pane::{Pane, PaneContent};
 
-pub struct Layout {
+pub struct App {
     panes: pane_grid::State<Pane>,
     focus: Option<pane_grid::Pane>,
     edit_mode: bool,
@@ -36,7 +36,7 @@ pub enum Message {
     PaneContentChanged(pane_grid::Pane, PaneContent),
 }
 
-impl Default for Layout {
+impl Default for App {
     fn default() -> Self {
         let pane_config = pane_grid::Configuration::Split {
             axis: pane_grid::Axis::Vertical,
@@ -71,7 +71,19 @@ impl Default for Layout {
     }
 }
 
-impl Layout {
+impl App {
+    fn bar_style(theme: &Theme) -> container::Style {
+        let palette = theme.extended_palette();
+        let mut color = palette.background.base.color;
+        color.r = (color.r + 0.02).min(1.0);
+        color.g = (color.g + 0.02).min(1.0);
+        color.b = (color.b + 0.02).min(1.0);
+        container::Style {
+            background: Some(Background::Color(color)),
+            ..Default::default()
+        }
+    }
+
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Split(axis, pane) => {
@@ -179,36 +191,20 @@ impl Layout {
         let total_panes = self.panes.len();
         let edit_mode = self.edit_mode;
 
-        let top_bar = if edit_mode {
-            container(
-                row![
-                    text("Edit Mode: Drag panes • Resize borders • Delete panes").size(14),
-                    button("✓ Done")
-                        .on_press(Message::ToggleEditMode)
-                        .padding(10)
-                ]
-                .spacing(20)
-                .align_y(Vertical::Center),
-            )
-            .width(Length::Fill)
-            .padding(10)
-            .align_x(Horizontal::Right)
+        let bottom_bar = if edit_mode {
+            container(row![button("S").on_press(Message::ToggleEditMode)].align_y(Vertical::Center))
+                .width(Length::Fill)
+                .align_x(Horizontal::Right)
+                .style(Self::bar_style)
         } else {
-            container(
-                row![
-                    button("📁 Load Library")
-                        .on_press(Message::LoadLibrary)
-                        .padding(10),
-                    button("▶ Queue Library")
-                        .on_press(Message::QueueLibrary)
-                        .padding(10),
-                    button("⚙").on_press(Message::ToggleEditMode).padding(10),
-                ]
-                .spacing(10),
-            )
+            container(row![
+                button("L").on_press(Message::LoadLibrary),
+                button("Q").on_press(Message::QueueLibrary),
+                button("S").on_press(Message::ToggleEditMode),
+            ])
             .width(Length::Fill)
-            .padding(10)
             .align_x(Horizontal::Right)
+            .style(Self::bar_style)
         };
 
         let player = &self.player;
@@ -241,7 +237,7 @@ impl Layout {
                 .height(Length::Fill)
         };
 
-        column![top_bar, pane_grid_container].into()
+        column![pane_grid_container, bottom_bar].into()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

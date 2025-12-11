@@ -1,11 +1,11 @@
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{button, container, pane_grid, pick_list, row, text};
+use iced::widget::{button, container, pane_grid, pick_list, responsive, row, text};
 use iced::{Border, Element, Length, Theme};
 use msc_core::Player;
 use std::fmt::{self, Display};
 
+use crate::app::Message;
 use crate::elements;
-use crate::layout::Message;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaneContent {
@@ -136,24 +136,28 @@ impl Pane {
                     }
                 });
 
-            let edit_content = container("")
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x(Length::Fill)
-                .center_y(Length::Fill)
-                .padding(5)
-                .style(|theme: &Theme| {
-                    let palette = theme.extended_palette();
-                    container::Style {
-                        background: Some(palette.background.weak.color.into()),
-                        border: Border {
-                            width: 2.0,
-                            color: palette.background.strong.color,
+            let edit_content = responsive(move |size| {
+                let size_text = format!("{}x{}", size.width as u32, size.height as u32);
+                container(text(size_text).size(16))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill)
+                    .padding(5)
+                    .style(|theme: &Theme| {
+                        let palette = theme.extended_palette();
+                        container::Style {
+                            background: Some(palette.background.weak.color.into()),
+                            border: Border {
+                                width: 2.0,
+                                color: palette.background.strong.color,
+                                ..Default::default()
+                            },
                             ..Default::default()
-                        },
-                        ..Default::default()
-                    }
-                });
+                        }
+                    })
+                    .into()
+            });
 
             pane_grid::Content::new(edit_content).title_bar(title_bar)
         } else {

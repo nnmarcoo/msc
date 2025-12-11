@@ -3,7 +3,7 @@ use iced::widget::{Image, container};
 use iced::{ContentFit, Element, Length};
 use msc_core::Player;
 
-use crate::layout::Message;
+use crate::app::Message;
 
 pub fn view<'a>(player: &Player) -> Element<'a, Message> {
     let current_track = player.clone_current_track();

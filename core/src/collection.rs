@@ -4,16 +4,15 @@ use blake3::Hash;
 
 use crate::Library;
 
-
 enum PathOrhash {
-  Path(PathBuf),
-  Hash(Hash)
+    Path(PathBuf),
+    Hash(Hash),
 }
 
 pub struct Collection {
-  name: String,
-  image: PathOrhash,
-  tracks: Vec<Hash>,
+    name: String,
+    image: PathOrhash,
+    tracks: Vec<Hash>,
 }
 
 impl Collection {
