@@ -161,7 +161,7 @@ impl App {
         }
 
         // Update album art if track changed
-        let should_update_art = if let Some(track) = self.player.current_track() {
+        let should_update_art = if let Some(track) = self.player.clone_current_track() {
             let art_cache = self.player.art();
             art_cache.get(&track)
         } else {
@@ -304,7 +304,7 @@ fn render_album_art(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_track_info(f: &mut Frame, area: Rect, app: &App) {
-    let track_lines = if let Some(track) = app.player.current_track() {
+    let track_lines = if let Some(track) = app.player.clone_current_track() {
         let title = track.metadata.title_or_default();
         let artist = track.metadata.artist_or_default();
         let album = track.metadata.album_or_default();
@@ -372,7 +372,7 @@ fn render_track_info(f: &mut Frame, area: Rect, app: &App) {
 }
 
 fn render_progress(f: &mut Frame, area: Rect, app: &App) {
-    let (position, duration) = if let Some(track) = app.player.current_track() {
+    let (position, duration) = if let Some(track) = app.player.clone_current_track() {
         (app.player.position(), track.metadata.duration())
     } else {
         (0.0, 0.0)
@@ -429,7 +429,7 @@ fn render_queue_view(f: &mut Frame, app: &App) {
     let mut queue_items = Vec::new();
 
     // Add current track
-    if let Some(current_id) = queue.current() {
+    if let Some(current_id) = queue.current_id() {
         let track_text = if let Some(track) = app.player.library().track_from_id(current_id) {
             let title = track.metadata.title_or_default();
             let artist = track.metadata.artist_or_default();

@@ -6,7 +6,7 @@ use msc_core::Player;
 use crate::layout::Message;
 
 pub fn view<'a>(player: &Player) -> Element<'a, Message> {
-    let current_track = player.current_track();
+    let current_track = player.clone_current_track();
     let art_cache = player.art();
 
     if let Some(track) = current_track {

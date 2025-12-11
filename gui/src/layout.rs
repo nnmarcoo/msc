@@ -1,4 +1,5 @@
 use iced::alignment::{Horizontal, Vertical};
+use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{button, column, container, row, text};
 use iced::{Background, Color, Element, Length, Subscription, Task};
@@ -244,6 +245,6 @@ impl Layout {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        iced::time::every(Duration::from_millis(250)).map(|_| Message::Tick)
+        every(Duration::from_millis(250)).map(|_| Message::Tick)
     }
 }

@@ -9,7 +9,7 @@ const MAX_DISPLAY: usize = 100;
 pub fn view<'a>(player: &Player) -> Element<'a, Message> {
     let queue = player.queue();
     let library = player.library();
-    let current_hash = queue.current();
+    let current_hash = queue.current_id();
 
     let mut track_list = column![].spacing(2);
 

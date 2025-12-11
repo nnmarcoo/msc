@@ -2,7 +2,6 @@ use std::path::Path;
 use std::sync::Arc;
 
 use blake3::Hash;
-use dashmap::mapref::one::Ref;
 use kira::backend::cpal;
 
 use crate::{ArtCache, Backend, Library, LibraryError, Queue, Track, backend::PlaybackError};
@@ -85,7 +84,7 @@ impl Player {
     }
 
     pub fn start_current(&mut self) -> Result<(), PlaybackError> {
-        let track_id = self.queue.current();
+        let track_id = self.queue.current_id();
         self.play_track(track_id)
     }
 
@@ -109,9 +108,8 @@ impl Player {
         self.backend.position()
     }
 
-    pub fn current_track(&self) -> Option<Ref<'_, Hash, Track>> {
-        let current = self.queue.current()?;
-        self.library.track_from_id(current)
+    pub fn clone_current_track(&self) -> Option<Track> {
+        self.library.track_from_id(self.queue.current_id()?)
     }
 
     pub fn art(&self) -> Arc<ArtCache> {

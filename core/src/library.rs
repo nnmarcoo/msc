@@ -7,7 +7,7 @@ use std::{
 };
 
 use blake3::Hash;
-use dashmap::{DashMap, mapref::one::Ref};
+use dashmap::DashMap;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
 use crate::{ArtCache, track::Track};
@@ -69,8 +69,9 @@ impl Library {
         map
     }
 
-    pub fn track_from_id(&self, id: Hash) -> Option<Ref<'_, Hash, Track>> {
-        self.tracks.as_ref()?.get(&id)
+    pub fn track_from_id(&self, id: Hash) -> Option<Track> {
+        let tracks = self.tracks.as_ref()?;
+        tracks.get(&id).map(|track_ref| track_ref.clone())
     }
 }
 

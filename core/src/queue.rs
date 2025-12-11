@@ -43,7 +43,7 @@ impl Queue {
         self.current
     }
 
-    pub fn current(&self) -> Option<Hash> {
+    pub fn current_id(&self) -> Option<Hash> {
         self.current
     }
 

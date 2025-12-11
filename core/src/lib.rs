@@ -5,6 +5,7 @@ mod metadata;
 mod player;
 mod queue;
 mod track;
+mod collection;
 
 pub use artcache::{ArtCache, RgbaImage};
 pub use backend::Backend;
@@ -13,3 +14,4 @@ pub use metadata::Metadata;
 pub use player::Player;
 pub use queue::Queue;
 pub use track::Track;
+pub use collection::Collection;
