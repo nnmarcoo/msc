@@ -32,6 +32,7 @@ pub enum Message {
     LoadLibrary,
     LibraryPathSelected(Option<PathBuf>),
     QueueLibrary,
+    PaneContentChanged(pane_grid::Pane, PaneContent),
 }
 
 impl Default for Layout {
@@ -161,6 +162,11 @@ impl Layout {
                             self.seeking_position = None;
                         }
                     }
+                }
+            }
+            Message::PaneContentChanged(pane_id, new_content) => {
+                if let Some(pane) = self.panes.get_mut(pane_id) {
+                    pane.set_content(new_content);
                 }
             }
         }

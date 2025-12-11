@@ -1,5 +1,5 @@
 use iced::widget::image::Handle;
-use iced::widget::{Image, container, text};
+use iced::widget::{container, Image};
 use iced::{ContentFit, Element, Length};
 use msc_core::Player;
 
@@ -29,7 +29,7 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
         }
     }
 
-    container(text("🎵").size(64))
+    container("")
         .width(Length::Fill)
         .height(Length::Fill)
         .center_x(Length::Fill)

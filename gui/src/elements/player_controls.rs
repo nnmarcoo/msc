@@ -76,8 +76,9 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
     .padding(6)
     .on_press(Message::ToggleMute);
 
-    let volume_slider =
-        slider(0.0..=1.0, volume, Message::VolumeChanged).width(Length::Fixed(100.0));
+    let volume_slider = slider(0.0..=1.0, volume, Message::VolumeChanged)
+        .step(0.01)
+        .width(Length::Fixed(100.0));
 
     let timeline_slider = slider(0.0..=duration, position, Message::SeekChanged)
         .on_release(Message::SeekReleased)

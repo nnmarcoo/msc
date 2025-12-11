@@ -81,7 +81,7 @@ impl Backend {
     }
 
     pub fn set_volume(&mut self, volume: f32) {
-        self.volume = 45. * volume.log10();
+        self.volume = 28. * volume.log10();
         if let Some(sound) = &mut self.sound {
             sound.set_volume(self.volume, Tween::default());
         }

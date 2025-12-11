@@ -1,7 +1,8 @@
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{button, column, container, pane_grid, row, text};
+use iced::widget::{button, column, container, pane_grid, pick_list, row, text};
 use iced::{Border, Element, Length, Theme};
 use msc_core::Player;
+use std::fmt;
 
 use crate::elements;
 use crate::layout::Message;
@@ -17,6 +18,15 @@ pub enum PaneContent {
 }
 
 impl PaneContent {
+    pub const ALL: [PaneContent; 6] = [
+        PaneContent::PlayerControls,
+        PaneContent::Queue,
+        PaneContent::Library,
+        PaneContent::Artwork,
+        PaneContent::Timeline,
+        PaneContent::Empty,
+    ];
+
     pub fn title(&self) -> &str {
         match self {
             PaneContent::PlayerControls => "Player Controls",
@@ -29,6 +39,12 @@ impl PaneContent {
     }
 }
 
+impl fmt::Display for PaneContent {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}", self.title())
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Pane {
     pub content: PaneContent,
@@ -37,6 +53,10 @@ pub struct Pane {
 impl Pane {
     pub fn new(content: PaneContent) -> Self {
         Self { content }
+    }
+
+    pub fn set_content(&mut self, content: PaneContent) {
+        self.content = content;
     }
     pub fn view(
         &self,
@@ -47,9 +67,14 @@ impl Pane {
         volume: f32,
     ) -> pane_grid::Content<'_, Message> {
         if edit_mode {
-            let title = row![text(self.content.title()).size(14)]
-                .spacing(5)
-                .align_y(Vertical::Center);
+            let title = row![pick_list(
+                &PaneContent::ALL[..],
+                Some(self.content),
+                move |content| Message::PaneContentChanged(pane, content)
+            )
+            .text_size(14)]
+            .spacing(5)
+            .align_y(Vertical::Center);
 
             let close_button: Element<'_, Message> = button(text("X").size(14))
                 .style(button::danger)
@@ -134,7 +159,7 @@ impl Pane {
             PaneContent::PlayerControls => {
                 elements::player_controls::view(player, volume).map(Message::PlayerControls)
             }
-            PaneContent::Queue => elements::queue::view(),
+            PaneContent::Queue => elements::queue::view(player),
             PaneContent::Library => elements::library::view(),
             PaneContent::Artwork => elements::artwork::view(player),
             PaneContent::Timeline => elements::timeline::view(),

@@ -4,8 +4,9 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = { version = "0.13.1", features = ["tokio", "image"] }
+iced = { version = "0.13.1", features = ["tokio", "image", "advanced", "canvas"] }
 msc-core = { path = "../core" }
 image = "0.25.9"
 blake3 = "1.8.2"
-rfd = "0.15"
+rfd = "0.16.0"
+iced_aw = "0.12.0"
