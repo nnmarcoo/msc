@@ -164,7 +164,7 @@ impl Pane {
                 components::player_controls::view(player, volume).map(Message::PlayerControls)
             }
             PaneContent::Queue => components::queue::view(player),
-            PaneContent::Library => components::library::view(),
+            PaneContent::Library => components::library::view(player),
             PaneContent::Artwork => components::artwork::view(player),
             PaneContent::Timeline => components::timeline::view(),
             PaneContent::Empty => components::empty::view(),

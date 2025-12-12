@@ -49,20 +49,20 @@ impl Metadata {
         })
     }
 
-    pub fn title_or_default(&self) -> &str {
-        self.title.as_deref().unwrap_or("-")
+    pub fn title_or_default(&self) -> String {
+        self.title.clone().unwrap_or_else(|| "-".to_string())
     }
 
-    pub fn artist_or_default(&self) -> &str {
-        self.artist.as_deref().unwrap_or("-")
+    pub fn artist_or_default(&self) -> String {
+        self.artist.clone().unwrap_or_else(|| "-".to_string())
     }
 
-    pub fn album_or_default(&self) -> &str {
-        self.album.as_deref().unwrap_or("-")
+    pub fn album_or_default(&self) -> String {
+        self.album.clone().unwrap_or_else(|| "-".to_string())
     }
 
-    pub fn genre_or_default(&self) -> &str {
-        self.genre.as_deref().unwrap_or("-")
+    pub fn genre_or_default(&self) -> String {
+        self.genre.clone().unwrap_or_else(|| "-".to_string())
     }
 
     pub fn duration(&self) -> f32 {
