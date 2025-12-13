@@ -8,7 +8,7 @@ use msc_core::Player;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::components::player_controls;
+use crate::components::controls;
 use crate::pane::{Pane, PaneContent};
 use crate::widgets::sharp_button::sharp_button;
 use crate::widgets::square_button::square_button;
@@ -32,7 +32,7 @@ pub enum Message {
     Resized(pane_grid::ResizeEvent),
     ToggleEditMode,
     Tick,
-    PlayerControls(player_controls::Message),
+    PlayerControls(controls::Message),
     LoadLibrary,
     LibraryPathSelected(Option<PathBuf>),
     QueueLibrary,
@@ -142,7 +142,7 @@ impl App {
                 let _ = self.player.play();
             }
             Message::PlayerControls(msg) => {
-                use player_controls::Message as PCMsg;
+                use controls::Message as PCMsg;
                 match msg {
                     PCMsg::PlayPause => {
                         if self.player.is_playing() {

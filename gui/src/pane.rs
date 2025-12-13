@@ -162,7 +162,7 @@ impl Pane {
     fn render_content(&self, player: &Player, volume: f32) -> Element<'_, Message> {
         let content = match self.content {
             PaneContent::Controls => {
-                components::player_controls::view(player, volume).map(Message::PlayerControls)
+                components::controls::view(player, volume).map(Message::PlayerControls)
             }
             PaneContent::Queue => components::queue::view(player),
             PaneContent::Library => components::library::view(player),

@@ -10,7 +10,7 @@ use std::{
 
 use crate::Track;
 
-const THUMBNAIL_SIZE: u32 = 512;
+const THUMBNAIL_SIZE: u32 = 1024;
 
 #[derive(Clone)]
 pub struct RgbaImage {
