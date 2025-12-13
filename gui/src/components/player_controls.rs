@@ -1,7 +1,7 @@
 use iced::alignment::Vertical;
 use iced::widget::image::Handle;
 use iced::widget::{Image, button, column, container, row, slider, text};
-use iced::{Element, Length};
+use iced::{Element, Length, Theme};
 use msc_core::Player;
 
 #[derive(Debug, Clone)]
@@ -92,13 +92,29 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
 
     let track_info = column![
         row![
-            text(title).size(14),
-            text(" - ").size(14),
-            text(artist).size(14),
+            text(title).size(14).style(|theme: &Theme| {
+                text::Style {
+                    color: Some(theme.extended_palette().background.base.text),
+                }
+            }),
+            text(" - ").size(14).style(|theme: &Theme| {
+                text::Style {
+                    color: Some(theme.extended_palette().background.base.text),
+                }
+            }),
+            text(artist).size(14).style(|theme: &Theme| {
+                text::Style {
+                    color: Some(theme.extended_palette().background.base.text),
+                }
+            }),
         ]
         .spacing(5),
         timeline_slider,
-        text(time_text).size(12),
+        text(time_text).size(12).style(|theme: &Theme| {
+            text::Style {
+                color: Some(theme.extended_palette().background.base.text),
+            }
+        }),
     ]
     .spacing(5)
     .width(Length::Fill);

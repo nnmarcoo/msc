@@ -1,5 +1,5 @@
 use iced::widget::{column, container, scrollable, text};
-use iced::{Element, Length};
+use iced::{Element, Length, Theme};
 use msc_core::Player;
 
 use crate::app::Message;
@@ -22,11 +22,15 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
                         track.metadata.title_or_default(),
                         track.metadata.artist_or_default()
                     ))
-                    .size(14),
+                    .size(14)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().primary.weak.text),
+                    }),
                 )
                 .padding(8)
                 .width(Length::Fill)
-                .style(|theme: &iced::Theme| container::Style {
+                .style(|theme: &Theme| container::Style {
+                    text_color: Some(theme.extended_palette().primary.weak.text),
                     background: Some(theme.extended_palette().primary.weak.color.into()),
                     ..Default::default()
                 }),
@@ -45,10 +49,17 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
                         "... and {} more tracks",
                         total_upcoming - MAX_DISPLAY
                     ))
-                    .size(12),
+                    .size(12)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    }),
                 )
                 .padding(8)
-                .width(Length::Fill),
+                .width(Length::Fill)
+                .style(|theme: &Theme| container::Style {
+                    text_color: Some(theme.extended_palette().background.base.text),
+                    ..Default::default()
+                }),
             );
             break;
         }
@@ -61,10 +72,17 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
                         track.metadata.title_or_default(),
                         track.metadata.artist_or_default()
                     ))
-                    .size(14),
+                    .size(14)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    }),
                 )
                 .padding(8)
-                .width(Length::Fill),
+                .width(Length::Fill)
+                .style(|theme: &Theme| container::Style {
+                    text_color: Some(theme.extended_palette().background.base.text),
+                    ..Default::default()
+                }),
             );
         }
     }

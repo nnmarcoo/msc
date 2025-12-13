@@ -25,6 +25,7 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
                 .height(Length::Fill)
                 .center_x(Length::Fill)
                 .center_y(Length::Fill)
+                .padding(10)
                 .into();
         }
     }

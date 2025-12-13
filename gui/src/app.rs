@@ -2,8 +2,8 @@ use iced::alignment::{Horizontal, Vertical};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::svg::Handle;
-use iced::widget::{column, container, row, svg};
-use iced::{Background, Color, Element, Length, Subscription, Task, Theme};
+use iced::widget::{column, container, row, svg, text};
+use iced::{Background, Element, Length, Subscription, Task, Theme};
 use msc_core::Player;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -82,6 +82,7 @@ impl App {
         color.g = (color.g + 0.02).min(1.0);
         color.b = (color.b + 0.02).min(1.0);
         container::Style {
+            text_color: Some(palette.background.base.text),
             background: Some(Background::Color(color)),
             ..Default::default()
         }
@@ -254,9 +255,12 @@ impl App {
             container(pane_grid)
                 .width(Length::Fill)
                 .height(Length::Fill)
-                .style(|_theme| container::Style {
-                    background: Some(Background::Color(Color::from_rgb(0.35, 0.35, 0.35))),
-                    ..Default::default()
+                .style(|theme: &Theme| {
+                    let palette = theme.extended_palette();
+                    container::Style {
+                        background: Some(palette.background.weak.color.into()),
+                        ..Default::default()
+                    }
                 })
         } else {
             container(pane_grid)

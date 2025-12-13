@@ -1,5 +1,5 @@
 use iced::widget::{column, container, row, scrollable, text};
-use iced::{Element, Length};
+use iced::{Element, Length, Theme};
 use msc_core::Player;
 
 use crate::app::Message;
@@ -35,8 +35,16 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
     if tracks.is_empty() {
         return container(
             column![
-                text("No Library Loaded").size(18),
-                text("Load a library to see your music").size(14),
+                text("No Library Loaded")
+                    .size(18)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    }),
+                text("Load a library to see your music")
+                    .size(14)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    }),
             ]
             .spacing(10),
         )
@@ -45,21 +53,42 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
         .height(Length::Fill)
         .center_x(Length::Fill)
         .center_y(Length::Fill)
+        .style(|theme: &Theme| container::Style {
+            text_color: Some(theme.extended_palette().background.base.text),
+            ..Default::default()
+        })
         .into();
     }
 
     let header = container(
         row![
-            container(text("Title").size(12)).width(Length::FillPortion(3)),
-            container(text("Artist").size(12)).width(Length::FillPortion(2)),
-            container(text("Album").size(12)).width(Length::FillPortion(2)),
-            container(text("Duration").size(12)).width(Length::Fixed(80.0)),
+            container(text("Title").size(12).style(|theme: &Theme| text::Style {
+                color: Some(theme.extended_palette().background.strong.text),
+            }))
+            .width(Length::FillPortion(3)),
+            container(text("Artist").size(12).style(|theme: &Theme| text::Style {
+                color: Some(theme.extended_palette().background.strong.text),
+            }))
+            .width(Length::FillPortion(2)),
+            container(text("Album").size(12).style(|theme: &Theme| text::Style {
+                color: Some(theme.extended_palette().background.strong.text),
+            }))
+            .width(Length::FillPortion(2)),
+            container(
+                text("Duration")
+                    .size(12)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.strong.text),
+                    })
+            )
+            .width(Length::Fixed(80.0)),
         ]
         .spacing(10),
     )
     .padding(10)
     .width(Length::Fill)
-    .style(|theme: &iced::Theme| container::Style {
+    .style(|theme: &Theme| container::Style {
+        text_color: Some(theme.extended_palette().background.strong.text),
         background: Some(theme.extended_palette().background.strong.color.into()),
         ..Default::default()
     });
@@ -71,19 +100,39 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
 
         let track_row = container(
             row![
-                container(text(track.metadata.title_or_default()).size(12))
-                    .width(Length::FillPortion(3)),
-                container(text(track.metadata.artist_or_default()).size(12))
-                    .width(Length::FillPortion(2)),
-                container(text(track.metadata.album_or_default()).size(12))
-                    .width(Length::FillPortion(2)),
-                container(text(duration_text).size(12)).width(Length::Fixed(80.0)),
+                container(text(track.metadata.title_or_default()).size(12).style(
+                    |theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    }
+                ))
+                .width(Length::FillPortion(3)),
+                container(text(track.metadata.artist_or_default()).size(12).style(
+                    |theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    }
+                ))
+                .width(Length::FillPortion(2)),
+                container(text(track.metadata.album_or_default()).size(12).style(
+                    |theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    }
+                ))
+                .width(Length::FillPortion(2)),
+                container(
+                    text(duration_text)
+                        .size(12)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.extended_palette().background.base.text),
+                        })
+                )
+                .width(Length::Fixed(80.0)),
             ]
             .spacing(10),
         )
         .padding(10)
         .width(Length::Fill)
-        .style(|theme: &iced::Theme| container::Style {
+        .style(|theme: &Theme| container::Style {
+            text_color: Some(theme.extended_palette().background.base.text),
             background: Some(theme.extended_palette().background.base.color.into()),
             ..Default::default()
         });

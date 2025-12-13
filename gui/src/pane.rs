@@ -1,4 +1,4 @@
-use iced::alignment::{Horizontal, Vertical};
+use iced::alignment::Vertical;
 use iced::widget::svg::Handle;
 use iced::widget::{button, container, pane_grid, pick_list, responsive, row, svg, text};
 use iced::{Border, Element, Length, Theme};
@@ -140,7 +140,8 @@ impl Pane {
                     .style(|theme: &Theme| {
                         let palette = theme.extended_palette();
                         container::Style {
-                            background: Some(palette.background.weak.color.into()),
+                            text_color: Some(palette.background.weak.text),
+                            background: Some(palette.background.base.color.into()),
                             border: Border {
                                 width: 2.0,
                                 color: palette.background.strong.color,
