@@ -48,11 +48,18 @@ impl Default for App {
                 axis: pane_grid::Axis::Vertical,
                 ratio: 0.7,
                 a: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                    PaneContent::Artwork,
+                    PaneContent::Library,
                 ))),
-                b: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                    PaneContent::Queue,
-                ))),
+                b: Box::new(pane_grid::Configuration::Split {
+                    axis: pane_grid::Axis::Horizontal,
+                    ratio: 0.5,
+                    a: Box::new(pane_grid::Configuration::Pane(Pane::new(
+                        PaneContent::Artwork,
+                    ))),
+                    b: Box::new(pane_grid::Configuration::Pane(Pane::new(
+                        PaneContent::Queue,
+                    ))),
+                }),
             }),
             b: Box::new(pane_grid::Configuration::Pane(Pane::new(
                 PaneContent::Controls,
