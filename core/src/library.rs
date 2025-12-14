@@ -73,6 +73,10 @@ impl Library {
         let tracks = self.tracks.as_ref()?;
         tracks.get(&id).map(|track_ref| track_ref.clone())
     }
+
+    pub fn is_loaded(&self) -> bool {
+        self.root.is_some()
+    }
 }
 
 #[derive(Debug)]
