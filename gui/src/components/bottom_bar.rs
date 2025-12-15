@@ -21,17 +21,19 @@ pub fn view(
 ) -> Element<'static, Message> {
     let mut preset_buttons = row![].spacing(5).align_y(Vertical::Center);
 
-    for index in 0..preset_count {
-        let btn = canvas_button(
-            text((index + 1).to_string())
-                .align_x(Horizontal::Center)
-                .align_y(Vertical::Center),
-        )
-        .width(20)
-        .height(20)
-        .on_press(Message::SwitchPreset(index));
+    if preset_count > 1 || edit_mode {
+        for index in 0..preset_count {
+            let btn = canvas_button(
+                text((index + 1).to_string())
+                    .align_x(Horizontal::Center)
+                    .align_y(Vertical::Center),
+            )
+            .width(20)
+            .height(20)
+            .on_press(Message::SwitchPreset(index));
 
-        preset_buttons = preset_buttons.push(btn);
+            preset_buttons = preset_buttons.push(btn);
+        }
     }
 
     if edit_mode {
