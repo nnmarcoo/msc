@@ -36,7 +36,8 @@ pub enum Message {
     PaneContentChanged(pane_grid::Pane, PaneContent),
     BottomBar(bottom_bar::Message),
     PlayTrack(Hash),
-    QueueTrack(Hash),
+    QueueBack(Hash),
+    QueueFront(Hash),
     TrackHovered(Hash),
     TrackUnhovered,
 }
@@ -213,9 +214,14 @@ impl App {
                     let _ = self.player.start_next();
                 }
             }
-            Message::QueueTrack(track_id) => {
+            Message::QueueBack(track_id) => {
                 if let Some(_track) = self.player.library().track_from_id(track_id) {
                     self.player.queue_back(track_id);
+                }
+            }
+            Message::QueueFront(track_id) => {
+                if let Some(_track) = self.player.library().track_from_id(track_id) {
+                    self.player.queue_front(track_id);
                 }
             }
             Message::TrackHovered(track_id) => {

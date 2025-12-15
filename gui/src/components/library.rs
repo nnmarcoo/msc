@@ -1,12 +1,10 @@
 use blake3::Hash;
-use iced::alignment::Vertical;
 use iced::widget::{column, container, mouse_area, row, scrollable, text};
-use iced::{Background, Border, Element, Length, Shadow, Theme};
-use iced_aw::ContextMenu;
+use iced::{Element, Length, Theme};
 use msc_core::Player;
 
 use crate::app::Message;
-use crate::widgets::canvas_button::canvas_button;
+use crate::components::context_menu::track_context_menu;
 
 pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Message> {
     let library = player.library();
@@ -135,41 +133,13 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Me
             .on_enter(Message::TrackHovered(track_id))
             .on_exit(Message::TrackUnhovered);
 
-        let track_row = ContextMenu::new(track_content, move || {
-            container(
-                column![
-                    canvas_button(text(" Play").align_y(Vertical::Center))
-                        .width(Length::Fill)
-                        .height(28)
-                        .on_press(Message::PlayTrack(track_id)),
-                    canvas_button(text(" Queue").align_y(Vertical::Center))
-                        .width(Length::Fill)
-                        .height(28)
-                        .on_press(Message::QueueTrack(track_id)),
-                ]
-                .spacing(2),
-            )
-            .width(Length::Fixed(140.0))
-            .padding(6)
-            .style(|theme: &Theme| {
-                let palette = theme.extended_palette();
-                let mut color = palette.background.base.color;
-                color.r = (color.r + 0.03).min(1.0);
-                color.g = (color.g + 0.03).min(1.0);
-                color.b = (color.b + 0.03).min(1.0);
-                container::Style {
-                    text_color: Some(palette.background.base.text),
-                    background: Some(Background::Color(color)),
-                    border: Border::default(),
-                    shadow: Shadow {
-                        color: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.2),
-                        offset: iced::Vector::new(0.0, 2.0),
-                        blur_radius: 6.0,
-                    },
-                }
-            })
-            .into()
-        });
+        let track_row = track_context_menu(
+            track_content,
+            track_id,
+            Message::PlayTrack(track_id),
+            Message::QueueBack(track_id),
+            Message::QueueFront(track_id),
+        );
 
         track_list = track_list.push(track_row);
     }
