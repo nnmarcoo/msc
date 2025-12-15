@@ -1,10 +1,14 @@
-use iced::widget::{column, container, row, scrollable, text};
-use iced::{Element, Length, Theme};
+use blake3::Hash;
+use iced::alignment::Vertical;
+use iced::widget::{column, container, mouse_area, row, scrollable, text};
+use iced::{Background, Border, Element, Length, Shadow, Theme};
+use iced_aw::ContextMenu;
 use msc_core::Player;
 
 use crate::app::Message;
+use crate::widgets::canvas_button::canvas_button;
 
-pub fn view<'a>(player: &Player) -> Element<'a, Message> {
+pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Message> {
     let library = player.library();
 
     let tracks = if let Some(track_map) = &library.tracks {
@@ -97,44 +101,74 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
 
     for track in tracks {
         let duration_text = format_seconds(track.metadata.duration);
+        let track_id = track.id;
+        let is_hovered = hovered_track.as_ref() == Some(&track_id);
 
-        let track_row = container(
+        let track_inner = container(
             row![
-                container(text(track.metadata.title_or_default()).size(12).style(
-                    |theme: &Theme| text::Style {
-                        color: Some(theme.extended_palette().background.base.text),
-                    }
-                ))
-                .width(Length::FillPortion(3)),
-                container(text(track.metadata.artist_or_default()).size(12).style(
-                    |theme: &Theme| text::Style {
-                        color: Some(theme.extended_palette().background.base.text),
-                    }
-                ))
-                .width(Length::FillPortion(2)),
-                container(text(track.metadata.album_or_default()).size(12).style(
-                    |theme: &Theme| text::Style {
-                        color: Some(theme.extended_palette().background.base.text),
-                    }
-                ))
-                .width(Length::FillPortion(2)),
-                container(
-                    text(duration_text)
-                        .size(12)
-                        .style(|theme: &Theme| text::Style {
-                            color: Some(theme.extended_palette().background.base.text),
-                        })
-                )
-                .width(Length::Fixed(80.0)),
+                container(text(track.metadata.title_or_default()).size(12))
+                    .width(Length::FillPortion(3)),
+                container(text(track.metadata.artist_or_default()).size(12))
+                    .width(Length::FillPortion(2)),
+                container(text(track.metadata.album_or_default()).size(12))
+                    .width(Length::FillPortion(2)),
+                container(text(duration_text).size(12)).width(Length::Fixed(80.0)),
             ]
             .spacing(10),
         )
         .padding(10)
         .width(Length::Fill)
-        .style(|theme: &Theme| container::Style {
-            text_color: Some(theme.extended_palette().background.base.text),
-            background: Some(theme.extended_palette().background.base.color.into()),
-            ..Default::default()
+        .style(move |theme: &Theme| {
+            let palette = theme.extended_palette();
+            container::Style {
+                text_color: Some(palette.background.base.text),
+                background: if is_hovered {
+                    Some(palette.primary.weak.color.into())
+                } else {
+                    Some(palette.background.base.color.into())
+                },
+                ..Default::default()
+            }
+        });
+
+        let track_content = mouse_area(track_inner)
+            .on_enter(Message::TrackHovered(track_id))
+            .on_exit(Message::TrackUnhovered);
+
+        let track_row = ContextMenu::new(track_content, move || {
+            container(
+                column![
+                    canvas_button(text(" Play").align_y(Vertical::Center))
+                        .width(Length::Fill)
+                        .height(28)
+                        .on_press(Message::PlayTrack(track_id)),
+                    canvas_button(text(" Queue").align_y(Vertical::Center))
+                        .width(Length::Fill)
+                        .height(28)
+                        .on_press(Message::QueueTrack(track_id)),
+                ]
+                .spacing(2),
+            )
+            .width(Length::Fixed(140.0))
+            .padding(6)
+            .style(|theme: &Theme| {
+                let palette = theme.extended_palette();
+                let mut color = palette.background.base.color;
+                color.r = (color.r + 0.03).min(1.0);
+                color.g = (color.g + 0.03).min(1.0);
+                color.b = (color.b + 0.03).min(1.0);
+                container::Style {
+                    text_color: Some(palette.background.base.text),
+                    background: Some(Background::Color(color)),
+                    border: Border::default(),
+                    shadow: Shadow {
+                        color: iced::Color::from_rgba(0.0, 0.0, 0.0, 0.2),
+                        offset: iced::Vector::new(0.0, 2.0),
+                        blur_radius: 6.0,
+                    },
+                }
+            })
+            .into()
         });
 
         track_list = track_list.push(track_row);

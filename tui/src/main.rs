@@ -18,7 +18,6 @@ use std::{
     error::Error,
     io,
     path::Path,
-    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -177,9 +176,12 @@ impl App {
         }
     }
 
-    fn update_album_art(&mut self, img: Arc<DynamicImage>) {
-        let dyn_img: &DynamicImage = &*img;
-        let protocol = self.image_picker.new_resize_protocol(dyn_img.clone());
+    fn update_album_art(&mut self, img: msc_core::RgbaImage) {
+        let dyn_img = DynamicImage::ImageRgba8(
+            image::RgbaImage::from_raw(img.width, img.height, (*img.data).clone())
+                .expect("Invalid RGBA image data"),
+        );
+        let protocol = self.image_picker.new_resize_protocol(dyn_img);
         self.current_image = Some(protocol);
     }
 }

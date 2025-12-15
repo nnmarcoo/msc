@@ -1,3 +1,4 @@
+use blake3::Hash;
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container};
@@ -19,6 +20,7 @@ pub struct App {
     seeking_position: Option<f32>,
     layout_presets: Vec<pane_grid::Configuration<Pane>>,
     current_preset: usize,
+    hovered_track: Option<Hash>,
 }
 
 #[derive(Debug, Clone)]
@@ -33,6 +35,10 @@ pub enum Message {
     LibraryPathSelected(Option<PathBuf>),
     PaneContentChanged(pane_grid::Pane, PaneContent),
     BottomBar(bottom_bar::Message),
+    PlayTrack(Hash),
+    QueueTrack(Hash),
+    TrackHovered(Hash),
+    TrackUnhovered,
 }
 
 impl Default for App {
@@ -75,6 +81,7 @@ impl Default for App {
             seeking_position: None,
             layout_presets: vec![pane_config],
             current_preset: 0,
+            hovered_track: None,
         }
     }
 }
@@ -200,6 +207,23 @@ impl App {
                     }
                 }
             }
+            Message::PlayTrack(track_id) => {
+                if let Some(_track) = self.player.library().track_from_id(track_id) {
+                    self.player.queue_front(track_id);
+                    let _ = self.player.start_next();
+                }
+            }
+            Message::QueueTrack(track_id) => {
+                if let Some(_track) = self.player.library().track_from_id(track_id) {
+                    self.player.queue_back(track_id);
+                }
+            }
+            Message::TrackHovered(track_id) => {
+                self.hovered_track = Some(track_id);
+            }
+            Message::TrackUnhovered => {
+                self.hovered_track = None;
+            }
         }
 
         Task::none()
@@ -211,8 +235,9 @@ impl App {
 
         let player = &self.player;
         let volume = self.volume;
+        let hovered_track = &self.hovered_track;
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
-            pane.view(id, total_panes, edit_mode, player, volume)
+            pane.view(id, total_panes, edit_mode, player, volume, hovered_track)
         })
         .width(Length::Fill)
         .height(Length::Fill)

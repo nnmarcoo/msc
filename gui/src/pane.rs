@@ -67,6 +67,7 @@ impl Pane {
         edit_mode: bool,
         player: &Player,
         volume: f32,
+        hovered_track: &Option<blake3::Hash>,
     ) -> pane_grid::Content<'_, Message> {
         if edit_mode {
             let title = row![
@@ -155,17 +156,22 @@ impl Pane {
 
             pane_grid::Content::new(edit_content).title_bar(title_bar)
         } else {
-            pane_grid::Content::new(self.render_content(player, volume))
+            pane_grid::Content::new(self.render_content(player, volume, hovered_track))
         }
     }
 
-    fn render_content(&self, player: &Player, volume: f32) -> Element<'_, Message> {
+    fn render_content(
+        &self,
+        player: &Player,
+        volume: f32,
+        hovered_track: &Option<blake3::Hash>,
+    ) -> Element<'_, Message> {
         let content = match self.content {
             PaneContent::Controls => {
                 components::controls::view(player, volume).map(Message::Controls)
             }
             PaneContent::Queue => components::queue::view(player),
-            PaneContent::Library => components::library::view(player),
+            PaneContent::Library => components::library::view(player, hovered_track),
             PaneContent::Artwork => components::artwork::view(player),
             PaneContent::Timeline => components::timeline::view(),
             PaneContent::Empty => components::empty::view(),

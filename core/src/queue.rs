@@ -17,6 +17,10 @@ impl Queue {
         }
     }
 
+    pub fn add_next(&mut self, track_id: Hash) {
+        self.upcoming.push_front(track_id);
+    }
+
     pub fn add(&mut self, track_id: Hash) {
         if self.current.is_none() {
             self.current = Some(track_id);

@@ -50,8 +50,12 @@ impl Player {
         self.queue.shuffle();
     }
 
-    pub fn queue_track(&mut self, track_id: Hash) {
+    pub fn queue_back(&mut self, track_id: Hash) {
         self.queue.add(track_id);
+    }
+
+    pub fn queue_front(&mut self, track_id: Hash) {
+        self.queue.add_next(track_id);
     }
 
     pub fn queue_library(&mut self) {
