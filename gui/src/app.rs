@@ -1,4 +1,4 @@
-use iced::alignment::Vertical;
+use iced::alignment::{Horizontal, Vertical};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::svg::Handle;
@@ -231,10 +231,14 @@ impl App {
         let mut preset_buttons = row![].spacing(5).align_y(Vertical::Center);
 
         for (index, _) in self.layout_presets.iter().enumerate() {
-            let btn = canvas_button(text((index + 1).to_string()))
-                .width(20)
-                .height(20)
-                .on_press(Message::SwitchPreset(index));
+            let btn = canvas_button(
+                text((index + 1).to_string())
+                    .align_x(Horizontal::Center)
+                    .align_y(Vertical::Center),
+            )
+            .width(20)
+            .height(20)
+            .on_press(Message::SwitchPreset(index));
 
             preset_buttons = preset_buttons.push(btn);
         }
@@ -272,12 +276,20 @@ impl App {
                 row![
                     preset_buttons,
                     horizontal_space(),
-                    canvas_button(text("loadlib"))
-                        .height(20)
-                        .on_press(Message::LoadLibrary),
-                    canvas_button(text("quelib"))
-                        .height(20)
-                        .on_press(Message::QueueLibrary),
+                    canvas_button(
+                        text("loadlib")
+                            .align_x(Horizontal::Center)
+                            .align_y(Vertical::Center)
+                    )
+                    .height(20)
+                    .on_press(Message::LoadLibrary),
+                    canvas_button(
+                        text("quelib")
+                            .align_x(Horizontal::Center)
+                            .align_y(Vertical::Center)
+                    )
+                    .height(20)
+                    .on_press(Message::QueueLibrary),
                     canvas_button(svg(Handle::from_memory(include_bytes!(
                         "../../assets/icons/settings.svg"
                     ))))

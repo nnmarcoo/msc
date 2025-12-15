@@ -4,7 +4,7 @@ use iced::advanced::renderer::{self, Renderer as _};
 use iced::advanced::widget::{self, Widget};
 use iced::advanced::{Clipboard, Shell};
 use iced::event::{self, Event};
-use iced::{Border, Color, Element, Length, Point, Rectangle, Shadow, Size, Theme};
+use iced::{Border, Color, Element, Length, Rectangle, Shadow, Size, Theme};
 
 pub struct CanvasButton<'a, Message> {
     content: Element<'a, Message>,
@@ -68,21 +68,22 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
         renderer: &iced::Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        let padding = self.padding * 2.0;
         let limits = limits.width(self.width).height(self.height);
 
-        let content_limits = limits.shrink(Size::new(padding, padding));
-        let content_layout = self
-            .content
-            .as_widget()
-            .layout(&mut tree.children[0], renderer, &content_limits);
+        let content_layout =
+            self.content
+                .as_widget()
+                .layout(&mut tree.children[0], renderer, &limits);
 
-        let size = limits.resolve(self.width, self.height, content_layout.size());
+        let padding = self.padding * 2.0;
+        let content_size = content_layout.size();
+        let button_size = limits.resolve(
+            self.width,
+            self.height,
+            content_size.expand(Size::new(padding, padding)),
+        );
 
-        layout::Node::with_children(
-            size.expand(Size::new(padding, padding)),
-            vec![content_layout.move_to(Point::new(self.padding, self.padding))],
-        )
+        layout::Node::with_children(button_size, vec![content_layout])
     }
 
     fn draw(
@@ -101,7 +102,6 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
 
         let palette = theme.extended_palette();
 
-        // Background color based on state
         let background_color = if state.is_pressed && is_mouse_over {
             palette.primary.strong.color
         } else if state.is_hovered && is_mouse_over {
@@ -110,7 +110,6 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
             Color::TRANSPARENT
         };
 
-        // Draw background
         if background_color != Color::TRANSPARENT {
             renderer.fill_quad(
                 renderer::Quad {
@@ -126,7 +125,6 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
             );
         }
 
-        // Draw custom hover effect - a subtle outline
         if is_mouse_over && self.on_press.is_some() {
             let inset = 2.0;
             let hover_bounds = Rectangle {
