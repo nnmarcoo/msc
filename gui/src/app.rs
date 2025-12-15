@@ -1,8 +1,8 @@
-use iced::alignment::{Horizontal, Vertical};
+use iced::alignment::Vertical;
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::svg::Handle;
-use iced::widget::{column, container, row, svg, text};
+use iced::widget::{column, container, horizontal_space, row, svg, text};
 use iced::{Background, Element, Length, Subscription, Task, Theme};
 use msc_core::Player;
 use std::path::PathBuf;
@@ -10,8 +10,7 @@ use std::time::Duration;
 
 use crate::components::controls;
 use crate::pane::{Pane, PaneContent};
-use crate::widgets::sharp_button::sharp_button;
-use crate::widgets::square_button::square_button;
+use crate::widgets::canvas_button::canvas_button;
 
 pub struct App {
     panes: pane_grid::State<Pane>,
@@ -21,6 +20,8 @@ pub struct App {
     volume: f32,
     previous_volume: f32,
     seeking_position: Option<f32>,
+    layout_presets: Vec<pane_grid::Configuration<Pane>>,
+    current_preset: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -37,6 +38,9 @@ pub enum Message {
     LibraryPathSelected(Option<PathBuf>),
     QueueLibrary,
     PaneContentChanged(pane_grid::Pane, PaneContent),
+    SwitchPreset(usize),
+    AddPreset,
+    SaveCurrentPreset,
 }
 
 impl Default for App {
@@ -66,7 +70,7 @@ impl Default for App {
             ))),
         };
 
-        let panes = pane_grid::State::with_configuration(pane_config);
+        let panes = pane_grid::State::with_configuration(pane_config.clone());
         let player = Player::new().expect("Failed to initialize player");
 
         Self {
@@ -77,6 +81,8 @@ impl Default for App {
             volume: 0.5,
             previous_volume: 0.5,
             seeking_position: None,
+            layout_presets: vec![pane_config],
+            current_preset: 0,
         }
     }
 }
@@ -193,6 +199,26 @@ impl App {
                     pane.set_content(new_content);
                 }
             }
+            Message::SwitchPreset(index) => {
+                if index < self.layout_presets.len() {
+                    self.current_preset = index;
+                    self.panes =
+                        pane_grid::State::with_configuration(self.layout_presets[index].clone());
+                    self.focus = None;
+                }
+            }
+            Message::AddPreset => {
+                let new_preset = pane_grid::Configuration::Pane(Pane::new(PaneContent::Empty));
+                self.layout_presets.push(new_preset.clone());
+                self.current_preset = self.layout_presets.len() - 1;
+                self.panes = pane_grid::State::with_configuration(new_preset);
+                self.focus = None;
+            }
+            Message::SaveCurrentPreset => {
+                // This will be called when exiting edit mode to save changes
+                // For now, we'll keep the current state
+                // In the future, we could serialize the pane state
+            }
         }
 
         Task::none()
@@ -201,44 +227,67 @@ impl App {
     pub fn view(&self) -> Element<Message> {
         let total_panes = self.panes.len();
         let edit_mode = self.edit_mode;
+
+        let mut preset_buttons = row![].spacing(5).align_y(Vertical::Center);
+
+        for (index, _) in self.layout_presets.iter().enumerate() {
+            let btn = canvas_button(text((index + 1).to_string()))
+                .width(20)
+                .height(20)
+                .on_press(Message::SwitchPreset(index));
+
+            preset_buttons = preset_buttons.push(btn);
+        }
+
+        if edit_mode {
+            preset_buttons = preset_buttons.push(
+                canvas_button(svg(Handle::from_memory(include_bytes!(
+                    "../../assets/icons/plus.svg"
+                ))))
+                .width(20)
+                .height(20)
+                .on_press(Message::AddPreset),
+            );
+        }
+
         let bottom_bar = if edit_mode {
             container(
                 row![
-                    square_button(
-                        svg(Handle::from_memory(include_bytes!(
-                            "../../assets/icons/checkmark.svg"
-                        ))),
-                        20
-                    )
+                    preset_buttons,
+                    horizontal_space(),
+                    canvas_button(svg(Handle::from_memory(include_bytes!(
+                        "../../assets/icons/checkmark.svg"
+                    ))))
+                    .width(20)
+                    .height(20)
                     .on_press(Message::ToggleEditMode)
                 ]
                 .spacing(5)
                 .align_y(Vertical::Center),
             )
             .width(Length::Fill)
-            .align_x(Horizontal::Right)
             .style(Self::bar_style)
         } else {
             container(
                 row![
-                    sharp_button("loadlib")
+                    preset_buttons,
+                    horizontal_space(),
+                    canvas_button(text("loadlib"))
                         .height(20)
                         .on_press(Message::LoadLibrary),
-                    sharp_button("quelib")
+                    canvas_button(text("quelib"))
                         .height(20)
                         .on_press(Message::QueueLibrary),
-                    square_button(
-                        svg(Handle::from_memory(include_bytes!(
-                            "../../assets/icons/settings.svg"
-                        ))),
-                        20
-                    )
+                    canvas_button(svg(Handle::from_memory(include_bytes!(
+                        "../../assets/icons/settings.svg"
+                    ))))
+                    .width(20)
+                    .height(20)
                     .on_press(Message::ToggleEditMode),
                 ]
                 .spacing(5),
             )
             .width(Length::Fill)
-            .align_x(Horizontal::Right)
             .style(Self::bar_style)
         };
 

@@ -2,8 +2,6 @@ use iced::widget::{column, container, row, scrollable, text};
 use iced::{Element, Length, Theme};
 use msc_core::Player;
 
-use crate::widgets::link_button::link_button;
-
 use crate::app::Message;
 
 pub fn view<'a>(player: &Player) -> Element<'a, Message> {
