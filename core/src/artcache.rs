@@ -9,6 +9,7 @@ use std::{
 };
 
 use crate::Track;
+use crate::image_processing::{Colors, extract_colors};
 
 const THUMBNAIL_SIZE: u32 = 1024;
 
@@ -20,7 +21,7 @@ pub struct RgbaImage {
 }
 
 enum CacheState {
-    Ready(RgbaImage),
+    Ready { image: RgbaImage, colors: Colors },
     Loading,
 }
 
@@ -35,12 +36,12 @@ impl ArtCache {
         }
     }
 
-    pub fn get(&self, track: &Track) -> Option<RgbaImage> {
+    pub fn get(&self, track: &Track) -> Option<(RgbaImage, Colors)> {
         let art_id = track.metadata.art_id?;
 
         if let Some(entry) = self.cache.get(&art_id) {
             match entry.value() {
-                CacheState::Ready(img) => return Some(img.clone()),
+                CacheState::Ready { image, colors } => return Some((image.clone(), *colors)),
                 CacheState::Loading => return None,
             }
         }
@@ -66,6 +67,7 @@ impl ArtCache {
                     return;
                 }
 
+                let colors = extract_colors(&image);
                 let thumbnail = Self::resize_to_thumbnail(image);
                 let rgba = thumbnail.to_rgba8();
                 let (width, height) = rgba.dimensions();
@@ -77,7 +79,13 @@ impl ArtCache {
                     data: Arc::new(bytes),
                 };
 
-                cache.insert(art_id, CacheState::Ready(rgba_image));
+                cache.insert(
+                    art_id,
+                    CacheState::Ready {
+                        image: rgba_image,
+                        colors,
+                    },
+                );
             }
             None => {
                 cache.remove(&art_id);
@@ -85,9 +93,9 @@ impl ArtCache {
         }
     }
 
-    pub fn get_by_hash(&self, id: &Hash) -> Option<RgbaImage> {
+    pub fn get_by_hash(&self, id: &Hash) -> Option<(RgbaImage, Colors)> {
         self.cache.get(id).and_then(|entry| match entry.value() {
-            CacheState::Ready(img) => Some(img.clone()),
+            CacheState::Ready { image, colors } => Some((image.clone(), *colors)),
             CacheState::Loading => None,
         })
     }

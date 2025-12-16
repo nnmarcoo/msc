@@ -167,7 +167,7 @@ impl App {
             None
         };
 
-        if let Some(img) = should_update_art {
+        if let Some((img, _colors)) = should_update_art {
             if self.current_image.is_none() {
                 self.update_album_art(img);
             }
