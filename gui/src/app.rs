@@ -88,6 +88,33 @@ impl Default for App {
 }
 
 impl App {
+    fn save_current_layout(&mut self) {
+        // Save the current pane configuration to the current preset
+        let config = self.panes.layout().clone();
+        self.layout_presets[self.current_preset] =
+            Self::layout_to_configuration(&self.panes, config);
+    }
+
+    fn layout_to_configuration(
+        panes: &pane_grid::State<Pane>,
+        layout: pane_grid::Node,
+    ) -> pane_grid::Configuration<Pane> {
+        match layout {
+            pane_grid::Node::Split {
+                axis, ratio, a, b, ..
+            } => pane_grid::Configuration::Split {
+                axis,
+                ratio,
+                a: Box::new(Self::layout_to_configuration(panes, *a)),
+                b: Box::new(Self::layout_to_configuration(panes, *b)),
+            },
+            pane_grid::Node::Pane(pane_id) => {
+                let pane = panes.get(pane_id).unwrap();
+                pane_grid::Configuration::Pane(pane.clone())
+            }
+        }
+    }
+
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Split(axis, pane) => {
@@ -187,10 +214,19 @@ impl App {
                         let _ = self.player.play();
                     }
                     BottomBarMessage::ToggleEditMode => {
+                        // Save current layout when exiting edit mode
+                        if self.edit_mode {
+                            self.save_current_layout();
+                        }
                         self.edit_mode = !self.edit_mode;
                     }
                     BottomBarMessage::SwitchPreset(index) => {
                         if index < self.layout_presets.len() {
+                            // Save current layout before switching if in edit mode
+                            if self.edit_mode {
+                                self.save_current_layout();
+                            }
+
                             self.current_preset = index;
                             self.panes = pane_grid::State::with_configuration(
                                 self.layout_presets[index].clone(),
