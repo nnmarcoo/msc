@@ -25,12 +25,12 @@ pub struct App {
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    Tick,
     Split(pane_grid::Axis, pane_grid::Pane),
     Close(pane_grid::Pane),
     Clicked(pane_grid::Pane),
     Dragged(pane_grid::DragEvent),
     Resized(pane_grid::ResizeEvent),
-    Tick,
     Controls(controls::Message),
     LibraryPathSelected(Option<PathBuf>),
     PaneContentChanged(pane_grid::Pane, PaneContent),
@@ -89,7 +89,6 @@ impl Default for App {
 
 impl App {
     fn save_current_layout(&mut self) {
-        // Save the current pane configuration to the current preset
         let config = self.panes.layout().clone();
         self.layout_presets[self.current_preset] =
             Self::layout_to_configuration(&self.panes, config);
@@ -214,7 +213,6 @@ impl App {
                         let _ = self.player.play();
                     }
                     BottomBarMessage::ToggleEditMode => {
-                        // Save current layout when exiting edit mode
                         if self.edit_mode {
                             self.save_current_layout();
                         }
@@ -222,7 +220,6 @@ impl App {
                     }
                     BottomBarMessage::SwitchPreset(index) => {
                         if index < self.layout_presets.len() {
-                            // Save current layout before switching if in edit mode
                             if self.edit_mode {
                                 self.save_current_layout();
                             }
