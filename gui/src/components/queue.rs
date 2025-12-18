@@ -1,6 +1,6 @@
 use iced::widget::{column, container, scrollable, text};
 use iced::{Element, Length, Theme};
-use msc_core::Player;
+use suno_core::Player;
 
 use crate::app::Message;
 

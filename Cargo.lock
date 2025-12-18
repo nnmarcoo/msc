@@ -2917,42 +2917,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "msc-core"
-version = "0.1.0"
-dependencies = [
- "blake3",
- "dashmap",
- "image 0.25.9",
- "kira",
- "lofty",
- "rand 0.9.2",
- "rayon",
-]
-
-[[package]]
-name = "msc-gui"
-version = "0.1.0"
-dependencies = [
- "blake3",
- "iced",
- "iced_aw",
- "image 0.25.9",
- "msc-core",
- "rfd",
-]
-
-[[package]]
-name = "msc-tui"
-version = "0.1.0"
-dependencies = [
- "crossterm",
- "image 0.25.9",
- "msc-core",
- "ratatui",
- "ratatui-image",
-]
-
-[[package]]
 name = "mutate_once"
 version = "0.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4627,6 +4591,42 @@ dependencies = [
  "quote",
  "rustversion",
  "syn 2.0.111",
+]
+
+[[package]]
+name = "suno-core"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "dashmap",
+ "image 0.25.9",
+ "kira",
+ "lofty",
+ "rand 0.9.2",
+ "rayon",
+]
+
+[[package]]
+name = "suno-gui"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "iced",
+ "iced_aw",
+ "image 0.25.9",
+ "rfd",
+ "suno-core",
+]
+
+[[package]]
+name = "suno-tui"
+version = "0.1.0"
+dependencies = [
+ "crossterm",
+ "image 0.25.9",
+ "ratatui",
+ "ratatui-image",
+ "suno-core",
 ]
 
 [[package]]

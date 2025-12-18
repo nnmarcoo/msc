@@ -3,7 +3,7 @@ use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container};
 use iced::{Element, Length, Subscription, Task, Theme};
-use msc_core::Player;
+use suno_core::Player;
 use std::path::PathBuf;
 use std::time::Duration;
 

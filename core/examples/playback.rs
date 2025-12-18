@@ -1,4 +1,4 @@
-use msc_core::Player;
+use suno_core::Player;
 use std::{path::Path, thread, time::Duration};
 
 fn main() {

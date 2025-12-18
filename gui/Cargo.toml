@@ -1,11 +1,11 @@
 [package]
-name = "msc-gui"
+name = "suno-gui"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 iced = { version = "0.13.1", features = ["tokio", "image", "advanced", "lazy", "svg"] }
-msc-core = { path = "../core" }
+suno-core = { path = "../core" }
 image = "0.25.9"
 blake3 = "1.8.2"
 rfd = "0.16.0"

@@ -4,7 +4,7 @@ use crossterm::{
     terminal::{EnterAlternateScreen, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
 use image::DynamicImage;
-use msc_core::Player;
+use suno_core::Player;
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
@@ -176,7 +176,7 @@ impl App {
         }
     }
 
-    fn update_album_art(&mut self, img: msc_core::RgbaImage) {
+    fn update_album_art(&mut self, img: suno_core::RgbaImage) {
         let dyn_img = DynamicImage::ImageRgba8(
             image::RgbaImage::from_raw(img.width, img.height, (*img.data).clone())
                 .expect("Invalid RGBA image data"),
@@ -275,9 +275,9 @@ fn render_player_view(f: &mut Frame, app: &App) {
 
 fn render_header(f: &mut Frame, area: Rect, app: &App) {
     let title = if app.player.is_playing() {
-        "♫ MSC Player"
+        "♫ Suno Player"
     } else {
-        "⏸ MSC Player"
+        "⏸ Suno Player"
     };
 
     let header = Paragraph::new(title)

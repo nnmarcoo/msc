@@ -1,14 +1,14 @@
 [package]
-name = "msc-tui"
+name = "suno-tui"
 version = "0.1.0"
 edition = "2024"
 
 [[bin]]
-name = "msc-tui"
+name = "suno-tui"
 path = "src/main.rs"
 
 [dependencies]
-msc-core = { path = "../core" }
+suno-core = { path = "../core" }
 ratatui = "0.28"
 crossterm = "0.28"
 ratatui-image = { version = "2.0", features = ["crossterm"] }

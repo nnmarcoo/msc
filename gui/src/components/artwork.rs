@@ -2,7 +2,7 @@ use iced::widget::image::Handle as ImageHandle;
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{Image, container, svg};
 use iced::{Color, ContentFit, Element, Length};
-use msc_core::Player;
+use suno_core::Player;
 
 use crate::app::Message;
 
