@@ -2,7 +2,7 @@ use iced::alignment::Vertical;
 use iced::widget::image::Handle;
 use iced::widget::{Image, button, column, container, row, slider, text};
 use iced::{Element, Length, Theme};
-use suno_core::Player;
+use msc_core::Player;
 
 #[derive(Debug, Clone)]
 pub enum Message {

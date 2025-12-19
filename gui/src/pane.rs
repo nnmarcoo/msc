@@ -2,7 +2,7 @@ use iced::alignment::Vertical;
 use iced::widget::svg::Handle;
 use iced::widget::{button, container, pane_grid, pick_list, responsive, row, svg, text};
 use iced::{Border, Element, Length, Theme};
-use suno_core::Player;
+use msc_core::Player;
 use std::fmt::{self, Display};
 
 use crate::app::Message;

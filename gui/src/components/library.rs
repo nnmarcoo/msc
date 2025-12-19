@@ -1,7 +1,7 @@
 use blake3::Hash;
 use iced::widget::{column, container, mouse_area, row, scrollable, text};
 use iced::{Element, Length, Theme};
-use suno_core::Player;
+use msc_core::Player;
 
 use crate::app::Message;
 use crate::components::context_menu::track_context_menu;

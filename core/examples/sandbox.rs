@@ -1,4 +1,4 @@
-use suno_core::Player;
+use msc_core::Player;
 use std::{
     path::Path,
     thread::{self},
