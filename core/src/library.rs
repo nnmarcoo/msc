@@ -27,6 +27,14 @@ impl Library {
         }
     }
 
+    pub fn with_root(root: Option<PathBuf>) -> Self {
+        let mut library = Self::new();
+        if let Some(root) = root {
+            library.populate(&root);
+        }
+        library
+    }
+
     pub fn populate(&mut self, root: &Path) {
         self.root = Some(root.to_path_buf());
         let _ = self.reload();

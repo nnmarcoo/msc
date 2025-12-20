@@ -143,7 +143,7 @@ impl App {
             }
             Message::LibraryPathSelected(path) => {
                 if let Some(path) = path {
-                    self.player.populate_library(&path);
+                    let _ = self.player.populate_library(&path);
                 }
             }
             Message::Controls(msg) => {

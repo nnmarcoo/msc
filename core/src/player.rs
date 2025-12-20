@@ -1,28 +1,44 @@
-use std::path::Path;
-use std::sync::Arc;
+use std::{
+    error::Error,
+    fmt::{self, Display},
+    path::Path,
+    sync::Arc,
+};
 
 use blake3::Hash;
 use kira::backend::cpal;
 
-use crate::{ArtCache, Backend, Library, LibraryError, Queue, Track, backend::PlaybackError};
+use crate::{
+    ArtCache, Backend, Config, ConfigError, Library, LibraryError, Queue, Track,
+    backend::PlaybackError,
+};
 
 pub struct Player {
     backend: Backend,
     library: Library,
     queue: Queue,
+    config: Config,
 }
 
 impl Player {
-    pub fn new() -> Result<Self, cpal::Error> {
-        Ok(Player {
+    pub fn new() -> Result<Self, PlayerError> {
+        let config = Config::load().unwrap_or_default();
+
+        let player = Player {
             backend: Backend::new()?,
-            library: Library::new(),
+            library: Library::with_root(config.library_root.clone()),
             queue: Queue::new(),
-        })
+            config,
+        };
+
+        Ok(player)
     }
 
-    pub fn populate_library(&mut self, root: &Path) {
+    pub fn populate_library(&mut self, root: &Path) -> Result<(), ConfigError> {
         self.library.populate(root);
+        self.config.library_root = Some(root.to_path_buf());
+        self.config.save()?;
+        Ok(())
     }
 
     pub fn reload_library(&mut self) -> Result<(), LibraryError> {
@@ -126,5 +142,34 @@ impl Player {
 
     pub fn queue(&self) -> &Queue {
         &self.queue
+    }
+}
+
+#[derive(Debug)]
+pub enum PlayerError {
+    Backend(cpal::Error),
+    Config(ConfigError),
+}
+
+impl Display for PlayerError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            PlayerError::Backend(e) => write!(f, "Backend error: {}", e),
+            PlayerError::Config(e) => write!(f, "Config error: {}", e),
+        }
+    }
+}
+
+impl Error for PlayerError {}
+
+impl From<cpal::Error> for PlayerError {
+    fn from(err: cpal::Error) -> Self {
+        PlayerError::Backend(err)
+    }
+}
+
+impl From<ConfigError> for PlayerError {
+    fn from(err: ConfigError) -> Self {
+        PlayerError::Config(err)
     }
 }
