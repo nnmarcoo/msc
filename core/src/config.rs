@@ -8,12 +8,12 @@ use std::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub library_root: Option<PathBuf>,
+    pub root: Option<PathBuf>,
 }
 
 impl Default for Config {
     fn default() -> Self {
-        Self { library_root: None }
+        Self { root: None }
     }
 }
 

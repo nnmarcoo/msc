@@ -17,28 +17,28 @@ pub struct Player {
     backend: Backend,
     library: Library,
     queue: Queue,
-    config: Config,
 }
 
 impl Player {
     pub fn new() -> Result<Self, PlayerError> {
         let config = Config::load().unwrap_or_default();
 
+        let mut library = Library::new();
+        if let Some(root) = config.root {
+            library.populate(&root);
+        }
+
         let player = Player {
             backend: Backend::new()?,
-            library: Library::with_root(config.library_root.clone()),
+            library,
             queue: Queue::new(),
-            config,
         };
 
         Ok(player)
     }
 
-    pub fn populate_library(&mut self, root: &Path) -> Result<(), ConfigError> {
+    pub fn populate_library(&mut self, root: &Path) {
         self.library.populate(root);
-        self.config.library_root = Some(root.to_path_buf());
-        self.config.save()?;
-        Ok(())
     }
 
     pub fn reload_library(&mut self) -> Result<(), LibraryError> {
@@ -142,6 +142,15 @@ impl Player {
 
     pub fn queue(&self) -> &Queue {
         &self.queue
+    }
+}
+
+impl Drop for Player {
+    fn drop(&mut self) {
+        let config = Config {
+            root: self.library.root().cloned(),
+        };
+        let _ = config.save();
     }
 }
 
