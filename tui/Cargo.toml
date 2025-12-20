@@ -9,7 +9,8 @@ path = "src/main.rs"
 
 [dependencies]
 msc-core = { path = "../core" }
-ratatui = "0.28"
-crossterm = "0.28"
-ratatui-image = { version = "2.0", features = ["crossterm"] }
-image = "0.25"
+color-eyre = "0.6.5"
+ratatui = "0.29.0"
+crossterm = "0.29.0"
+ratatui-image = { version = "8.1.1", features = ["crossterm"] }
+image = "0.25.9"
