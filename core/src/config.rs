@@ -18,7 +18,7 @@ impl Default for Config {
 }
 
 impl Config {
-    pub fn path() -> Result<PathBuf, ConfigError> {
+    fn path() -> Result<PathBuf, ConfigError> {
         let proj_dirs =
             directories::ProjectDirs::from("", "", "msc").ok_or(ConfigError::DirectoryNotFound)?;
 
