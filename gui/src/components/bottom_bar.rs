@@ -9,6 +9,8 @@ use crate::widgets::canvas_button::canvas_button;
 pub enum Message {
     LoadLibrary,
     QueueLibrary,
+    ClearQueue,
+    ShuffleQueue,
     ToggleEditMode,
     SwitchPreset(usize),
     AddPreset,
@@ -83,6 +85,20 @@ pub fn view(
                 )
                 .height(20)
                 .on_press(Message::QueueLibrary),
+                canvas_button(
+                    text("clear")
+                        .align_x(Horizontal::Center)
+                        .align_y(Vertical::Center)
+                )
+                .height(20)
+                .on_press(Message::ClearQueue),
+                canvas_button(
+                    text("shuffle")
+                        .align_x(Horizontal::Center)
+                        .align_y(Vertical::Center)
+                )
+                .height(20)
+                .on_press(Message::ShuffleQueue),
                 canvas_button(svg(Handle::from_memory(include_bytes!(
                     "../../../assets/icons/gear.svg"
                 ))))

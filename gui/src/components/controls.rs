@@ -1,7 +1,8 @@
 use iced::alignment::Vertical;
+use iced::font::Weight;
 use iced::widget::image::Handle;
 use iced::widget::{Image, button, column, container, row, slider, text};
-use iced::{Element, Length, Theme};
+use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
 #[derive(Debug, Clone)]
@@ -92,16 +93,18 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
 
     let track_info = column![
         row![
-            text(title).size(14).style(|theme: &Theme| {
-                text::Style {
-                    color: Some(theme.extended_palette().background.base.text),
-                }
-            }),
-            text(" - ").size(14).style(|theme: &Theme| {
-                text::Style {
-                    color: Some(theme.extended_palette().background.base.text),
-                }
-            }),
+            text(title)
+                .size(14)
+                .font(Font {
+                    weight: Weight::Bold,
+                    ..Default::default()
+                })
+                .style(|theme: &Theme| {
+                    text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    }
+                }),
+            text(" ").size(14),
             text(artist).size(14).style(|theme: &Theme| {
                 text::Style {
                     color: Some(theme.extended_palette().background.base.text),
