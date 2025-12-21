@@ -212,6 +212,12 @@ impl App {
                         self.player.queue_library();
                         let _ = self.player.play();
                     }
+                    BottomBarMessage::ClearQueue => {
+                        self.player.clear_queue();
+                    }
+                    BottomBarMessage::ShuffleQueue => {
+                        self.player.shuffle_queue();
+                    }
                     BottomBarMessage::ToggleEditMode => {
                         if self.edit_mode {
                             self.save_current_layout();
@@ -319,6 +325,6 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        every(Duration::from_millis(250)).map(|_| Message::Tick)
+        every(Duration::from_millis(30)).map(|_| Message::Tick)
     }
 }

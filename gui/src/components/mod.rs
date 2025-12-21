@@ -5,4 +5,6 @@ pub mod controls;
 pub mod empty;
 pub mod library;
 pub mod queue;
+pub mod spectrum;
 pub mod timeline;
+pub mod vu_meters;

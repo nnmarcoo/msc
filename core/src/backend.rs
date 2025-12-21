@@ -1,4 +1,9 @@
-use std::{error::Error, fmt::Display, path::Path};
+use std::{
+    error::Error,
+    fmt::Display,
+    path::Path,
+    sync::{Arc, Mutex},
+};
 
 use kira::{
     AudioManager, AudioManagerSettings, DefaultBackend, PlaySoundError, Tween,
@@ -7,20 +12,32 @@ use kira::{
         FromFileError, PlaybackState,
         streaming::{StreamingSoundData, StreamingSoundHandle},
     },
+    track::MainTrackBuilder,
 };
+
+use crate::audio_analyzer::{AudioAnalyzerBuilder, VisData};
 
 pub struct Backend {
     manager: AudioManager,
     sound: Option<StreamingSoundHandle<FromFileError>>,
     volume: f32,
+    visualization_data: Arc<Mutex<VisData>>,
 }
 
 impl Backend {
     pub fn new() -> Result<Self, cpal::Error> {
+        let (analyzer_builder, visualization_data) = AudioAnalyzerBuilder::new();
+
+        let settings = AudioManagerSettings {
+            main_track_builder: MainTrackBuilder::new().with_effect(analyzer_builder),
+            ..AudioManagerSettings::default()
+        };
+
         Ok(Backend {
-            manager: AudioManager::<DefaultBackend>::new(AudioManagerSettings::default())?,
+            manager: AudioManager::<DefaultBackend>::new(settings)?,
             sound: None,
             volume: 0.1,
+            visualization_data,
         })
     }
 
@@ -113,6 +130,13 @@ impl Backend {
 
     pub fn has_sound(&self) -> bool {
         self.sound.is_some()
+    }
+
+    pub fn vis_data(&self) -> VisData {
+        self.visualization_data
+            .lock()
+            .unwrap_or_else(|_| panic!("Failed to lock visualization data"))
+            .clone()
     }
 }
 

@@ -9,7 +9,7 @@ use blake3::Hash;
 use kira::backend::cpal;
 
 use crate::{
-    ArtCache, Backend, Config, ConfigError, Library, LibraryError, Queue, Track,
+    ArtCache, Backend, Config, ConfigError, Library, LibraryError, Queue, Track, VisData,
     backend::PlaybackError,
 };
 
@@ -64,6 +64,11 @@ impl Player {
 
     pub fn shuffle_queue(&mut self) {
         self.queue.shuffle();
+    }
+
+    pub fn clear_queue(&mut self) {
+        self.queue.clear();
+        self.backend.stop();
     }
 
     pub fn queue_back(&mut self, track_id: Hash) {
@@ -142,6 +147,10 @@ impl Player {
 
     pub fn queue(&self) -> &Queue {
         &self.queue
+    }
+
+    pub fn vis_data(&self) -> VisData {
+        self.backend.vis_data()
     }
 }
 

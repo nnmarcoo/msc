@@ -1,4 +1,5 @@
 mod artcache;
+mod audio_analyzer;
 mod backend;
 mod collection;
 mod config;
@@ -10,6 +11,7 @@ mod queue;
 mod track;
 
 pub use artcache::{ArtCache, RgbaImage};
+pub use audio_analyzer::VisData;
 pub use backend::Backend;
 pub use collection::Collection;
 pub use config::{Config, ConfigError};
