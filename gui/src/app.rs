@@ -142,6 +142,13 @@ impl App {
             }
             Message::Tick => {
                 let _ = self.player.update();
+
+                if let Some(seeking_pos) = self.seeking_position {
+                    let current_pos = self.player.position() as f32;
+                    if (current_pos - seeking_pos).abs() < 0.1 {
+                        self.seeking_position = None;
+                    }
+                }
             }
             Message::LibraryPathSelected(path) => {
                 if let Some(path) = path {
@@ -183,7 +190,6 @@ impl App {
                     ControlsMessage::SeekReleased => {
                         if let Some(pos) = self.seeking_position {
                             self.player.seek(pos as f64);
-                            self.seeking_position = None;
                         }
                     }
                 }
@@ -308,8 +314,17 @@ impl App {
         let player = &self.player;
         let volume = self.volume;
         let hovered_track = &self.hovered_track;
+        let seeking_position = self.seeking_position;
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
-            pane.view(id, total_panes, edit_mode, player, volume, hovered_track)
+            pane.view(
+                id,
+                total_panes,
+                edit_mode,
+                player,
+                volume,
+                hovered_track,
+                seeking_position,
+            )
         })
         .width(Length::Fill)
         .height(Length::Fill)

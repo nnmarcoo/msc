@@ -18,10 +18,15 @@ pub enum Message {
     SeekReleased,
 }
 
-pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
+pub fn view<'a>(
+    player: &Player,
+    volume: f32,
+    seeking_position: Option<f32>,
+) -> Element<'a, Message> {
     let is_playing = player.is_playing();
     let current_track = player.clone_current_track();
-    let position = player.position() as f32;
+    let actual_position = player.position() as f32;
+    let position = seeking_position.unwrap_or(actual_position);
 
     let (title, artist, duration) = if let Some(track) = current_track {
         (

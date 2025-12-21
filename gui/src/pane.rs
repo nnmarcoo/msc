@@ -74,6 +74,7 @@ impl Pane {
         player: &Player,
         volume: f32,
         hovered_track: &Option<blake3::Hash>,
+        seeking_position: Option<f32>,
     ) -> pane_grid::Content<'_, Message> {
         if edit_mode {
             let title = row![
@@ -162,7 +163,12 @@ impl Pane {
 
             pane_grid::Content::new(edit_content).title_bar(title_bar)
         } else {
-            pane_grid::Content::new(self.render_content(player, volume, hovered_track))
+            pane_grid::Content::new(self.render_content(
+                player,
+                volume,
+                hovered_track,
+                seeking_position,
+            ))
         }
     }
 
@@ -171,10 +177,11 @@ impl Pane {
         player: &Player,
         volume: f32,
         hovered_track: &Option<blake3::Hash>,
+        seeking_position: Option<f32>,
     ) -> Element<'_, Message> {
         let content = match self.content {
             PaneContent::Controls => {
-                components::controls::view(player, volume).map(Message::Controls)
+                components::controls::view(player, volume, seeking_position).map(Message::Controls)
             }
             PaneContent::Queue => components::queue::view(player),
             PaneContent::Library => components::library::view(player, hovered_track),
