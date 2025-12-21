@@ -1,8 +1,7 @@
 use iced::alignment::Vertical;
 use iced::font::Weight;
-use iced::widget::image::Handle as ImageHandle;
 use iced::widget::svg::Handle as SvgHandle;
-use iced::widget::{Image, button, column, container, row, slider, svg, text};
+use iced::widget::{column, container, row, slider, svg, text};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
