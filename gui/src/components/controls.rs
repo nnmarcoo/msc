@@ -1,7 +1,7 @@
 use iced::alignment::Vertical;
 use iced::font::Weight;
 use iced::widget::svg::Handle as SvgHandle;
-use iced::widget::{column, container, row, slider, svg, text};
+use iced::widget::{column, container, row, slider, svg, text, tooltip};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
@@ -33,55 +33,89 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
         ("-".to_string(), "-".to_string(), 0.0)
     };
 
-    let prev_button = canvas_button(
-        svg(SvgHandle::from_memory(include_bytes!(
-            "../../../assets/icons/previous.svg"
-        )))
+    let prev_button = tooltip(
+        canvas_button(
+            svg(SvgHandle::from_memory(include_bytes!(
+                "../../../assets/icons/previous.svg"
+            )))
+            .width(22)
+            .height(22),
+        )
         .width(22)
-        .height(22),
+        .height(22)
+        .on_press(Message::Previous),
+        container(text("Previous track").size(12))
+            .padding(6)
+            .style(container::rounded_box),
+        tooltip::Position::Top,
     )
-    .width(22)
-    .height(22)
-    .on_press(Message::Previous);
+    .gap(8)
+    .snap_within_viewport(true);
 
     let play_pause_icon: &[u8] = if is_playing {
         include_bytes!("../../../assets/icons/pause.svg")
     } else {
         include_bytes!("../../../assets/icons/play.svg")
     };
-    let play_pause_button = canvas_button(
-        svg(SvgHandle::from_memory(play_pause_icon))
-            .width(28)
-            .height(28),
+    let play_pause_tooltip = if is_playing { "Pause" } else { "Play" };
+    let play_pause_button = tooltip(
+        canvas_button(
+            svg(SvgHandle::from_memory(play_pause_icon))
+                .width(28)
+                .height(28),
+        )
+        .width(28)
+        .height(28)
+        .on_press(Message::PlayPause),
+        container(text(play_pause_tooltip).size(12))
+            .padding(6)
+            .style(container::rounded_box),
+        tooltip::Position::Top,
     )
-    .width(28)
-    .height(28)
-    .on_press(Message::PlayPause);
+    .gap(8)
+    .snap_within_viewport(true);
 
-    let next_button = canvas_button(
-        svg(SvgHandle::from_memory(include_bytes!(
-            "../../../assets/icons/next.svg"
-        )))
+    let next_button = tooltip(
+        canvas_button(
+            svg(SvgHandle::from_memory(include_bytes!(
+                "../../../assets/icons/next.svg"
+            )))
+            .width(22)
+            .height(22),
+        )
         .width(22)
-        .height(22),
+        .height(22)
+        .on_press(Message::Next),
+        container(text("Next track").size(12))
+            .padding(6)
+            .style(container::rounded_box),
+        tooltip::Position::Top,
     )
-    .width(22)
-    .height(22)
-    .on_press(Message::Next);
+    .gap(8)
+    .snap_within_viewport(true);
 
     let vol_icon_bytes: &[u8] = if volume > 0.0 {
         include_bytes!("../../../assets/icons/vol_on.svg")
     } else {
         include_bytes!("../../../assets/icons/vol_off.svg")
     };
-    let vol_button = canvas_button(
-        svg(SvgHandle::from_memory(vol_icon_bytes))
-            .width(22)
-            .height(22),
+    let vol_tooltip = if volume > 0.0 { "Mute" } else { "Unmute" };
+    let vol_button = tooltip(
+        canvas_button(
+            svg(SvgHandle::from_memory(vol_icon_bytes))
+                .width(22)
+                .height(22),
+        )
+        .width(22)
+        .height(22)
+        .on_press(Message::ToggleMute),
+        container(text(vol_tooltip).size(12))
+            .padding(6)
+            .style(container::rounded_box),
+        tooltip::Position::Top,
     )
-    .width(22)
-    .height(22)
-    .on_press(Message::ToggleMute);
+    .gap(8)
+    .snap_within_viewport(true);
 
     let volume_slider = slider(0.0..=1.0, volume, Message::VolumeChanged)
         .step(0.01)
