@@ -1,8 +1,9 @@
 use blake3::Hash;
+use iced::keyboard::{self, Key};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container};
-use iced::{Element, Length, Subscription, Task, Theme};
+use iced::{Element, Event, Length, Subscription, Task, Theme};
 use msc_core::Player;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -40,6 +41,7 @@ pub enum Message {
     QueueFront(Hash),
     TrackHovered(Hash),
     TrackUnhovered,
+    Event(Event),
 }
 
 impl Default for App {
@@ -269,6 +271,33 @@ impl App {
             Message::TrackUnhovered => {
                 self.hovered_track = None;
             }
+            Message::Event(event) => {
+                if let Event::Keyboard(keyboard::Event::KeyPressed {
+                    key,
+                    modifiers: _,
+                    ..
+                }) = event
+                {
+                    match key {
+                        Key::Character(c) => {
+                            if let Ok(num) = c.parse::<usize>() {
+                                if num >= 1 && num <= self.layout_presets.len() {
+                                    let index = num - 1;
+                                    if self.edit_mode {
+                                        self.save_current_layout();
+                                    }
+                                    self.current_preset = index;
+                                    self.panes = pane_grid::State::with_configuration(
+                                        self.layout_presets[index].clone(),
+                                    );
+                                    self.focus = None;
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
         }
 
         Task::none()
@@ -325,6 +354,9 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
-        every(Duration::from_millis(30)).map(|_| Message::Tick)
+        Subscription::batch([
+            every(Duration::from_millis(30)).map(|_| Message::Tick),
+            iced::event::listen().map(Message::Event),
+        ])
     }
 }
