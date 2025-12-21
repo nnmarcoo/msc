@@ -1,11 +1,12 @@
 use iced::alignment::Vertical;
 use iced::font::Weight;
 use iced::widget::svg::Handle as SvgHandle;
-use iced::widget::{column, container, row, slider, svg, text, tooltip};
+use iced::widget::{column, container, row, svg, text, tooltip};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
 use crate::widgets::canvas_button::canvas_button;
+use crate::widgets::hover_slider::hover_slider;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -99,7 +100,7 @@ pub fn view<'a>(
     .gap(8)
     .snap_within_viewport(true);
 
-    let vol_icon_bytes: &[u8] = if volume > 0.0 {
+    let vol_icon_bytes: &[u8] = if volume > 0. {
         include_bytes!("../../../assets/icons/vol_on.svg")
     } else {
         include_bytes!("../../../assets/icons/vol_off.svg")
@@ -122,11 +123,11 @@ pub fn view<'a>(
     .gap(8)
     .snap_within_viewport(true);
 
-    let volume_slider = slider(0.0..=1.0, volume, Message::VolumeChanged)
+    let volume_slider = hover_slider(0.0..=1.0, volume, Message::VolumeChanged)
         .step(0.01)
         .width(Length::Fixed(100.0));
 
-    let timeline_slider = slider(0.0..=duration, position, Message::SeekChanged)
+    let timeline_slider = hover_slider(0.0..=duration, position, Message::SeekChanged)
         .on_release(Message::SeekReleased)
         .width(Length::Fill);
 
