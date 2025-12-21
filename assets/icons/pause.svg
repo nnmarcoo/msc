@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+  <path
+    d="M8 4 L8 20"
+    fill="none"
+    stroke="white"
+    stroke-width="4"
+    stroke-linecap="butt"
+  />
+  <path
+    d="M16 4 L16 20"
+    fill="none"
+    stroke="white"
+    stroke-width="4"
+    stroke-linecap="butt"
+  />
+</svg>

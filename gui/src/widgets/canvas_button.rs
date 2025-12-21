@@ -28,7 +28,7 @@ pub fn canvas_button<'a, Message>(
         on_press: None,
         width: Length::Shrink,
         height: Length::Shrink,
-        padding: 0.0,
+        padding: 0.,
     }
 }
 

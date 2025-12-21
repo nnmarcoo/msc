@@ -1,9 +1,12 @@
 use iced::alignment::Vertical;
 use iced::font::Weight;
-use iced::widget::image::Handle;
-use iced::widget::{Image, button, column, container, row, slider, text};
+use iced::widget::image::Handle as ImageHandle;
+use iced::widget::svg::Handle as SvgHandle;
+use iced::widget::{Image, button, column, container, row, slider, svg, text};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
+
+use crate::widgets::canvas_button::canvas_button;
 
 #[derive(Debug, Clone)]
 pub enum Message {
@@ -31,50 +34,54 @@ pub fn view<'a>(player: &Player, volume: f32) -> Element<'a, Message> {
         ("-".to_string(), "-".to_string(), 0.0)
     };
 
-    let prev_button = button(
-        Image::new(Handle::from_bytes(
-            include_bytes!("../../../assets/icons/previous.png").as_slice(),
-        ))
+    let prev_button = canvas_button(
+        svg(SvgHandle::from_memory(include_bytes!(
+            "../../../assets/icons/previous.svg"
+        )))
         .width(22)
         .height(22),
     )
-    .padding(8)
+    .width(22)
+    .height(22)
     .on_press(Message::Previous);
 
     let play_pause_icon: &[u8] = if is_playing {
-        include_bytes!("../../../assets/icons/pause.png")
+        include_bytes!("../../../assets/icons/pause.svg")
     } else {
-        include_bytes!("../../../assets/icons/play.png")
+        include_bytes!("../../../assets/icons/play.svg")
     };
-    let play_pause_button = button(
-        Image::new(Handle::from_bytes(play_pause_icon))
+    let play_pause_button = canvas_button(
+        svg(SvgHandle::from_memory(play_pause_icon))
             .width(28)
             .height(28),
     )
-    .padding(10)
+    .width(28)
+    .height(28)
     .on_press(Message::PlayPause);
 
-    let next_button = button(
-        Image::new(Handle::from_bytes(
-            include_bytes!("../../../assets/icons/next.png").as_slice(),
-        ))
+    let next_button = canvas_button(
+        svg(SvgHandle::from_memory(include_bytes!(
+            "../../../assets/icons/next.svg"
+        )))
         .width(22)
         .height(22),
     )
-    .padding(8)
+    .width(22)
+    .height(22)
     .on_press(Message::Next);
 
     let vol_icon_bytes: &[u8] = if volume > 0.0 {
-        include_bytes!("../../../assets/icons/vol_on.png")
+        include_bytes!("../../../assets/icons/vol_on.svg")
     } else {
-        include_bytes!("../../../assets/icons/vol_off.png")
+        include_bytes!("../../../assets/icons/vol_off.svg")
     };
-    let vol_button = button(
-        Image::new(Handle::from_bytes(vol_icon_bytes))
+    let vol_button = canvas_button(
+        svg(SvgHandle::from_memory(vol_icon_bytes))
             .width(22)
             .height(22),
     )
-    .padding(6)
+    .width(22)
+    .height(22)
     .on_press(Message::ToggleMute);
 
     let volume_slider = slider(0.0..=1.0, volume, Message::VolumeChanged)

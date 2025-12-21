@@ -273,9 +273,7 @@ impl App {
             }
             Message::Event(event) => {
                 if let Event::Keyboard(keyboard::Event::KeyPressed {
-                    key,
-                    modifiers: _,
-                    ..
+                    key, modifiers: _, ..
                 }) = event
                 {
                     match key {
