@@ -5,20 +5,20 @@ use ratatui::{DefaultTerminal, Frame};
 use std::time::Duration;
 
 pub struct App {
-    running: bool,
     player: Player,
+    exit: bool,
 }
 
 impl App {
     pub fn new() -> Result<Self> {
         Ok(Self {
-            running: true,
+            exit: false,
             player: Player::new()?,
         })
     }
 
     pub fn run(&mut self, mut terminal: DefaultTerminal) -> Result<()> {
-        while self.running {
+        while !self.exit {
             terminal.draw(|frame| self.render(frame))?;
             self.handle_events()?;
         }
@@ -30,7 +30,7 @@ impl App {
             if let Event::Key(key) = event::read()? {
                 if key.kind == KeyEventKind::Press {
                     match key.code {
-                        KeyCode::Char('q') => self.running = false,
+                        KeyCode::Char('q') => self.exit = true,
                         _ => {}
                     }
                 }
