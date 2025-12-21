@@ -87,5 +87,10 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
         }
     }
 
-    scrollable(track_list).height(Length::Fill).into()
+    scrollable(track_list)
+        .height(Length::Fill)
+        .direction(scrollable::Direction::Vertical(
+            scrollable::Scrollbar::new().width(0).scroller_width(0),
+        ))
+        .into()
 }

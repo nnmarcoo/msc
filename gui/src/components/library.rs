@@ -144,10 +144,17 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Me
         track_list = track_list.push(track_row);
     }
 
-    column![header, scrollable(track_list).height(Length::Fill)]
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+    column![
+        header,
+        scrollable(track_list)
+            .height(Length::Fill)
+            .direction(scrollable::Direction::Vertical(
+                scrollable::Scrollbar::new().width(0).scroller_width(0),
+            ))
+    ]
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
 }
 
 fn format_seconds(seconds: f32) -> String {
