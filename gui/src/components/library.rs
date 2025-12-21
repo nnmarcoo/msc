@@ -130,7 +130,7 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Me
         });
 
         let track_content = mouse_area(track_inner)
-            .on_enter(Message::TrackHovered(track_id))
+            .on_move(move |_| Message::TrackHovered(track_id))
             .on_exit(Message::TrackUnhovered);
 
         let track_row = track_context_menu(
