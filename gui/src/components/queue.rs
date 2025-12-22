@@ -1,5 +1,6 @@
+use iced::font::Weight;
 use iced::widget::{column, container, scrollable, text};
-use iced::{Element, Length, Theme};
+use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
 use crate::app::Message;
@@ -11,23 +12,31 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
     let library = player.library();
     let current_hash = queue.current_id();
 
-    let mut track_list = column![].spacing(2);
+    let mut track_list = column![].spacing(8);
 
     if let Some(current_id) = current_hash {
         if let Some(track) = library.track_from_id(current_id) {
             track_list = track_list.push(
                 container(
-                    text(format!(
-                        "{} - {}",
-                        track.metadata.title_or_default(),
-                        track.metadata.artist_or_default()
-                    ))
-                    .size(14)
-                    .style(|theme: &Theme| text::Style {
-                        color: Some(theme.extended_palette().primary.weak.text),
-                    }),
+                    column![
+                        text(track.metadata.title_or_default())
+                            .size(15)
+                            .font(Font {
+                                weight: Weight::Bold,
+                                ..Default::default()
+                            })
+                            .style(|theme: &Theme| text::Style {
+                                color: Some(theme.extended_palette().primary.weak.text),
+                            }),
+                        text(track.metadata.artist_or_default())
+                            .size(13)
+                            .style(|theme: &Theme| text::Style {
+                                color: Some(theme.extended_palette().primary.weak.text),
+                            }),
+                    ]
+                    .spacing(2),
                 )
-                .padding(8)
+                .padding(12)
                 .width(Length::Fill)
                 .style(|theme: &Theme| container::Style {
                     text_color: Some(theme.extended_palette().primary.weak.text),
@@ -67,17 +76,25 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
         if let Some(track) = library.track_from_id(*track_id) {
             track_list = track_list.push(
                 container(
-                    text(format!(
-                        "{} - {}",
-                        track.metadata.title_or_default(),
-                        track.metadata.artist_or_default()
-                    ))
-                    .size(14)
-                    .style(|theme: &Theme| text::Style {
-                        color: Some(theme.extended_palette().background.base.text),
-                    }),
+                    column![
+                        text(track.metadata.title_or_default())
+                            .size(15)
+                            .font(Font {
+                                weight: Weight::Bold,
+                                ..Default::default()
+                            })
+                            .style(|theme: &Theme| text::Style {
+                                color: Some(theme.extended_palette().background.base.text),
+                            }),
+                        text(track.metadata.artist_or_default())
+                            .size(13)
+                            .style(|theme: &Theme| text::Style {
+                                color: Some(theme.extended_palette().background.base.text),
+                            }),
+                    ]
+                    .spacing(2),
                 )
-                .padding(8)
+                .padding(12)
                 .width(Length::Fill)
                 .style(|theme: &Theme| container::Style {
                     text_color: Some(theme.extended_palette().background.base.text),
