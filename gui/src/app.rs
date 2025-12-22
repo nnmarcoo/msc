@@ -9,7 +9,9 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::components::{bottom_bar, controls};
+use crate::media_controls::MediaSession;
 use crate::pane::{Pane, PaneContent};
+use crate::window_handle;
 
 pub struct App {
     panes: pane_grid::State<Pane>,
@@ -22,6 +24,7 @@ pub struct App {
     layout_presets: Vec<pane_grid::Configuration<Pane>>,
     current_preset: usize,
     hovered_track: Option<Hash>,
+    media_session: Option<MediaSession>,
 }
 
 #[derive(Debug, Clone)]
@@ -85,6 +88,7 @@ impl Default for App {
             layout_presets: vec![pane_config],
             current_preset: 0,
             hovered_track: None,
+            media_session: None,
         }
     }
 }
@@ -141,12 +145,63 @@ impl App {
                 self.panes.resize(split, ratio);
             }
             Message::Tick => {
+                // Initialize media session on first tick (after window is created)
+                if self.media_session.is_none() {
+                    let hwnd = window_handle::get_hwnd();
+                    self.media_session = MediaSession::new(hwnd).ok();
+                }
+
                 let _ = self.player.update();
 
                 if let Some(seeking_pos) = self.seeking_position {
                     let current_pos = self.player.position() as f32;
                     if (current_pos - seeking_pos).abs() < 0.1 {
                         self.seeking_position = None;
+                    }
+                }
+
+                // Handle media key events
+                if let Some(session) = &self.media_session {
+                    for event in session.poll_events() {
+                        match event {
+                            souvlaki::MediaControlEvent::Play => {
+                                let _ = self.player.play();
+                            }
+                            souvlaki::MediaControlEvent::Pause => {
+                                self.player.pause();
+                            }
+                            souvlaki::MediaControlEvent::Toggle => {
+                                if self.player.is_playing() {
+                                    self.player.pause();
+                                } else {
+                                    let _ = self.player.play();
+                                }
+                            }
+                            souvlaki::MediaControlEvent::Next => {
+                                let _ = self.player.start_next();
+                            }
+                            souvlaki::MediaControlEvent::Previous => {
+                                let _ = self.player.start_previous();
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                if let Some(session) = &mut self.media_session {
+                    if self.player.is_playing() {
+                        session.set_playback(souvlaki::MediaPlayback::Playing { progress: None });
+                    } else {
+                        session.set_playback(souvlaki::MediaPlayback::Paused { progress: None });
+                    }
+
+                    if let Some(track) = self.player.clone_current_track() {
+                        let title = track.metadata.title.as_deref().unwrap_or("Unknown Title");
+                        let artist = track.metadata.artist.as_deref().unwrap_or("Unknown Artist");
+                        let album = track.metadata.album.as_deref().unwrap_or("Unknown Album");
+                        let duration = Some(track.metadata.duration as f64);
+
+                        session.set_metadata(title, artist, album, duration);
                     }
                 }
             }

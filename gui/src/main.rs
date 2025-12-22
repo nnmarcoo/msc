@@ -5,8 +5,10 @@ use iced::{
 
 mod app;
 mod components;
+mod media_controls;
 mod pane;
 mod widgets;
+mod window_handle;
 
 use app::App;
 
