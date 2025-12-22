@@ -3,22 +3,36 @@ use kira::{Frame, info::Info};
 use rustfft::{FftPlanner, num_complex::Complex};
 use std::sync::{Arc, Mutex};
 
+// all ai
+
 const FFT_SIZE: usize = 2048;
 const NUM_BINS: usize = 16;
 
 #[derive(Clone, Debug)]
 pub struct VisData {
-    pub frequency_bins: Vec<f32>,
+    bins_smooth: [f32; NUM_BINS],
+    bins_raw: [f32; NUM_BINS],
     pub peak_left: f32,
     pub peak_right: f32,
     pub rms_left: f32,
     pub rms_right: f32,
 }
 
+impl VisData {
+    pub fn bins_smooth(&self) -> &[f32] {
+        &self.bins_smooth
+    }
+
+    pub fn bins_raw(&self) -> &[f32] {
+        &self.bins_raw
+    }
+}
+
 impl Default for VisData {
     fn default() -> Self {
         Self {
-            frequency_bins: vec![0.0; NUM_BINS],
+            bins_smooth: [0.0; NUM_BINS],
+            bins_raw: [0.0; NUM_BINS],
             peak_left: 0.0,
             peak_right: 0.0,
             rms_left: 0.0,
@@ -57,6 +71,7 @@ struct AudioAnalyzer {
     buffer_right: Vec<f32>,
     fft_planner: FftPlanner<f32>,
     sample_count: usize,
+    smoothed_bins: [f32; NUM_BINS],
 }
 
 impl AudioAnalyzer {
@@ -67,6 +82,7 @@ impl AudioAnalyzer {
             buffer_right: Vec::with_capacity(FFT_SIZE),
             fft_planner: FftPlanner::new(),
             sample_count: 0,
+            smoothed_bins: [0.0; NUM_BINS],
         }
     }
 
@@ -93,7 +109,7 @@ impl AudioAnalyzer {
         fft.process(&mut windowed);
 
         // Use logarithmic binning for more natural frequency distribution
-        let mut frequency_bins = vec![0.0; NUM_BINS];
+        let mut frequency_bins = [0.0; NUM_BINS];
 
         // Calculate logarithmic bin edges
         let min_freq = 20.0f32; // 20 Hz
@@ -129,9 +145,33 @@ impl AudioAnalyzer {
             }
         }
 
-        // Update shared data
+        // Apply temporal smoothing using exponential moving average
+        // Use different smoothing for attack (going up) vs decay (going down)
+        const ATTACK_SMOOTHING: f32 = 0.1; // Very fast attack (90% new value)
+        const DECAY_SMOOTHING: f32 = 0.85; // Slow decay (85% old value)
+
+        for (smoothed, &new_value) in self.smoothed_bins.iter_mut().zip(&frequency_bins) {
+            // Use asymmetric smoothing: very fast attack, slow decay
+            let new_smoothed = if new_value > *smoothed {
+                // Attack: almost immediately follow increases
+                *smoothed * ATTACK_SMOOTHING + new_value * (1.0 - ATTACK_SMOOTHING)
+            } else {
+                // Decay: slowly fall off for smooth visual
+                *smoothed * DECAY_SMOOTHING + new_value * (1.0 - DECAY_SMOOTHING)
+            };
+
+            // Ensure no NaN or invalid values
+            *smoothed = if new_smoothed.is_finite() {
+                new_smoothed
+            } else {
+                new_value
+            };
+        }
+
+        // Update shared data with both raw and smoothed values
         if let Ok(mut data) = self.shared_data.lock() {
-            data.frequency_bins = frequency_bins;
+            data.bins_raw = frequency_bins;
+            data.bins_smooth = self.smoothed_bins;
         }
 
         // Clear buffers for next batch

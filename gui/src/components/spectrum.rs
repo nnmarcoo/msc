@@ -11,13 +11,12 @@ use crate::app::Message;
 
 pub fn view<'a>(player: &Player) -> Element<'a, Message> {
     let viz_data = player.vis_data();
+    let bins = viz_data.bins_smooth().to_vec();
 
     container(
-        Canvas::new(Spectrum {
-            bins: viz_data.frequency_bins,
-        })
-        .width(Length::Fill)
-        .height(Length::Fill),
+        Canvas::new(Spectrum { bins })
+            .width(Length::Fill)
+            .height(Length::Fill),
     )
     .width(Length::Fill)
     .height(Length::Fill)
