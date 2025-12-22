@@ -156,16 +156,17 @@ pub fn view<'a>(
                     color: Some(theme.extended_palette().background.base.text),
                 }
             }),
-        ]
-        .spacing(5),
+            container(text(time_text).size(14).style(|theme: &Theme| {
+                text::Style {
+                    color: Some(theme.extended_palette().background.base.text),
+                }
+            }))
+            .width(Length::Fill)
+            .align_right(Length::Fill),
+        ],
         timeline_slider,
-        text(time_text).size(12).style(|theme: &Theme| {
-            text::Style {
-                color: Some(theme.extended_palette().background.base.text),
-            }
-        }),
     ]
-    .spacing(5)
+    .spacing(0)
     .width(Length::Fill);
 
     let controls_row = row![

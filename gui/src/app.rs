@@ -145,7 +145,6 @@ impl App {
                 self.panes.resize(split, ratio);
             }
             Message::Tick => {
-                // Initialize media session on first tick (after window is created)
                 if self.media_session.is_none() {
                     let hwnd = window_handle::get_hwnd();
                     self.media_session = MediaSession::new(hwnd).ok();
@@ -160,7 +159,6 @@ impl App {
                     }
                 }
 
-                // Handle media key events
                 if let Some(session) = &self.media_session {
                     for event in session.poll_events() {
                         match event {
