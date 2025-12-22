@@ -1,7 +1,7 @@
 use iced::alignment::Vertical;
 use iced::font::Weight;
 use iced::widget::svg::Handle as SvgHandle;
-use iced::widget::{column, container, row, svg, text, tooltip};
+use iced::widget::{column, container, responsive, row, svg, text, tooltip};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
@@ -127,47 +127,58 @@ pub fn view<'a>(
         .step(0.01)
         .width(Length::Fixed(100.0));
 
-    let timeline_slider = hover_slider(0.0..=duration, position, Message::SeekChanged)
-        .on_release(Message::SeekReleased)
-        .width(Length::Fill);
-
     let time_text = format!(
         "{} / {}",
         format_seconds(position),
         format_seconds(duration)
     );
 
-    let track_info = column![
-        row![
-            text(title)
-                .size(14)
-                .font(Font {
-                    weight: Weight::Bold,
-                    ..Default::default()
-                })
-                .style(|theme: &Theme| {
+    let track_info = responsive(move |size| {
+        let available_width = size.width - 100.0;
+        let max_chars = (available_width / 7.0) as usize;
+        let title_max = max_chars.max(10) / 2;
+        let artist_max = max_chars.max(10) / 2;
+
+        let truncated_title = truncate_text(&title, title_max);
+        let truncated_artist = truncate_text(&artist, artist_max);
+
+        let timeline_slider = hover_slider(0.0..=duration, position, Message::SeekChanged)
+            .on_release(Message::SeekReleased)
+            .width(Length::Fill);
+
+        column![
+            row![
+                text(truncated_title)
+                    .size(14)
+                    .font(Font {
+                        weight: Weight::Bold,
+                        ..Default::default()
+                    })
+                    .style(|theme: &Theme| {
+                        text::Style {
+                            color: Some(theme.extended_palette().background.base.text),
+                        }
+                    }),
+                text(" ").size(14),
+                text(truncated_artist).size(14).style(|theme: &Theme| {
                     text::Style {
                         color: Some(theme.extended_palette().background.base.text),
                     }
                 }),
-            text(" ").size(14),
-            text(artist).size(14).style(|theme: &Theme| {
-                text::Style {
-                    color: Some(theme.extended_palette().background.base.text),
-                }
-            }),
-            container(text(time_text).size(14).style(|theme: &Theme| {
-                text::Style {
-                    color: Some(theme.extended_palette().background.base.text),
-                }
-            }))
-            .width(Length::Fill)
-            .align_right(Length::Fill),
-        ],
-        timeline_slider,
-    ]
-    .spacing(0)
-    .width(Length::Fill);
+                container(text(time_text.clone()).size(14).style(|theme: &Theme| {
+                    text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    }
+                }))
+                .width(Length::Fill)
+                .align_right(Length::Fill),
+            ],
+            timeline_slider,
+        ]
+        .spacing(0)
+        .width(Length::Fill)
+        .into()
+    });
 
     let controls_row = row![
         prev_button,
@@ -195,4 +206,13 @@ fn format_seconds(seconds: f32) -> String {
     let mins = total_secs / 60;
     let secs = total_secs % 60;
     format!("{:02}:{:02}", mins, secs)
+}
+
+fn truncate_text(text: &str, max_chars: usize) -> String {
+    if text.chars().count() <= max_chars {
+        text.to_string()
+    } else {
+        let truncated: String = text.chars().take(max_chars.saturating_sub(3)).collect();
+        format!("{}...", truncated)
+    }
 }
