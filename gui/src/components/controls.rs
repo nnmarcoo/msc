@@ -188,7 +188,7 @@ pub fn view<'a>(
         vol_button,
         volume_slider,
         container(text("")).width(Length::Fixed(20.0)),
-        track_info,
+        container(track_info).center_y(Length::Fill),
     ]
     .spacing(10)
     .padding(15)
