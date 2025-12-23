@@ -69,16 +69,16 @@ impl Pane {
     pub fn set_content(&mut self, content: PaneContent) {
         self.content = content;
     }
-    pub fn view(
+    pub fn view<'a>(
         &self,
         pane: pane_grid::Pane,
         total_panes: usize,
         edit_mode: bool,
-        player: &Player,
+        player: &'a Player,
         volume: f32,
         hovered_track: &Option<blake3::Hash>,
         seeking_position: Option<f32>,
-    ) -> pane_grid::Content<'_, Message> {
+    ) -> pane_grid::Content<'a, Message> {
         if edit_mode {
             let title = row![
                 pick_list(&PaneContent::ALL[..], Some(self.content), move |content| {
@@ -175,18 +175,18 @@ impl Pane {
         }
     }
 
-    fn render_content(
+    fn render_content<'a>(
         &self,
-        player: &Player,
+        player: &'a Player,
         volume: f32,
         hovered_track: &Option<blake3::Hash>,
         seeking_position: Option<f32>,
-    ) -> Element<'_, Message> {
+    ) -> Element<'a, Message> {
         let content = match self.content {
             PaneContent::Controls => {
                 components::controls::view(player, volume, seeking_position).map(Message::Controls)
             }
-            PaneContent::Queue => components::queue::view(player),
+            PaneContent::Queue => components::queue::view(player, hovered_track),
             PaneContent::Library => components::library::view(player, hovered_track),
             PaneContent::Artwork => components::artwork::view(player),
             PaneContent::Timeline => components::timeline::view(),

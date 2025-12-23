@@ -1,5 +1,6 @@
+use blake3::Hash;
 use iced::font::Weight;
-use iced::widget::{column, container, scrollable, text};
+use iced::widget::{column, container, horizontal_rule, mouse_area, scrollable, text};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
@@ -7,43 +8,57 @@ use crate::app::Message;
 
 const MAX_DISPLAY: usize = 100;
 
-pub fn view<'a>(player: &Player) -> Element<'a, Message> {
+pub fn view<'a>(player: &'a Player, hovered_track: &Option<Hash>) -> Element<'a, Message> {
     let queue = player.queue();
     let library = player.library();
     let current_hash = queue.current_id();
 
-    let mut track_list = column![].spacing(8);
+    let mut track_list = column![].spacing(0);
 
     if let Some(current_id) = current_hash {
         if let Some(track) = library.track_from_id(current_id) {
-            track_list = track_list.push(
-                container(
-                    column![
-                        text(track.metadata.title_or_default())
-                            .size(15)
-                            .font(Font {
-                                weight: Weight::Bold,
-                                ..Default::default()
-                            })
-                            .style(|theme: &Theme| text::Style {
-                                color: Some(theme.extended_palette().primary.weak.text),
-                            }),
-                        text(track.metadata.artist_or_default())
-                            .size(13)
-                            .style(|theme: &Theme| text::Style {
-                                color: Some(theme.extended_palette().primary.weak.text),
-                            }),
-                    ]
-                    .spacing(2),
-                )
-                .padding(12)
-                .width(Length::Fill)
-                .style(|theme: &Theme| container::Style {
-                    text_color: Some(theme.extended_palette().primary.weak.text),
-                    background: Some(theme.extended_palette().primary.weak.color.into()),
+            let is_hovered = hovered_track.as_ref() == Some(&current_id);
+
+            let track_inner = container(
+                column![
+                    text(track.metadata.title_or_default())
+                        .size(15)
+                        .font(Font {
+                            weight: Weight::Bold,
+                            ..Default::default()
+                        })
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.extended_palette().background.base.text),
+                        }),
+                    text(track.metadata.artist_or_default())
+                        .size(13)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.extended_palette().background.base.text),
+                        }),
+                ]
+                .spacing(2),
+            )
+            .padding(12)
+            .width(Length::Fill)
+            .style(move |theme: &Theme| {
+                let palette = theme.extended_palette();
+                container::Style {
+                    text_color: Some(palette.background.base.text),
+                    background: if is_hovered {
+                        Some(palette.primary.weak.color.into())
+                    } else {
+                        Some(palette.background.base.color.into())
+                    },
                     ..Default::default()
-                }),
-            );
+                }
+            });
+
+            let track_content = mouse_area(track_inner)
+                .on_move(move |_| Message::TrackHovered(current_id))
+                .on_exit(Message::TrackUnhovered);
+
+            track_list = track_list.push(track_content);
+            track_list = track_list.push(container(horizontal_rule(1)).padding([4, 0]));
         }
     }
 
@@ -74,33 +89,47 @@ pub fn view<'a>(player: &Player) -> Element<'a, Message> {
         }
 
         if let Some(track) = library.track_from_id(*track_id) {
-            track_list = track_list.push(
-                container(
-                    column![
-                        text(track.metadata.title_or_default())
-                            .size(15)
-                            .font(Font {
-                                weight: Weight::Bold,
-                                ..Default::default()
-                            })
-                            .style(|theme: &Theme| text::Style {
-                                color: Some(theme.extended_palette().background.base.text),
-                            }),
-                        text(track.metadata.artist_or_default())
-                            .size(13)
-                            .style(|theme: &Theme| text::Style {
-                                color: Some(theme.extended_palette().background.base.text),
-                            }),
-                    ]
-                    .spacing(2),
-                )
-                .padding(12)
-                .width(Length::Fill)
-                .style(|theme: &Theme| container::Style {
-                    text_color: Some(theme.extended_palette().background.base.text),
+            let is_hovered = hovered_track.as_ref() == Some(track_id);
+
+            let track_inner = container(
+                column![
+                    text(track.metadata.title_or_default())
+                        .size(15)
+                        .font(Font {
+                            weight: Weight::Bold,
+                            ..Default::default()
+                        })
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.extended_palette().background.base.text),
+                        }),
+                    text(track.metadata.artist_or_default())
+                        .size(13)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.extended_palette().background.base.text),
+                        }),
+                ]
+                .spacing(2),
+            )
+            .padding(12)
+            .width(Length::Fill)
+            .style(move |theme: &Theme| {
+                let palette = theme.extended_palette();
+                container::Style {
+                    text_color: Some(palette.background.base.text),
+                    background: if is_hovered {
+                        Some(palette.primary.weak.color.into())
+                    } else {
+                        Some(palette.background.base.color.into())
+                    },
                     ..Default::default()
-                }),
-            );
+                }
+            });
+
+            let track_content = mouse_area(track_inner)
+                .on_move(move |_| Message::TrackHovered(*track_id))
+                .on_exit(Message::TrackUnhovered);
+
+            track_list = track_list.push(track_content);
         }
     }
 
