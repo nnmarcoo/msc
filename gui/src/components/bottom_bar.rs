@@ -1,6 +1,6 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::svg::Handle;
-use iced::widget::{container, horizontal_space, row, svg, text};
+use iced::widget::{container, horizontal_space, row, svg, text, tooltip};
 use iced::{Background, Element, Length, Theme};
 
 use crate::widgets::canvas_button::canvas_button;
@@ -92,18 +92,34 @@ pub fn view(
                 )
                 .height(20)
                 .on_press(Message::ClearQueue),
-                canvas_button(svg(Handle::from_memory(include_bytes!(
-                    "../../../assets/icons/shuffle.svg"
-                ))))
-                .width(20)
-                .height(20)
-                .on_press(Message::ShuffleQueue),
-                canvas_button(svg(Handle::from_memory(include_bytes!(
-                    "../../../assets/icons/gear.svg"
-                ))))
-                .width(20)
-                .height(20)
-                .on_press(Message::ToggleEditMode),
+                tooltip(
+                    canvas_button(svg(Handle::from_memory(include_bytes!(
+                        "../../../assets/icons/shuffle.svg"
+                    ))))
+                    .width(20)
+                    .height(20)
+                    .on_press(Message::ShuffleQueue),
+                    container(text("Shuffle queue").size(12))
+                        .padding(6)
+                        .style(container::rounded_box),
+                    tooltip::Position::Top,
+                )
+                .gap(8)
+                .snap_within_viewport(true),
+                tooltip(
+                    canvas_button(svg(Handle::from_memory(include_bytes!(
+                        "../../../assets/icons/gear.svg"
+                    ))))
+                    .width(20)
+                    .height(20)
+                    .on_press(Message::ToggleEditMode),
+                    container(text("Edit layout").size(12))
+                        .padding(6)
+                        .style(container::rounded_box),
+                    tooltip::Position::Top,
+                )
+                .gap(8)
+                .snap_within_viewport(true),
             ]
             .spacing(5),
         )
