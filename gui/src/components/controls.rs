@@ -147,37 +147,41 @@ pub fn view<'a>(
             .on_release(Message::SeekReleased)
             .width(Length::Fill);
 
-        column![
-            row![
-                text(truncated_title)
-                    .size(14)
-                    .font(Font {
-                        weight: Weight::Bold,
-                        ..Default::default()
-                    })
-                    .style(|theme: &Theme| {
+        container(
+            column![
+                row![
+                    text(truncated_title)
+                        .size(14)
+                        .font(Font {
+                            weight: Weight::Bold,
+                            ..Default::default()
+                        })
+                        .style(|theme: &Theme| {
+                            text::Style {
+                                color: Some(theme.extended_palette().background.base.text),
+                            }
+                        }),
+                    text(" ").size(14),
+                    text(truncated_artist).size(14).style(|theme: &Theme| {
                         text::Style {
                             color: Some(theme.extended_palette().background.base.text),
                         }
                     }),
-                text(" ").size(14),
-                text(truncated_artist).size(14).style(|theme: &Theme| {
-                    text::Style {
-                        color: Some(theme.extended_palette().background.base.text),
-                    }
-                }),
-                container(text(time_text.clone()).size(14).style(|theme: &Theme| {
-                    text::Style {
-                        color: Some(theme.extended_palette().background.base.text),
-                    }
-                }))
-                .width(Length::Fill)
-                .align_right(Length::Fill),
-            ],
-            timeline_slider,
-        ]
-        .spacing(0)
-        .width(Length::Fill)
+                    container(text(time_text.clone()).size(14).style(|theme: &Theme| {
+                        text::Style {
+                            color: Some(theme.extended_palette().background.base.text),
+                        }
+                    }))
+                    .width(Length::Fill)
+                    .align_right(Length::Fill),
+                ]
+                .align_y(Vertical::Center),
+                timeline_slider,
+            ]
+            .spacing(0)
+            .width(Length::Fill),
+        )
+        .center_y(Length::Fill)
         .into()
     });
 
@@ -189,7 +193,7 @@ pub fn view<'a>(
         vol_button,
         volume_slider,
         container(text("")).width(Length::Fixed(20.0)),
-        container(track_info).center_y(Length::Fill),
+        track_info,
     ]
     .spacing(10)
     .padding(15)

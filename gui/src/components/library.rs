@@ -129,6 +129,7 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Me
             }
         });
 
+        // the on_exit here makes it so if you scroll up, it won't highlight
         let track_content = mouse_area(track_inner)
             .on_move(move |_| Message::TrackHovered(track_id))
             .on_exit(Message::TrackUnhovered);
