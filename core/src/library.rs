@@ -13,7 +13,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use crate::{ArtCache, track::Track};
 
 pub struct Library {
-    pub tracks: Option<DashMap<Hash, Track>>,
+    pub tracks: Option<DashMap<Hash, Arc<Track>>>,
     pub art: Arc<ArtCache>,
     root: Option<PathBuf>,
 }
@@ -43,7 +43,7 @@ impl Library {
         }
     }
 
-    fn collect_into(dir: &Path, map: &DashMap<Hash, Track>) {
+    fn collect_into(dir: &Path, map: &DashMap<Hash, Arc<Track>>) {
         if let Ok(entries) = read_dir(dir) {
             entries.par_bridge().for_each(|res| {
                 if let Ok(entry) = res {
@@ -53,7 +53,7 @@ impl Library {
                             let ext = ext.to_lowercase();
                             if ["mp3", "flac", "wav", "ogg"].contains(&ext.as_str()) {
                                 if let Ok(track) = Track::from_path(&path) {
-                                    map.insert(track.id, track);
+                                    map.insert(track.id, Arc::new(track));
                                 }
                             }
                         }
@@ -65,9 +65,9 @@ impl Library {
         }
     }
 
-    pub fn track_from_id(&self, id: Hash) -> Option<Track> {
+    pub fn track_from_id(&self, id: Hash) -> Option<Arc<Track>> {
         let tracks = self.tracks.as_ref()?;
-        tracks.get(&id).map(|track_ref| track_ref.clone())
+        tracks.get(&id).map(|track_ref| Arc::clone(&track_ref))
     }
 
     pub fn is_loaded(&self) -> bool {

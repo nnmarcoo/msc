@@ -82,9 +82,9 @@ impl Player {
     pub fn queue_library(&mut self) {
         if let Some(tracks) = &self.library.tracks {
             // all to sort queue, idk if this is nice
-            let mut track_pairs: Vec<(Hash, Track)> = tracks
+            let mut track_pairs: Vec<(Hash, Arc<Track>)> = tracks
                 .iter()
-                .map(|entry| (*entry.key(), entry.value().clone()))
+                .map(|entry| (*entry.key(), Arc::clone(&entry.value())))
                 .collect();
 
             track_pairs.sort_by(|a, b| {
@@ -154,7 +154,7 @@ impl Player {
         self.backend.position()
     }
 
-    pub fn clone_current_track(&self) -> Option<Track> {
+    pub fn clone_current_track(&self) -> Option<Arc<Track>> {
         self.library.track_from_id(self.queue.current_id()?)
     }
 
