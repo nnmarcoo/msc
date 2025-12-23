@@ -78,10 +78,19 @@ struct AudioAnalyzer {
     pending_peak_right: f32,
     pending_rms_left: f32,
     pending_rms_right: f32,
+    // Pre-computed Hann window coefficients
+    hann_window: Vec<f32>,
 }
 
 impl AudioAnalyzer {
     fn new(shared_data: Arc<AtomicCell<VisData>>) -> Self {
+        // Pre-compute Hann window coefficients once
+        let hann_window: Vec<f32> = (0..FFT_SIZE)
+            .map(|i| {
+                0.5 * (1.0 - ((2.0 * std::f32::consts::PI * i as f32) / (FFT_SIZE as f32 - 1.0)).cos())
+            })
+            .collect();
+
         Self {
             shared_data,
             buffer_left: Vec::with_capacity(FFT_SIZE),
@@ -93,6 +102,7 @@ impl AudioAnalyzer {
             pending_peak_right: 0.0,
             pending_rms_left: 0.0,
             pending_rms_right: 0.0,
+            hann_window,
         }
     }
 
@@ -103,17 +113,11 @@ impl AudioAnalyzer {
 
         let fft = self.fft_planner.plan_fft_forward(FFT_SIZE);
 
-        // Apply Hann window to reduce spectral leakage
+        // Apply pre-computed Hann window to reduce spectral leakage
         let mut windowed: Vec<Complex<f32>> = self.buffer_left[..FFT_SIZE]
             .iter()
-            .enumerate()
-            .map(|(i, &sample)| {
-                let window = 0.5
-                    * (1.0
-                        - ((2.0 * std::f32::consts::PI * i as f32) / (FFT_SIZE as f32 - 1.0))
-                            .cos());
-                Complex::new(sample * window, 0.0)
-            })
+            .zip(&self.hann_window)
+            .map(|(&sample, &window)| Complex::new(sample * window, 0.0))
             .collect();
 
         fft.process(&mut windowed);
