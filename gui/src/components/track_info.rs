@@ -82,18 +82,10 @@ pub fn view(player: &Player) -> Element<'static, crate::app::Message> {
             .center_y(Length::Fill)
             .into()
     } else {
-        container(
-            text("No track playing")
-                .size(14)
-                .style(|theme: &Theme| text::Style {
-                    color: Some(theme.extended_palette().background.weak.text),
-                }),
-        )
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill)
-        .into()
+        container(text(""))
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
 }
 
