@@ -92,11 +92,10 @@ pub fn view(
                 )
                 .height(20)
                 .on_press(Message::ClearQueue),
-                canvas_button(
-                    text("shuffle")
-                        .align_x(Horizontal::Center)
-                        .align_y(Vertical::Center)
-                )
+                canvas_button(svg(Handle::from_memory(include_bytes!(
+                    "../../../assets/icons/shuffle.svg"
+                ))))
+                .width(20)
                 .height(20)
                 .on_press(Message::ShuffleQueue),
                 canvas_button(svg(Handle::from_memory(include_bytes!(
