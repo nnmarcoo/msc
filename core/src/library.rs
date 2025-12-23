@@ -34,16 +34,16 @@ impl Library {
 
     pub fn reload(&mut self) -> Result<(), LibraryError> {
         if let Some(root) = &self.root {
-            self.tracks = Some(Library::collect(&root));
+            let map = DashMap::new();
+            Library::collect_into(&root, &map);
+            self.tracks = Some(map);
             Ok(())
         } else {
             Err(LibraryError::RootNotSet)
         }
     }
 
-    pub fn collect(dir: &Path) -> DashMap<Hash, Track> {
-        let map = DashMap::new();
-
+    fn collect_into(dir: &Path, map: &DashMap<Hash, Track>) {
         if let Ok(entries) = read_dir(dir) {
             entries.par_bridge().for_each(|res| {
                 if let Ok(entry) = res {
@@ -58,15 +58,11 @@ impl Library {
                             }
                         }
                     } else if path.is_dir() {
-                        let sub_map = Library::collect(&path);
-                        for (hash, track) in sub_map {
-                            map.insert(hash, track);
-                        }
+                        Library::collect_into(&path, map);
                     }
                 }
             });
         }
-        map
     }
 
     pub fn track_from_id(&self, id: Hash) -> Option<Track> {
