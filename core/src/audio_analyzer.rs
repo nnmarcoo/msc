@@ -87,7 +87,8 @@ impl AudioAnalyzer {
         // Pre-compute Hann window coefficients once
         let hann_window: Vec<f32> = (0..FFT_SIZE)
             .map(|i| {
-                0.5 * (1.0 - ((2.0 * std::f32::consts::PI * i as f32) / (FFT_SIZE as f32 - 1.0)).cos())
+                0.5 * (1.0
+                    - ((2.0 * std::f32::consts::PI * i as f32) / (FFT_SIZE as f32 - 1.0)).cos())
             })
             .collect();
 

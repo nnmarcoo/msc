@@ -29,6 +29,16 @@ impl Queue {
         }
     }
 
+    pub fn add_many(&mut self, track_ids: impl Iterator<Item = Hash>) {
+        if self.current.is_none() {
+            let mut ids = track_ids;
+            self.current = ids.next();
+            self.upcoming.extend(ids);
+        } else {
+            self.upcoming.extend(track_ids);
+        }
+    }
+
     pub fn next(&mut self) -> Option<Hash> {
         if let Some(current) = self.current.take() {
             self.history.push_back(current);

@@ -81,9 +81,30 @@ impl Player {
 
     pub fn queue_library(&mut self) {
         if let Some(tracks) = &self.library.tracks {
-            for entry in tracks.iter() {
-                self.queue.add(*entry.key());
-            }
+            // all to sort queue, idk if this is nice
+            let mut track_pairs: Vec<(Hash, Track)> = tracks
+                .iter()
+                .map(|entry| (*entry.key(), entry.value().clone()))
+                .collect();
+
+            track_pairs.sort_by(|a, b| {
+                a.1.metadata
+                    .artist_or_default()
+                    .cmp(&b.1.metadata.artist_or_default())
+                    .then_with(|| {
+                        a.1.metadata
+                            .album_or_default()
+                            .cmp(&b.1.metadata.album_or_default())
+                    })
+                    .then_with(|| {
+                        a.1.metadata
+                            .title_or_default()
+                            .cmp(&b.1.metadata.title_or_default())
+                    })
+            });
+
+            self.queue
+                .add_many(track_pairs.into_iter().map(|(hash, _)| hash));
         }
     }
 
