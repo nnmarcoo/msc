@@ -1,8 +1,8 @@
+use crossbeam::atomic::AtomicCell;
 use kira::effect::{Effect, EffectBuilder};
 use kira::{Frame, info::Info};
 use rustfft::{FftPlanner, num_complex::Complex};
 use std::sync::Arc;
-use crossbeam::atomic::AtomicCell;
 
 // all ai
 

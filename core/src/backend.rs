@@ -1,10 +1,5 @@
-use std::{
-    error::Error,
-    fmt::Display,
-    path::Path,
-    sync::Arc,
-};
 use crossbeam::atomic::AtomicCell;
+use std::{error::Error, fmt::Display, path::Path, sync::Arc};
 
 use kira::{
     AudioManager, AudioManagerSettings, DefaultBackend, PlaySoundError, Tween,
