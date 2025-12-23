@@ -16,6 +16,10 @@ pub struct Metadata {
     pub album: Option<String>,
     pub genre: Option<String>,
     pub duration: f32,
+    pub bit_rate: Option<u32>,
+    pub sample_rate: Option<u32>,
+    pub bit_depth: Option<u8>,
+    pub channels: Option<u8>,
 }
 
 impl Metadata {
@@ -23,6 +27,10 @@ impl Metadata {
         let file = Probe::open(path)?.read()?;
         let props = file.properties();
         let duration = props.duration().as_secs_f32();
+        let bit_rate = props.audio_bitrate();
+        let sample_rate = props.sample_rate();
+        let bit_depth = props.bit_depth();
+        let channels = props.channels();
 
         let (title, artist, album, genre, art_id) =
             if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
@@ -46,6 +54,10 @@ impl Metadata {
             genre,
             duration,
             art_id,
+            bit_rate,
+            sample_rate,
+            bit_depth,
+            channels,
         })
     }
 

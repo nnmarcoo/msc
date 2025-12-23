@@ -5,6 +5,7 @@ use iced::{
 
 mod app;
 mod components;
+mod formatters;
 mod media_controls;
 mod pane;
 mod widgets;
@@ -20,6 +21,6 @@ pub fn main() -> iced::Result {
         })
         .centered()
         .subscription(App::subscription)
-        .theme(|_| Theme::CatppuccinFrappe)
+        .theme(|_| Theme::KanagawaDragon)
         .run()
 }

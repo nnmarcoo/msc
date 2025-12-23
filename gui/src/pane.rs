@@ -18,11 +18,12 @@ pub enum PaneContent {
     Timeline,
     Spectrum,
     VUMeters,
+    TrackInfo,
     Empty,
 }
 
 impl PaneContent {
-    pub const ALL: [PaneContent; 8] = [
+    pub const ALL: [PaneContent; 9] = [
         PaneContent::Controls,
         PaneContent::Queue,
         PaneContent::Library,
@@ -30,6 +31,7 @@ impl PaneContent {
         PaneContent::Timeline,
         PaneContent::Spectrum,
         PaneContent::VUMeters,
+        PaneContent::TrackInfo,
         PaneContent::Empty,
     ];
 
@@ -42,6 +44,7 @@ impl PaneContent {
             PaneContent::Timeline => "Timeline",
             PaneContent::Spectrum => "Spectrum",
             PaneContent::VUMeters => "VU Meters",
+            PaneContent::TrackInfo => "Track Info",
             PaneContent::Empty => "Empty",
         }
     }
@@ -189,6 +192,7 @@ impl Pane {
             PaneContent::Timeline => components::timeline::view(),
             PaneContent::Spectrum => components::spectrum::view(player),
             PaneContent::VUMeters => components::vu_meters::view(player),
+            PaneContent::TrackInfo => components::track_info::view(player),
             PaneContent::Empty => components::empty::view(),
         };
 

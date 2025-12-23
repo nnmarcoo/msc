@@ -5,6 +5,7 @@ use iced::widget::{column, container, responsive, row, svg, text, tooltip};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
+use crate::formatters;
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::hover_slider::hover_slider;
 
@@ -129,8 +130,8 @@ pub fn view<'a>(
 
     let time_text = format!(
         "{} / {}",
-        format_seconds(position),
-        format_seconds(duration)
+        formatters::format_duration(position),
+        formatters::format_duration(duration)
     );
 
     let track_info = responsive(move |size| {
@@ -199,13 +200,6 @@ pub fn view<'a>(
         .height(Length::Fixed(80.0))
         .center_y(Length::Fill)
         .into()
-}
-
-fn format_seconds(seconds: f32) -> String {
-    let total_secs = seconds as u32;
-    let mins = total_secs / 60;
-    let secs = total_secs % 60;
-    format!("{:02}:{:02}", mins, secs)
 }
 
 fn truncate_text(text: &str, max_chars: usize) -> String {

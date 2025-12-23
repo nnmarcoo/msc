@@ -7,4 +7,5 @@ pub mod library;
 pub mod queue;
 pub mod spectrum;
 pub mod timeline;
+pub mod track_info;
 pub mod vu_meters;
