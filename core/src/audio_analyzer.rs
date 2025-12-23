@@ -1,14 +1,15 @@
 use kira::effect::{Effect, EffectBuilder};
 use kira::{Frame, info::Info};
 use rustfft::{FftPlanner, num_complex::Complex};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use crossbeam::atomic::AtomicCell;
 
 // all ai
 
 const FFT_SIZE: usize = 2048;
 const NUM_BINS: usize = 16;
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug)]
 pub struct VisData {
     bins_smooth: [f32; NUM_BINS],
     bins_raw: [f32; NUM_BINS],
@@ -42,12 +43,12 @@ impl Default for VisData {
 }
 
 pub struct AudioAnalyzerBuilder {
-    shared_data: Arc<Mutex<VisData>>,
+    shared_data: Arc<AtomicCell<VisData>>,
 }
 
 impl AudioAnalyzerBuilder {
-    pub fn new() -> (Self, Arc<Mutex<VisData>>) {
-        let shared_data = Arc::new(Mutex::new(VisData::default()));
+    pub fn new() -> (Self, Arc<AtomicCell<VisData>>) {
+        let shared_data = Arc::new(AtomicCell::new(VisData::default()));
         (
             Self {
                 shared_data: shared_data.clone(),
@@ -66,16 +67,21 @@ impl EffectBuilder for AudioAnalyzerBuilder {
 }
 
 struct AudioAnalyzer {
-    shared_data: Arc<Mutex<VisData>>,
+    shared_data: Arc<AtomicCell<VisData>>,
     buffer_left: Vec<f32>,
     buffer_right: Vec<f32>,
     fft_planner: FftPlanner<f32>,
     sample_count: usize,
     smoothed_bins: [f32; NUM_BINS],
+    // Temporary storage to avoid extra load/store
+    pending_peak_left: f32,
+    pending_peak_right: f32,
+    pending_rms_left: f32,
+    pending_rms_right: f32,
 }
 
 impl AudioAnalyzer {
-    fn new(shared_data: Arc<Mutex<VisData>>) -> Self {
+    fn new(shared_data: Arc<AtomicCell<VisData>>) -> Self {
         Self {
             shared_data,
             buffer_left: Vec::with_capacity(FFT_SIZE),
@@ -83,6 +89,10 @@ impl AudioAnalyzer {
             fft_planner: FftPlanner::new(),
             sample_count: 0,
             smoothed_bins: [0.0; NUM_BINS],
+            pending_peak_left: 0.0,
+            pending_peak_right: 0.0,
+            pending_rms_left: 0.0,
+            pending_rms_right: 0.0,
         }
     }
 
@@ -168,11 +178,16 @@ impl AudioAnalyzer {
             };
         }
 
-        // Update shared data with both raw and smoothed values
-        if let Ok(mut data) = self.shared_data.lock() {
-            data.bins_raw = frequency_bins;
-            data.bins_smooth = self.smoothed_bins;
-        }
+        // Update shared data with bins AND pending peak/RMS values in one atomic store
+        let data = VisData {
+            bins_raw: frequency_bins,
+            bins_smooth: self.smoothed_bins,
+            peak_left: self.pending_peak_left,
+            peak_right: self.pending_peak_right,
+            rms_left: self.pending_rms_left,
+            rms_right: self.pending_rms_right,
+        };
+        self.shared_data.store(data);
 
         // Clear buffers for next batch
         self.buffer_left.clear();
@@ -207,17 +222,23 @@ impl Effect for AudioAnalyzer {
         let rms_left = (sum_squares_left / num_samples).sqrt();
         let rms_right = (sum_squares_right / num_samples).sqrt();
 
-        // Update peak and RMS values
-        if let Ok(mut data) = self.shared_data.lock() {
+        // Store peak and RMS values temporarily - will be written with FFT data
+        self.pending_peak_left = peak_left;
+        self.pending_peak_right = peak_right;
+        self.pending_rms_left = rms_left;
+        self.pending_rms_right = rms_right;
+
+        // Perform FFT analysis when we have enough samples (this will store everything)
+        if self.buffer_left.len() >= FFT_SIZE {
+            self.analyze_spectrum();
+        } else {
+            // If we're not doing FFT this frame, still update peak/RMS
+            let mut data = self.shared_data.load();
             data.peak_left = peak_left;
             data.peak_right = peak_right;
             data.rms_left = rms_left;
             data.rms_right = rms_right;
-        }
-
-        // Perform FFT analysis when we have enough samples
-        if self.buffer_left.len() >= FFT_SIZE {
-            self.analyze_spectrum();
+            self.shared_data.store(data);
         }
     }
 }

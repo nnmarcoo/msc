@@ -2,8 +2,9 @@ use std::{
     error::Error,
     fmt::Display,
     path::Path,
-    sync::{Arc, Mutex},
+    sync::Arc,
 };
+use crossbeam::atomic::AtomicCell;
 
 use kira::{
     AudioManager, AudioManagerSettings, DefaultBackend, PlaySoundError, Tween,
@@ -21,7 +22,7 @@ pub struct Backend {
     manager: AudioManager,
     sound: Option<StreamingSoundHandle<FromFileError>>,
     volume: f32,
-    visualization_data: Arc<Mutex<VisData>>,
+    visualization_data: Arc<AtomicCell<VisData>>,
 }
 
 impl Backend {
@@ -133,10 +134,7 @@ impl Backend {
     }
 
     pub fn vis_data(&self) -> VisData {
-        self.visualization_data
-            .lock()
-            .unwrap_or_else(|_| panic!("Failed to lock visualization data"))
-            .clone()
+        self.visualization_data.load()
     }
 }
 
