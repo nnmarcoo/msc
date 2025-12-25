@@ -5,7 +5,7 @@ use iced::widget::{column, container, responsive, row, svg, text, tooltip};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
-use crate::formatters::{self, format_duration};
+use crate::formatters::format_duration;
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::hover_slider::hover_slider;
 
