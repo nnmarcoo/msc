@@ -7,7 +7,6 @@ use crate::widgets::canvas_button::canvas_button;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    LoadLibrary,
     QueueLibrary,
     ClearQueue,
     ShuffleQueue,
@@ -71,13 +70,6 @@ pub fn view(
             row![
                 preset_buttons,
                 horizontal_space(),
-                canvas_button(
-                    text("loadlib")
-                        .align_x(Horizontal::Center)
-                        .align_y(Vertical::Center)
-                )
-                .height(20)
-                .on_press(Message::LoadLibrary),
                 canvas_button(
                     text("quelib")
                         .align_x(Horizontal::Center)
