@@ -9,6 +9,7 @@ use crate::formatters::format_duration;
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::hover_slider::hover_slider;
 
+// these should prob just exist in the main set of messages
 #[derive(Debug, Clone)]
 pub enum Message {
     PlayPause,
