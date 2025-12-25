@@ -53,9 +53,8 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<Hash>) -> Element<'a,
                 }
             });
 
-            let track_content = mouse_area(track_inner)
-                .on_move(move |_| Message::TrackHovered(current_id))
-                .on_exit(Message::TrackUnhovered);
+            let track_content =
+                mouse_area(track_inner).on_move(move |_| Message::TrackHovered(current_id));
 
             track_list = track_list.push(track_content);
             track_list = track_list.push(container(horizontal_rule(1)).padding([4, 0]));
@@ -125,18 +124,16 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<Hash>) -> Element<'a,
                 }
             });
 
-            let track_content = mouse_area(track_inner)
-                .on_move(move |_| Message::TrackHovered(*track_id))
-                .on_exit(Message::TrackUnhovered);
+            let track_content =
+                mouse_area(track_inner).on_move(move |_| Message::TrackHovered(*track_id));
 
             track_list = track_list.push(track_content);
         }
     }
 
-    scrollable(track_list)
-        .height(Length::Fill)
-        .direction(scrollable::Direction::Vertical(
-            scrollable::Scrollbar::new().width(0).scroller_width(0),
-        ))
-        .into()
+    mouse_area(scrollable(track_list).height(Length::Fill).direction(
+        scrollable::Direction::Vertical(scrollable::Scrollbar::new().width(0).scroller_width(0)),
+    ))
+    .on_exit(Message::TrackUnhovered)
+    .into()
 }
