@@ -40,10 +40,12 @@ impl Queue {
     }
 
     pub fn next(&mut self) -> Option<Hash> {
-        if let Some(current) = self.current.take() {
-            self.history.push_back(current);
+        if let Some(next) = self.upcoming.pop_front() {
+            if let Some(current) = self.current.take() {
+                self.history.push_back(current);
+            }
+            self.current = Some(next);
         }
-        self.current = self.upcoming.pop_front();
         self.current
     }
 
