@@ -5,7 +5,7 @@ use iced::widget::{column, container, responsive, row, svg, text, tooltip};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
-use crate::formatters;
+use crate::formatters::{self, format_duration};
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::hover_slider::hover_slider;
 
@@ -130,8 +130,8 @@ pub fn view<'a>(
 
     let time_text = format!(
         "{} / {}",
-        formatters::format_duration(position),
-        formatters::format_duration(duration)
+        format_duration(position),
+        format_duration(duration)
     );
 
     let track_info = responsive(move |size| {
