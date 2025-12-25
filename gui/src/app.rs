@@ -1,5 +1,5 @@
 use blake3::Hash;
-use iced::keyboard::{self, Key};
+use iced::keyboard::{self, Key, key};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container};
@@ -337,6 +337,13 @@ impl App {
                 }) = event
                 {
                     match key {
+                        Key::Named(key::Named::Space) => {
+                            if self.player.is_playing() {
+                                self.player.pause();
+                            } else {
+                                let _ = self.player.play();
+                            }
+                        }
                         Key::Character(c) => {
                             if let Ok(num) = c.parse::<usize>() {
                                 if num >= 1 && num <= self.layout_presets.len() {
