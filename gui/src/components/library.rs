@@ -1,5 +1,6 @@
 use blake3::Hash;
-use iced::widget::{column, container, mouse_area, row, scrollable, text};
+use iced::alignment::Horizontal;
+use iced::widget::{button, column, container, mouse_area, row, scrollable, text};
 use iced::{Element, Length, Theme};
 use msc_core::Player;
 
@@ -37,18 +38,17 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Me
     if tracks.is_empty() {
         return container(
             column![
-                text("No Library set :(")
+                text("No library")
                     .size(18)
                     .style(|theme: &Theme| text::Style {
                         color: Some(theme.extended_palette().background.base.text),
                     }),
-                text("Load a library to see your music")
-                    .size(14)
-                    .style(|theme: &Theme| text::Style {
-                        color: Some(theme.extended_palette().background.base.text),
-                    }),
+                button(text("Set directory").size(14))
+                    .on_press(Message::SetLibrary)
+                    .padding(10),
             ]
-            .spacing(10),
+            .spacing(20)
+            .align_x(Horizontal::Center),
         )
         .padding(20)
         .width(Length::Fill)
@@ -129,10 +129,8 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Me
             }
         });
 
-        // the on_exit here makes it so if you scroll up, it won't highlight
-        let track_content = mouse_area(track_inner)
-            .on_move(move |_| Message::TrackHovered(track_id))
-            .on_exit(Message::TrackUnhovered);
+        let track_content =
+            mouse_area(track_inner).on_move(move |_| Message::TrackHovered(track_id));
 
         let track_row = track_context_menu(
             track_content,
@@ -145,16 +143,19 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Me
         track_list = track_list.push(track_row);
     }
 
-    column![
-        header,
-        scrollable(track_list)
-            .height(Length::Fill)
-            .direction(scrollable::Direction::Vertical(
-                scrollable::Scrollbar::new().width(0).scroller_width(0),
-            ))
-    ]
-    .width(Length::Fill)
-    .height(Length::Fill)
+    mouse_area(
+        column![
+            header,
+            scrollable(track_list)
+                .height(Length::Fill)
+                .direction(scrollable::Direction::Vertical(
+                    scrollable::Scrollbar::new().width(0).scroller_width(0),
+                ))
+        ]
+        .width(Length::Fill)
+        .height(Length::Fill),
+    )
+    .on_exit(Message::TrackUnhovered)
     .into()
 }
 

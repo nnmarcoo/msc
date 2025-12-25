@@ -37,6 +37,7 @@ pub enum Message {
     Resized(pane_grid::ResizeEvent),
     Controls(controls::Message),
     LibraryPathSelected(Option<PathBuf>),
+    SetLibrary,
     PaneContentChanged(pane_grid::Pane, PaneContent),
     BottomBar(bottom_bar::Message),
     PlayTrack(Hash),
@@ -208,6 +209,20 @@ impl App {
                     let _ = self.player.populate_library(&path);
                 }
             }
+            Message::SetLibrary => {
+                if self.player.reload_library().is_err() {
+                    return Task::perform(
+                        async {
+                            rfd::AsyncFileDialog::new()
+                                .set_title("Select Music Library Folder")
+                                .pick_folder()
+                                .await
+                                .map(|handle| handle.path().to_path_buf())
+                        },
+                        Message::LibraryPathSelected,
+                    );
+                }
+            }
             Message::Controls(msg) => {
                 use controls::Message as ControlsMessage;
                 match msg {
@@ -255,20 +270,6 @@ impl App {
             Message::BottomBar(msg) => {
                 use bottom_bar::Message as BottomBarMessage;
                 match msg {
-                    BottomBarMessage::LoadLibrary => {
-                        if self.player.reload_library().is_err() {
-                            return Task::perform(
-                                async {
-                                    rfd::AsyncFileDialog::new()
-                                        .set_title("Select Music Library Folder")
-                                        .pick_folder()
-                                        .await
-                                        .map(|handle| handle.path().to_path_buf())
-                                },
-                                Message::LibraryPathSelected,
-                            );
-                        }
-                    }
                     BottomBarMessage::QueueLibrary => {
                         self.player.queue_library();
                         let _ = self.player.play();
