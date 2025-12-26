@@ -14,6 +14,7 @@ pub enum PaneContent {
     Controls,
     Queue,
     Library,
+    Collections,
     Artwork,
     Timeline,
     Spectrum,
@@ -23,10 +24,11 @@ pub enum PaneContent {
 }
 
 impl PaneContent {
-    pub const ALL: [PaneContent; 9] = [
+    pub const ALL: [PaneContent; 10] = [
         PaneContent::Controls,
         PaneContent::Queue,
         PaneContent::Library,
+        PaneContent::Collections,
         PaneContent::Artwork,
         PaneContent::Timeline,
         PaneContent::Spectrum,
@@ -40,6 +42,7 @@ impl PaneContent {
             PaneContent::Controls => "Controls",
             PaneContent::Queue => "Queue",
             PaneContent::Library => "Library",
+            PaneContent::Collections => "Collections",
             PaneContent::Artwork => "Artwork",
             PaneContent::Timeline => "Timeline",
             PaneContent::Spectrum => "Spectrum",
@@ -188,6 +191,7 @@ impl Pane {
             }
             PaneContent::Queue => components::queue::view(player, hovered_track),
             PaneContent::Library => components::library::view(player, hovered_track),
+            PaneContent::Collections => components::collections::view(player, hovered_track),
             PaneContent::Artwork => components::artwork::view(player),
             PaneContent::Timeline => components::timeline::view(),
             PaneContent::Spectrum => components::spectrum::view(player),

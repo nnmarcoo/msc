@@ -10,10 +10,11 @@ use blake3::Hash;
 use dashmap::DashMap;
 use rayon::iter::{ParallelBridge, ParallelIterator};
 
-use crate::{ArtCache, track::Track};
+use crate::{ArtCache, collection::Collection, track::Track};
 
 pub struct Library {
     pub tracks: Option<DashMap<Hash, Arc<Track>>>,
+    pub collections: DashMap<Hash, Arc<Collection>>,
     pub art: Arc<ArtCache>,
     root: Option<PathBuf>,
 }
@@ -22,6 +23,7 @@ impl Library {
     pub fn new() -> Self {
         Library {
             tracks: None,
+            collections: DashMap::new(),
             art: Arc::new(ArtCache::new()),
             root: None,
         }
@@ -34,16 +36,48 @@ impl Library {
 
     pub fn reload(&mut self) -> Result<(), LibraryError> {
         if let Some(root) = &self.root {
-            let map = DashMap::new();
-            Library::collect_into(&root, &map);
-            self.tracks = Some(map);
+            let tracks_map = DashMap::new();
+
+            Library::collect_into(&root, &tracks_map);
+
+            let collections_map = DashMap::new();
+
+            for entry in tracks_map.iter() {
+                let (track_id, track) = entry.pair();
+                if let Some(art_id) = track.metadata.art_id {
+                    collections_map
+                        .entry(art_id)
+                        .and_modify(|collection: &mut Arc<Collection>| {
+                            Arc::make_mut(collection).add_track(*track_id);
+                        })
+                        .or_insert_with(|| {
+                            let album_name = track
+                                .metadata
+                                .album
+                                .clone()
+                                .unwrap_or_else(|| "-".to_string());
+                            let artist = track
+                                .metadata
+                                .artist
+                                .clone()
+                                .map(|a| a.split(';').next().unwrap_or(&a).trim().to_string());
+                            Arc::new(
+                                Collection::from_album(art_id, album_name, artist, vec![*track_id])
+                                    .unwrap(),
+                            )
+                        });
+                }
+            }
+
+            self.tracks = Some(tracks_map);
+            self.collections = collections_map;
             Ok(())
         } else {
             Err(LibraryError::RootNotSet)
         }
     }
 
-    fn collect_into(dir: &Path, map: &DashMap<Hash, Arc<Track>>) {
+    fn collect_into(dir: &Path, tracks_map: &DashMap<Hash, Arc<Track>>) {
         if let Ok(entries) = read_dir(dir) {
             entries.par_bridge().for_each(|res| {
                 if let Ok(entry) = res {
@@ -53,12 +87,12 @@ impl Library {
                             let ext = ext.to_lowercase();
                             if ["mp3", "flac", "wav", "ogg"].contains(&ext.as_str()) {
                                 if let Ok(track) = Track::from_path(&path) {
-                                    map.insert(track.id, Arc::new(track));
+                                    tracks_map.insert(track.id, Arc::new(track));
                                 }
                             }
                         }
                     } else if path.is_dir() {
-                        Library::collect_into(&path, map);
+                        Library::collect_into(&path, tracks_map);
                     }
                 }
             });
@@ -68,6 +102,12 @@ impl Library {
     pub fn track_from_id(&self, id: Hash) -> Option<Arc<Track>> {
         let tracks = self.tracks.as_ref()?;
         tracks.get(&id).map(|track_ref| Arc::clone(&track_ref))
+    }
+
+    pub fn collection_from_id(&self, id: Hash) -> Option<Arc<Collection>> {
+        self.collections
+            .get(&id)
+            .map(|collection_ref| Arc::clone(&collection_ref))
     }
 
     pub fn is_loaded(&self) -> bool {

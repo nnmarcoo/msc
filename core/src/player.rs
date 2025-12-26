@@ -79,6 +79,10 @@ impl Player {
         self.queue.add_next(track_id);
     }
 
+    pub fn queue_many(&mut self, track_ids: impl Iterator<Item = Hash>) {
+        self.queue.add_many(track_ids);
+    }
+
     pub fn queue_library(&mut self) {
         if let Some(tracks) = &self.library.tracks {
             // all to sort queue, idk if this is nice
