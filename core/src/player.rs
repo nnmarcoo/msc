@@ -84,40 +84,37 @@ impl Player {
     }
 
     pub fn queue_library(&mut self) {
-        if let Some(tracks) = &self.library.tracks {
-            // all to sort queue, idk if this is nice
-            let mut track_pairs: Vec<(Hash, Arc<Track>)> = tracks
-                .iter()
-                .map(|entry| (*entry.key(), Arc::clone(&entry.value())))
-                .collect();
+        let tracks = &self.library.tracks;
+        // all to sort queue, idk if this is nice
+        let mut track_pairs: Vec<(Hash, Arc<Track>)> = tracks
+            .iter()
+            .map(|entry| (*entry.key(), Arc::clone(&entry.value())))
+            .collect();
 
-            track_pairs.sort_by(|a, b| {
-                a.1.metadata
-                    .track_artist_or_default()
-                    .cmp(&b.1.metadata.track_artist_or_default())
-                    .then_with(|| {
-                        a.1.metadata
-                            .album_or_default()
-                            .cmp(&b.1.metadata.album_or_default())
-                    })
-                    .then_with(|| {
-                        a.1.metadata
-                            .title_or_default()
-                            .cmp(&b.1.metadata.title_or_default())
-                    })
-            });
+        track_pairs.sort_by(|a, b| {
+            a.1.metadata
+                .track_artist_or_default()
+                .cmp(&b.1.metadata.track_artist_or_default())
+                .then_with(|| {
+                    a.1.metadata
+                        .album_or_default()
+                        .cmp(&b.1.metadata.album_or_default())
+                })
+                .then_with(|| {
+                    a.1.metadata
+                        .title_or_default()
+                        .cmp(&b.1.metadata.title_or_default())
+                })
+        });
 
-            self.queue
-                .add_many(track_pairs.into_iter().map(|(hash, _)| hash));
-        }
+        self.queue
+            .add_many(track_pairs.into_iter().map(|(hash, _)| hash));
     }
 
     fn play_track(&mut self, track_id: Option<Hash>) -> Result<(), PlaybackError> {
         if let Some(track_id) = track_id {
-            if let Some(tracks) = &self.library.tracks {
-                if let Some(track) = tracks.get(&track_id) {
-                    self.backend.load_and_play(&track.path)?;
-                }
+            if let Some(track) = self.library.tracks.get(&track_id) {
+                self.backend.load_and_play(&track.path)?;
             }
         }
         Ok(())

@@ -10,30 +10,26 @@ use crate::components::context_menu::track_context_menu;
 pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Message> {
     let library = player.library();
 
-    let tracks = if let Some(track_map) = &library.tracks {
-        let mut tracks: Vec<_> = track_map
-            .iter()
-            .map(|entry| entry.value().clone())
-            .collect();
-        tracks.sort_by(|a, b| {
-            a.metadata
-                .track_artist_or_default()
-                .cmp(&b.metadata.track_artist_or_default())
-                .then_with(|| {
-                    a.metadata
-                        .album_or_default()
-                        .cmp(&b.metadata.album_or_default())
-                })
-                .then_with(|| {
-                    a.metadata
-                        .title_or_default()
-                        .cmp(&b.metadata.title_or_default())
-                })
-        });
-        tracks
-    } else {
-        Vec::new()
-    };
+    let mut tracks: Vec<_> = library
+        .tracks
+        .iter()
+        .map(|entry| entry.value().clone())
+        .collect();
+    tracks.sort_by(|a, b| {
+        a.metadata
+            .track_artist_or_default()
+            .cmp(&b.metadata.track_artist_or_default())
+            .then_with(|| {
+                a.metadata
+                    .album_or_default()
+                    .cmp(&b.metadata.album_or_default())
+            })
+            .then_with(|| {
+                a.metadata
+                    .title_or_default()
+                    .cmp(&b.metadata.title_or_default())
+            })
+    });
 
     if tracks.is_empty() {
         return container(

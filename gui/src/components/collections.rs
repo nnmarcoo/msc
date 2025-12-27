@@ -15,7 +15,7 @@ pub fn view<'a>(player: &Player, _hovered_track: &Option<Hash>) -> Element<'a, M
         .map(|entry| entry.value().clone())
         .collect();
 
-    collections.sort_by(|a, b| a.name().cmp(b.name()));
+    collections.sort_by(|a, b| a.name.cmp(&b.name));
 
     if collections.is_empty() {
         return container(
@@ -69,10 +69,10 @@ pub fn view<'a>(player: &Player, _hovered_track: &Option<Hash>) -> Element<'a, M
     let mut collection_list = column![].spacing(0);
 
     for collection in collections {
-        let collection_id = collection.id();
-        let collection_name = collection.name().to_string();
-        let artist_name = collection.artist().unwrap_or("-").to_string();
-        let track_count = collection.tracks().len();
+        let collection_id = collection.id;
+        let collection_name = collection.name.to_string();
+        let artist_name = collection.artist.as_deref().unwrap_or("-").to_string();
+        let track_count = collection.tracks.len();
 
         let collection_row = container(
             button(

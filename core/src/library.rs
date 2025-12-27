@@ -13,7 +13,7 @@ use rayon::iter::{ParallelBridge, ParallelIterator};
 use crate::{ArtCache, collection::Collection, track::Track};
 
 pub struct Library {
-    pub tracks: Option<DashMap<Hash, Arc<Track>>>,
+    pub tracks: DashMap<Hash, Arc<Track>>,
     pub collections: DashMap<Hash, Arc<Collection>>,
     pub art: Arc<ArtCache>,
     root: Option<PathBuf>,
@@ -22,7 +22,7 @@ pub struct Library {
 impl Library {
     pub fn new() -> Self {
         Library {
-            tracks: None,
+            tracks: DashMap::new(),
             collections: DashMap::new(),
             art: Arc::new(ArtCache::new()),
             root: None,
@@ -37,19 +37,18 @@ impl Library {
     pub fn reload(&mut self) -> Result<(), LibraryError> {
         if let Some(root) = &self.root {
             let tracks_map = DashMap::new();
-
             Library::collect_into(&root, &tracks_map);
 
-            let collections_map = DashMap::new();
+            // Build collections by grouping tracks by art_id
+            let collection_data: DashMap<Hash, (String, Option<String>, Vec<Hash>)> =
+                DashMap::new();
 
             for entry in tracks_map.iter() {
                 let (track_id, track) = entry.pair();
                 if let Some(art_id) = track.metadata.art_id {
-                    collections_map
+                    collection_data
                         .entry(art_id)
-                        .and_modify(|collection: &mut Arc<Collection>| {
-                            Arc::make_mut(collection).add_track(*track_id);
-                        })
+                        .and_modify(|(_, _, tracks)| tracks.push(*track_id))
                         .or_insert_with(|| {
                             let album_name = track.metadata.album_or_default();
                             let artist = track
@@ -57,20 +56,42 @@ impl Library {
                                 .track_artist
                                 .clone()
                                 .or_else(|| track.metadata.album_artist.clone());
-                            Arc::new(
-                                Collection::from_album(art_id, album_name, artist, vec![*track_id])
-                                    .unwrap(),
-                            )
+                            (album_name, artist, vec![*track_id])
                         });
                 }
             }
 
-            // Sort tracks in each collection by track number
-            for mut collection in collections_map.iter_mut() {
-                Arc::make_mut(collection.value_mut()).sort_tracks(&tracks_map);
+            // Create sorted collections
+            let collections_map = DashMap::new();
+            for entry in collection_data {
+                let (art_id, (name, artist, mut tracks)) = entry;
+
+                // Sort tracks by track number
+                tracks.sort_by(|a, b| {
+                    let track_a = tracks_map.get(a);
+                    let track_b = tracks_map.get(b);
+
+                    match (track_a, track_b) {
+                        (Some(ta), Some(tb)) => {
+                            let track_num_a = ta.metadata.track.unwrap_or(u32::MAX);
+                            let track_num_b = tb.metadata.track.unwrap_or(u32::MAX);
+                            track_num_a.cmp(&track_num_b)
+                        }
+                        _ => std::cmp::Ordering::Equal,
+                    }
+                });
+
+                let collection = Collection::new(
+                    art_id,
+                    name,
+                    artist,
+                    crate::collection::CollectionType::Album,
+                    tracks,
+                );
+                collections_map.insert(art_id, Arc::new(collection));
             }
 
-            self.tracks = Some(tracks_map);
+            self.tracks = tracks_map;
             self.collections = collections_map;
             Ok(())
         } else {
@@ -101,8 +122,7 @@ impl Library {
     }
 
     pub fn track_from_id(&self, id: Hash) -> Option<Arc<Track>> {
-        let tracks = self.tracks.as_ref()?;
-        tracks.get(&id).map(|track_ref| Arc::clone(&track_ref))
+        self.tracks.get(&id).map(|track_ref| Arc::clone(&track_ref))
     }
 
     pub fn collection_from_id(&self, id: Hash) -> Option<Arc<Collection>> {

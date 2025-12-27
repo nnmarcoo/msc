@@ -326,7 +326,7 @@ impl App {
             }
             Message::PlayCollection(collection_id) => {
                 if let Some(collection) = self.player.library().collection_from_id(collection_id) {
-                    self.player.queue_many(collection.tracks().iter().copied());
+                    self.player.queue_many(collection.tracks.iter().copied());
                 }
             }
             Message::QueueBack(track_id) => {
