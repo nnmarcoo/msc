@@ -12,9 +12,14 @@ use lofty::{
 pub struct Metadata {
     pub art_id: Option<Hash>,
     pub title: Option<String>,
-    pub artist: Option<String>,
+    pub track_artist: Option<String>,
     pub album: Option<String>,
+    pub album_artist: Option<String>,
     pub genre: Option<String>,
+    pub year: Option<u32>,
+    pub track: Option<u32>,
+    pub disc: Option<u32>,
+    pub comment: Option<String>,
     pub duration: f32,
     pub bit_rate: Option<u32>,
     pub sample_rate: Option<u32>,
@@ -32,7 +37,7 @@ impl Metadata {
         let bit_depth = props.bit_depth();
         let channels = props.channels();
 
-        let (title, artist, album, genre, art_id) =
+        let (title, track_artist, album, album_artist, genre, year, track, disc, comment, art_id) =
             if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
                 let art_hash = tag.pictures().first().map(|pic| hash(pic.data()));
 
@@ -40,18 +45,29 @@ impl Metadata {
                     tag.title().map(|s| s.to_string()),
                     tag.artist().map(|s| s.to_string()),
                     tag.album().map(|s| s.to_string()),
+                    tag.get_string(&lofty::tag::ItemKey::AlbumArtist)
+                        .map(|s| s.to_string()),
                     tag.genre().map(|s| s.to_string()),
+                    tag.year(),
+                    tag.track(),
+                    tag.disk(),
+                    tag.comment().map(|s| s.to_string()),
                     art_hash,
                 )
             } else {
-                (None, None, None, None, None)
+                (None, None, None, None, None, None, None, None, None, None)
             };
 
         Ok(Metadata {
             title,
-            artist,
+            track_artist,
             album,
+            album_artist,
             genre,
+            year,
+            track,
+            disc,
+            comment,
             duration,
             art_id,
             bit_rate,
@@ -65,8 +81,12 @@ impl Metadata {
         self.title.clone().unwrap_or_else(|| "-".to_string())
     }
 
-    pub fn artist_or_default(&self) -> String {
-        self.artist.clone().unwrap_or_else(|| "-".to_string())
+    pub fn album_artist_or_default(&self) -> String {
+        self.album_artist.clone().unwrap_or_else(|| "-".to_string())
+    }
+
+    pub fn track_artist_or_default(&self) -> String {
+        self.track_artist.clone().unwrap_or_else(|| "-".to_string())
     }
 
     pub fn album_or_default(&self) -> String {

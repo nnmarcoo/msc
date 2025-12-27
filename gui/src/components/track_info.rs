@@ -16,9 +16,9 @@ pub fn view(player: &Player) -> Element<'static, crate::app::Message> {
             ..Default::default()
         });
 
-        let artist_text = text(metadata.artist_or_default()).size(15);
+        let artist_text = text(metadata.track_artist_or_default()).size(15);
 
-        let album_genre_parts = vec![metadata.album.clone(), metadata.genre.clone()]
+        let album_genre_parts = vec![metadata.track_artist.clone(), metadata.genre.clone()]
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();

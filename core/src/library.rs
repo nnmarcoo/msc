@@ -51,22 +51,23 @@ impl Library {
                             Arc::make_mut(collection).add_track(*track_id);
                         })
                         .or_insert_with(|| {
-                            let album_name = track
-                                .metadata
-                                .album
-                                .clone()
-                                .unwrap_or_else(|| "-".to_string());
+                            let album_name = track.metadata.album_or_default();
                             let artist = track
                                 .metadata
-                                .artist
+                                .track_artist
                                 .clone()
-                                .map(|a| a.split(';').next().unwrap_or(&a).trim().to_string());
+                                .or_else(|| track.metadata.album_artist.clone());
                             Arc::new(
                                 Collection::from_album(art_id, album_name, artist, vec![*track_id])
                                     .unwrap(),
                             )
                         });
                 }
+            }
+
+            // Sort tracks in each collection by track number
+            for mut collection in collections_map.iter_mut() {
+                Arc::make_mut(collection.value_mut()).sort_tracks(&tracks_map);
             }
 
             self.tracks = Some(tracks_map);

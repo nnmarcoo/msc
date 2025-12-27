@@ -1,6 +1,9 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, sync::Arc};
 
 use blake3::Hash;
+use dashmap::DashMap;
+
+use crate::track::Track;
 
 #[derive(Clone)]
 enum PathOrhash {
@@ -78,5 +81,21 @@ impl Collection {
         if !self.tracks.contains(&track_hash) {
             self.tracks.push(track_hash);
         }
+    }
+
+    pub fn sort_tracks(&mut self, tracks_map: &DashMap<Hash, Arc<Track>>) {
+        self.tracks.sort_by(|a, b| {
+            let track_a = tracks_map.get(a);
+            let track_b = tracks_map.get(b);
+
+            match (track_a, track_b) {
+                (Some(ta), Some(tb)) => {
+                    let track_num_a = ta.metadata.track.unwrap_or(u32::MAX);
+                    let track_num_b = tb.metadata.track.unwrap_or(u32::MAX);
+                    track_num_a.cmp(&track_num_b)
+                }
+                _ => std::cmp::Ordering::Equal,
+            }
+        });
     }
 }

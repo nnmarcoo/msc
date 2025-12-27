@@ -17,8 +17,8 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Me
             .collect();
         tracks.sort_by(|a, b| {
             a.metadata
-                .artist_or_default()
-                .cmp(&b.metadata.artist_or_default())
+                .track_artist_or_default()
+                .cmp(&b.metadata.track_artist_or_default())
                 .then_with(|| {
                     a.metadata
                         .album_or_default()
@@ -106,7 +106,7 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<Hash>) -> Element<'a, Me
             row![
                 container(text(track.metadata.title_or_default()).size(12))
                     .width(Length::FillPortion(3)),
-                container(text(track.metadata.artist_or_default()).size(12))
+                container(text(track.metadata.track_artist_or_default()).size(12))
                     .width(Length::FillPortion(2)),
                 container(text(track.metadata.album_or_default()).size(12))
                     .width(Length::FillPortion(2)),

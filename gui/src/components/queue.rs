@@ -30,7 +30,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<Hash>) -> Element<'a,
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),
                         }),
-                    text(track.metadata.artist_or_default())
+                    text(track.metadata.track_artist_or_default())
                         .size(13)
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),
@@ -101,7 +101,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<Hash>) -> Element<'a,
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),
                         }),
-                    text(track.metadata.artist_or_default())
+                    text(track.metadata.track_artist_or_default())
                         .size(13)
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),

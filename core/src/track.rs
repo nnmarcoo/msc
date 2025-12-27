@@ -35,7 +35,7 @@ impl Track {
 
         let id = {
             let mut hasher = Hasher::new();
-            hasher.update(data.artist_or_default().as_bytes());
+            hasher.update(data.track_artist_or_default().as_bytes());
             hasher.update(data.title_or_default().as_bytes());
             hasher.update(data.album_or_default().as_bytes());
             hasher.update(data.genre_or_default().as_bytes());

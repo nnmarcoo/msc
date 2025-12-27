@@ -93,8 +93,8 @@ impl Player {
 
             track_pairs.sort_by(|a, b| {
                 a.1.metadata
-                    .artist_or_default()
-                    .cmp(&b.1.metadata.artist_or_default())
+                    .track_artist_or_default()
+                    .cmp(&b.1.metadata.track_artist_or_default())
                     .then_with(|| {
                         a.1.metadata
                             .album_or_default()
