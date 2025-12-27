@@ -196,7 +196,7 @@ impl Pane {
             PaneContent::Timeline => components::timeline::view(),
             PaneContent::Spectrum => components::spectrum::view(player),
             PaneContent::VUMeters => components::vu_meters::view(player),
-            PaneContent::TrackInfo => components::track_info::view(player),
+            PaneContent::TrackInfo => components::current_track::view(player),
             PaneContent::Empty => components::empty::view(),
         };
 

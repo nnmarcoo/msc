@@ -37,7 +37,6 @@ impl Backend {
         })
     }
 
-    // should I set the start position?
     pub fn load_and_play(&mut self, path: &Path) -> Result<(), PlaybackError> {
         self.stop();
 
