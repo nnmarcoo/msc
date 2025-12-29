@@ -8,7 +8,7 @@ use std::{
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
-    pub root: Option<PathBuf>,
+    pub(crate) root: Option<PathBuf>,
 }
 
 impl Default for Config {
@@ -18,7 +18,7 @@ impl Default for Config {
 }
 
 impl Config {
-    fn path() -> Result<PathBuf, ConfigError> {
+    pub(crate) fn path() -> Result<PathBuf, ConfigError> {
         let proj_dirs =
             directories::ProjectDirs::from("", "", "msc").ok_or(ConfigError::DirectoryNotFound)?;
 
@@ -26,7 +26,7 @@ impl Config {
         Ok(config_dir.join("config.toml"))
     }
 
-    pub fn database_path() -> Result<PathBuf, ConfigError> {
+    pub(crate) fn database_path() -> Result<PathBuf, ConfigError> {
         let proj_dirs =
             directories::ProjectDirs::from("", "", "msc").ok_or(ConfigError::DirectoryNotFound)?;
 
@@ -34,7 +34,7 @@ impl Config {
         Ok(data_dir.join("library.db"))
     }
 
-    pub fn load() -> Result<Self, ConfigError> {
+    pub(crate) fn load() -> Result<Self, ConfigError> {
         let config_path = Self::path()?;
 
         if !config_path.exists() {
@@ -46,7 +46,7 @@ impl Config {
         Ok(config)
     }
 
-    pub fn save(&self) -> Result<(), ConfigError> {
+    pub(crate) fn save(&self) -> Result<(), ConfigError> {
         let config_path = Self::path()?;
 
         if let Some(parent) = config_path.parent() {

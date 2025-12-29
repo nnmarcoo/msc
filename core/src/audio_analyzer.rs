@@ -42,12 +42,12 @@ impl Default for VisData {
     }
 }
 
-pub struct AudioAnalyzerBuilder {
+pub(crate) struct AudioAnalyzerBuilder {
     shared_data: Arc<AtomicCell<VisData>>,
 }
 
 impl AudioAnalyzerBuilder {
-    pub fn new() -> (Self, Arc<AtomicCell<VisData>>) {
+    pub(crate) fn new() -> (Self, Arc<AtomicCell<VisData>>) {
         let shared_data = Arc::new(AtomicCell::new(VisData::default()));
         (
             Self {

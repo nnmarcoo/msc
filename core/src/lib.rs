@@ -12,12 +12,11 @@ mod track;
 
 pub use artcache::{ArtCache, RgbaImage};
 pub use audio_analyzer::VisData;
-pub use backend::Backend;
+pub(crate) use backend::Backend;
 pub use config::{Config, ConfigError};
-pub use db::Database;
+pub(crate) use db::Database;
 pub use image_processing::Colors;
 pub use library::{Library, LibraryError};
-pub use metadata::Metadata;
 pub use player::{Player, PlayerError};
-pub use queue::Queue;
+pub(crate) use queue::Queue;
 pub use track::Track;
