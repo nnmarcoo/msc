@@ -1,4 +1,3 @@
-use blake3::Hash;
 use iced::alignment::Vertical;
 use iced::widget::{column, container, text};
 use iced::{Background, Border, Element, Length, Shadow, Theme};
@@ -8,7 +7,7 @@ use crate::widgets::canvas_button::canvas_button;
 
 pub fn track_context_menu<'a, Message: 'a + Clone>(
     content: impl Into<Element<'a, Message>>,
-    _track_id: Hash,
+    _track_id: i64,
     play_msg: Message,
     queue_msg: Message,
     queue_next_msg: Message,

@@ -37,7 +37,7 @@ impl ArtCache {
     }
 
     pub fn get(&self, track: &Track) -> Option<(RgbaImage, Colors)> {
-        let art_id = track.metadata.art_id?;
+        let art_id = track.art_id?;
 
         if let Some(entry) = self.cache.get(&art_id) {
             match entry.value() {

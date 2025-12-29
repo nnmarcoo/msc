@@ -1,4 +1,3 @@
-use blake3::Hash;
 use iced::font::Weight;
 use iced::widget::{column, container, horizontal_rule, mouse_area, scrollable, text};
 use iced::{Element, Font, Length, Theme};
@@ -8,20 +7,20 @@ use crate::app::Message;
 
 const MAX_DISPLAY: usize = 100;
 
-pub fn view<'a>(player: &'a Player, hovered_track: &Option<Hash>) -> Element<'a, Message> {
+pub fn view<'a>(player: &'a Player, hovered_track: &Option<i64>) -> Element<'a, Message> {
     let queue = player.queue();
     let library = player.library();
-    let current_hash = queue.current_id();
+    let current_id = queue.current_id();
 
     let mut track_list = column![].spacing(0);
 
-    if let Some(current_id) = current_hash {
-        if let Some(track) = library.track_from_id(current_id) {
+    if let Some(current_id) = current_id {
+        if let Ok(Some(track)) = library.track_from_id(current_id) {
             let is_hovered = hovered_track.as_ref() == Some(&current_id);
 
             let track_inner = container(
                 column![
-                    text(track.metadata.title_or_default())
+                    text(track.title_or_default())
                         .size(15)
                         .font(Font {
                             weight: Weight::Bold,
@@ -30,7 +29,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<Hash>) -> Element<'a,
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),
                         }),
-                    text(track.metadata.track_artist_or_default())
+                    text(track.track_artist_or_default())
                         .size(13)
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),
@@ -87,12 +86,12 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<Hash>) -> Element<'a,
             break;
         }
 
-        if let Some(track) = library.track_from_id(*track_id) {
+        if let Ok(Some(track)) = library.track_from_id(*track_id) {
             let is_hovered = hovered_track.as_ref() == Some(track_id);
 
             let track_inner = container(
                 column![
-                    text(track.metadata.title_or_default())
+                    text(track.title_or_default())
                         .size(15)
                         .font(Font {
                             weight: Weight::Bold,
@@ -101,7 +100,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<Hash>) -> Element<'a,
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),
                         }),
-                    text(track.metadata.track_artist_or_default())
+                    text(track.track_artist_or_default())
                         .size(13)
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),

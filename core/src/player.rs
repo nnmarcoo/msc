@@ -5,7 +5,6 @@ use std::{
     sync::Arc,
 };
 
-use blake3::Hash;
 use kira::backend::cpal;
 
 use crate::{
@@ -23,9 +22,9 @@ impl Player {
     pub fn new() -> Result<Self, PlayerError> {
         let config = Config::load().unwrap_or_default();
 
-        let mut library = Library::new();
+        let mut library = Library::new(None)?;
         if let Some(root) = config.root {
-            library.populate(&root);
+            let _ = library.populate(&root);
         }
 
         let player = Player {
@@ -37,8 +36,8 @@ impl Player {
         Ok(player)
     }
 
-    pub fn populate_library(&mut self, root: &Path) {
-        self.library.populate(root);
+    pub fn populate_library(&mut self, root: &Path) -> Result<(), LibraryError> {
+        self.library.populate(root)
     }
 
     pub fn reload_library(&mut self) -> Result<(), LibraryError> {
@@ -71,49 +70,42 @@ impl Player {
         self.backend.stop();
     }
 
-    pub fn queue_back(&mut self, track_id: Hash) {
+    pub fn queue_back(&mut self, track_id: i64) {
         self.queue.add(track_id);
     }
 
-    pub fn queue_front(&mut self, track_id: Hash) {
+    pub fn queue_front(&mut self, track_id: i64) {
         self.queue.add_next(track_id);
     }
 
-    pub fn queue_many(&mut self, track_ids: impl Iterator<Item = Hash>) {
+    pub fn queue_many(&mut self, track_ids: impl Iterator<Item = i64>) {
         self.queue.add_many(track_ids);
     }
 
-    pub fn queue_library(&mut self) {
-        let tracks = &self.library.tracks;
-        // all to sort queue, idk if this is nice
-        let mut track_pairs: Vec<(Hash, Arc<Track>)> = tracks
-            .iter()
-            .map(|entry| (*entry.key(), Arc::clone(&entry.value())))
-            .collect();
+    pub fn queue_library(&mut self) -> Result<(), LibraryError> {
+        let mut tracks = self.library.all_tracks()?;
 
-        track_pairs.sort_by(|a, b| {
-            a.1.metadata
-                .track_artist_or_default()
-                .cmp(&b.1.metadata.track_artist_or_default())
+        // Sort tracks by artist, then album, then title
+        tracks.sort_by(|a, b| {
+            a.track_artist_or_default()
+                .cmp(&b.track_artist_or_default())
                 .then_with(|| {
-                    a.1.metadata
-                        .album_or_default()
-                        .cmp(&b.1.metadata.album_or_default())
+                    a.album_or_default()
+                        .cmp(&b.album_or_default())
                 })
                 .then_with(|| {
-                    a.1.metadata
-                        .title_or_default()
-                        .cmp(&b.1.metadata.title_or_default())
+                    a.title_or_default()
+                        .cmp(&b.title_or_default())
                 })
         });
 
-        self.queue
-            .add_many(track_pairs.into_iter().map(|(hash, _)| hash));
+        self.queue.add_many(tracks.into_iter().filter_map(|t| t.id));
+        Ok(())
     }
 
-    fn play_track(&mut self, track_id: Option<Hash>) -> Result<(), PlaybackError> {
+    fn play_track(&mut self, track_id: Option<i64>) -> Result<(), PlaybackError> {
         if let Some(track_id) = track_id {
-            if let Some(track) = self.library.tracks.get(&track_id) {
+            if let Ok(Some(track)) = self.library.track_from_id(track_id) {
                 self.backend.load_and_play(&track.path)?;
             }
         }
@@ -155,8 +147,9 @@ impl Player {
         self.backend.position()
     }
 
-    pub fn clone_current_track(&self) -> Option<Arc<Track>> {
-        self.library.track_from_id(self.queue.current_id()?)
+    pub fn clone_current_track(&self) -> Option<Track> {
+        let track_id = self.queue.current_id()?;
+        self.library.track_from_id(track_id).ok()?
     }
 
     pub fn art(&self) -> Arc<ArtCache> {
@@ -189,6 +182,7 @@ impl Drop for Player {
 pub enum PlayerError {
     Backend(cpal::Error),
     Config(ConfigError),
+    Library(LibraryError),
 }
 
 impl Display for PlayerError {
@@ -196,6 +190,7 @@ impl Display for PlayerError {
         match self {
             PlayerError::Backend(e) => write!(f, "Backend error: {}", e),
             PlayerError::Config(e) => write!(f, "Config error: {}", e),
+            PlayerError::Library(e) => write!(f, "Library error: {}", e),
         }
     }
 }
@@ -211,5 +206,11 @@ impl From<cpal::Error> for PlayerError {
 impl From<ConfigError> for PlayerError {
     fn from(err: ConfigError) -> Self {
         PlayerError::Config(err)
+    }
+}
+
+impl From<LibraryError> for PlayerError {
+    fn from(err: LibraryError) -> Self {
+        PlayerError::Library(err)
     }
 }
