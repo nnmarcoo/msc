@@ -14,14 +14,8 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<i64>) -> Element<'a, Mes
     tracks.sort_by(|a, b| {
         a.track_artist_or_default()
             .cmp(&b.track_artist_or_default())
-            .then_with(|| {
-                a.album_or_default()
-                    .cmp(&b.album_or_default())
-            })
-            .then_with(|| {
-                a.title_or_default()
-                    .cmp(&b.title_or_default())
-            })
+            .then_with(|| a.album_or_default().cmp(&b.album_or_default()))
+            .then_with(|| a.title_or_default().cmp(&b.title_or_default()))
     });
 
     if tracks.is_empty() {

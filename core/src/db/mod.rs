@@ -9,8 +9,8 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new(db_path: Option<&Path>) -> SqliteResult<Self> {
-        let conn = match db_path {
+    pub fn new(path: Option<&Path>) -> SqliteResult<Self> {
+        let conn = match path {
             Some(path) => Connection::open(path)?,
             None => Connection::open_in_memory()?,
         };

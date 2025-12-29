@@ -1,5 +1,5 @@
 use crate::Track;
-use rusqlite::{params, OptionalExtension, Result as SqliteResult, Row};
+use rusqlite::{OptionalExtension, Result as SqliteResult, Row, params};
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
 
@@ -220,17 +220,20 @@ impl Database {
     }
 
     pub fn delete_track(&self, id: i64) -> SqliteResult<()> {
-        self.conn.execute("DELETE FROM tracks WHERE id = ?1", params![id])?;
+        self.conn
+            .execute("DELETE FROM tracks WHERE id = ?1", params![id])?;
         Ok(())
     }
 
     pub fn delete_track_by_path(&self, path: &str) -> SqliteResult<()> {
-        self.conn.execute("DELETE FROM tracks WHERE path = ?1", params![path])?;
+        self.conn
+            .execute("DELETE FROM tracks WHERE path = ?1", params![path])?;
         Ok(())
     }
 
     pub fn count_tracks(&self) -> SqliteResult<i64> {
-        self.conn.query_row("SELECT COUNT(*) FROM tracks", [], |row| row.get(0))
+        self.conn
+            .query_row("SELECT COUNT(*) FROM tracks", [], |row| row.get(0))
     }
 
     pub fn track_exists(&self, path: &str) -> SqliteResult<bool> {

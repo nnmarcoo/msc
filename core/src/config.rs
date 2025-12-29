@@ -26,6 +26,14 @@ impl Config {
         Ok(config_dir.join("config.toml"))
     }
 
+    pub fn database_path() -> Result<PathBuf, ConfigError> {
+        let proj_dirs =
+            directories::ProjectDirs::from("", "", "msc").ok_or(ConfigError::DirectoryNotFound)?;
+
+        let data_dir = proj_dirs.data_dir();
+        Ok(data_dir.join("library.db"))
+    }
+
     pub fn load() -> Result<Self, ConfigError> {
         let config_path = Self::path()?;
 

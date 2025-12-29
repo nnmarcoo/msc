@@ -62,26 +62,36 @@ impl Track {
         let bit_depth = props.bit_depth();
         let channels = props.channels();
 
-        let (title, track_artist, album, album_artist, genre, year, track_number, disc_number, comment, art_id) =
-            if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
-                let art_hash = tag.pictures().first().map(|pic| hash(pic.data()));
+        let (
+            title,
+            track_artist,
+            album,
+            album_artist,
+            genre,
+            year,
+            track_number,
+            disc_number,
+            comment,
+            art_id,
+        ) = if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
+            let art_hash = tag.pictures().first().map(|pic| hash(pic.data()));
 
-                (
-                    tag.title().map(|s| s.to_string()),
-                    tag.artist().map(|s| s.to_string()),
-                    tag.album().map(|s| s.to_string()),
-                    tag.get_string(&lofty::tag::ItemKey::AlbumArtist)
-                        .map(|s| s.to_string()),
-                    tag.genre().map(|s| s.to_string()),
-                    tag.year(),
-                    tag.track(),
-                    tag.disk(),
-                    tag.comment().map(|s| s.to_string()),
-                    art_hash,
-                )
-            } else {
-                (None, None, None, None, None, None, None, None, None, None)
-            };
+            (
+                tag.title().map(|s| s.to_string()),
+                tag.artist().map(|s| s.to_string()),
+                tag.album().map(|s| s.to_string()),
+                tag.get_string(&lofty::tag::ItemKey::AlbumArtist)
+                    .map(|s| s.to_string()),
+                tag.genre().map(|s| s.to_string()),
+                tag.year(),
+                tag.track(),
+                tag.disk(),
+                tag.comment().map(|s| s.to_string()),
+                art_hash,
+            )
+        } else {
+            (None, None, None, None, None, None, None, None, None, None)
+        };
 
         Ok(Track {
             id: None,

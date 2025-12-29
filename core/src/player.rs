@@ -22,7 +22,12 @@ impl Player {
     pub fn new() -> Result<Self, PlayerError> {
         let config = Config::load().unwrap_or_default();
 
-        let mut library = Library::new(None)?;
+        let db_path = Config::database_path()?;
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+
+        let mut library = Library::new(Some(&db_path))?;
         if let Some(root) = config.root {
             let _ = library.populate(&root);
         }
@@ -89,14 +94,8 @@ impl Player {
         tracks.sort_by(|a, b| {
             a.track_artist_or_default()
                 .cmp(&b.track_artist_or_default())
-                .then_with(|| {
-                    a.album_or_default()
-                        .cmp(&b.album_or_default())
-                })
-                .then_with(|| {
-                    a.title_or_default()
-                        .cmp(&b.title_or_default())
-                })
+                .then_with(|| a.album_or_default().cmp(&b.album_or_default()))
+                .then_with(|| a.title_or_default().cmp(&b.title_or_default()))
         });
 
         self.queue.add_many(tracks.into_iter().filter_map(|t| t.id));
@@ -212,5 +211,11 @@ impl From<ConfigError> for PlayerError {
 impl From<LibraryError> for PlayerError {
     fn from(err: LibraryError) -> Self {
         PlayerError::Library(err)
+    }
+}
+
+impl From<std::io::Error> for PlayerError {
+    fn from(err: std::io::Error) -> Self {
+        PlayerError::Config(ConfigError::Io(err))
     }
 }
