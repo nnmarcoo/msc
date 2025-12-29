@@ -194,10 +194,10 @@ impl App {
                     }
 
                     if let Some(track) = self.player.clone_current_track() {
-                        let title = track.title.as_deref().unwrap_or("Unknown Title");
-                        let artist = track.track_artist.as_deref().unwrap_or("Unknown Artist");
-                        let album = track.album.as_deref().unwrap_or("Unknown Album");
-                        let duration = Some(track.duration as f64);
+                        let title = track.title().unwrap_or("Unknown Title");
+                        let artist = track.track_artist().unwrap_or("Unknown Artist");
+                        let album = track.album().unwrap_or("Unknown Album");
+                        let duration = Some(track.duration() as f64);
 
                         session.set_metadata(title, artist, album, duration);
                     }

@@ -35,7 +35,7 @@ pub fn view<'a>(
         (
             track.title_or_default().to_string(),
             track.track_artist_or_default().to_string(),
-            track.duration,
+            track.duration(),
         )
     } else {
         ("-".to_string(), "-".to_string(), 0.0)

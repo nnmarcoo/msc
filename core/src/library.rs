@@ -50,7 +50,7 @@ impl Library {
                         if ["mp3", "flac", "wav", "ogg", "m4a", "aac"].contains(&ext.as_str()) {
                             if let Ok(track) = Track::from_path(&path) {
                                 db.upsert_track(&track)?;
-                                if let Some(path_str) = track.path.to_str() {
+                                if let Some(path_str) = track.path().to_str() {
                                     db.mark_not_missing(path_str)?;
                                 }
                             }

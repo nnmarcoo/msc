@@ -37,7 +37,7 @@ impl ArtCache {
     }
 
     pub fn get(&self, track: &Track) -> Option<(RgbaImage, Colors)> {
-        let art_id = track.art_id?;
+        let art_id = *track.art_id()?;
 
         if let Some(entry) = self.cache.get(&art_id) {
             match entry.value() {
@@ -48,7 +48,7 @@ impl ArtCache {
 
         if self.cache.insert(art_id, CacheState::Loading).is_none() {
             let cache = self.cache.clone();
-            let path = track.path.clone();
+            let path = track.path().clone();
 
             rayon::spawn(move || {
                 Self::load_image_sync(cache, art_id, path);

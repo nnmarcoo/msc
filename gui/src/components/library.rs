@@ -81,8 +81,8 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<i64>) -> Element<'a, Mes
     let mut track_list = column![].spacing(0);
 
     for track in tracks {
-        if let Some(track_id) = track.id {
-            let duration_text = format_seconds(track.duration);
+        if let Some(track_id) = track.id() {
+            let duration_text = format_seconds(track.duration());
             let is_hovered = hovered_track.as_ref() == Some(&track_id);
 
             let track_inner = container(

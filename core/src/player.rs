@@ -98,14 +98,15 @@ impl Player {
                 .then_with(|| a.title_or_default().cmp(&b.title_or_default()))
         });
 
-        self.queue.add_many(tracks.into_iter().filter_map(|t| t.id));
+        self.queue
+            .add_many(tracks.into_iter().filter_map(|t| t.id()));
         Ok(())
     }
 
     fn play_track(&mut self, track_id: Option<i64>) -> Result<(), PlaybackError> {
         if let Some(track_id) = track_id {
             if let Ok(Some(track)) = self.library.track_from_id(track_id) {
-                self.backend.load_and_play(&track.path)?;
+                self.backend.load_and_play(track.path())?;
             }
         }
         Ok(())

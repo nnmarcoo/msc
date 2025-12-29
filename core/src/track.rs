@@ -27,29 +27,29 @@ impl From<io::Error> for TrackError {
 
 #[derive(Clone)]
 pub struct Track {
-    pub id: Option<i64>,
+    id: Option<i64>,
 
-    pub path: PathBuf,
-    pub missing: bool,
+    path: PathBuf,
+    missing: bool,
 
-    pub title: Option<String>,
-    pub track_artist: Option<String>,
-    pub album: Option<String>,
-    pub album_artist: Option<String>,
-    pub genre: Option<String>,
-    pub year: Option<u32>,
-    pub track_number: Option<u32>,
-    pub disc_number: Option<u32>,
-    pub comment: Option<String>,
+    title: Option<String>,
+    track_artist: Option<String>,
+    album: Option<String>,
+    album_artist: Option<String>,
+    genre: Option<String>,
+    year: Option<u32>,
+    track_number: Option<u32>,
+    disc_number: Option<u32>,
+    comment: Option<String>,
 
-    pub duration: f32,
-    pub bit_rate: Option<u32>,
-    pub sample_rate: Option<u32>,
-    pub bit_depth: Option<u8>,
-    pub channels: Option<u8>,
+    duration: f32,
+    bit_rate: Option<u32>,
+    sample_rate: Option<u32>,
+    bit_depth: Option<u8>,
+    channels: Option<u8>,
 
     // TODO
-    pub art_id: Option<Hash>,
+    art_id: Option<Hash>,
 }
 
 impl Track {
@@ -113,6 +113,121 @@ impl Track {
             channels,
             art_id,
         })
+    }
+
+    pub fn id(&self) -> Option<i64> {
+        self.id
+    }
+
+    pub fn path(&self) -> &PathBuf {
+        &self.path
+    }
+
+    pub fn missing(&self) -> bool {
+        self.missing
+    }
+
+    pub fn title(&self) -> Option<&str> {
+        self.title.as_deref()
+    }
+
+    pub fn track_artist(&self) -> Option<&str> {
+        self.track_artist.as_deref()
+    }
+
+    pub fn album(&self) -> Option<&str> {
+        self.album.as_deref()
+    }
+
+    pub fn album_artist(&self) -> Option<&str> {
+        self.album_artist.as_deref()
+    }
+
+    pub fn genre(&self) -> Option<&str> {
+        self.genre.as_deref()
+    }
+
+    pub fn year(&self) -> Option<u32> {
+        self.year
+    }
+
+    pub fn track_number(&self) -> Option<u32> {
+        self.track_number
+    }
+
+    pub fn disc_number(&self) -> Option<u32> {
+        self.disc_number
+    }
+
+    pub fn comment(&self) -> Option<&str> {
+        self.comment.as_deref()
+    }
+
+    pub fn duration(&self) -> f32 {
+        self.duration
+    }
+
+    pub fn bit_rate(&self) -> Option<u32> {
+        self.bit_rate
+    }
+
+    pub fn sample_rate(&self) -> Option<u32> {
+        self.sample_rate
+    }
+
+    pub fn bit_depth(&self) -> Option<u8> {
+        self.bit_depth
+    }
+
+    pub fn channels(&self) -> Option<u8> {
+        self.channels
+    }
+
+    pub fn art_id(&self) -> Option<&Hash> {
+        self.art_id.as_ref()
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn from_db(
+        id: Option<i64>,
+        path: PathBuf,
+        missing: bool,
+        title: Option<String>,
+        track_artist: Option<String>,
+        album: Option<String>,
+        album_artist: Option<String>,
+        genre: Option<String>,
+        year: Option<u32>,
+        track_number: Option<u32>,
+        disc_number: Option<u32>,
+        comment: Option<String>,
+        duration: f32,
+        bit_rate: Option<u32>,
+        sample_rate: Option<u32>,
+        bit_depth: Option<u8>,
+        channels: Option<u8>,
+        art_id: Option<Hash>,
+    ) -> Self {
+        Track {
+            id,
+            path,
+            missing,
+            title,
+            track_artist,
+            album,
+            album_artist,
+            genre,
+            year,
+            track_number,
+            disc_number,
+            comment,
+            duration,
+            bit_rate,
+            sample_rate,
+            bit_depth,
+            channels,
+            art_id,
+        }
     }
 
     // these are ugly
