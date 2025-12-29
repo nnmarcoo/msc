@@ -69,16 +69,6 @@ impl Backend {
         }
     }
 
-    pub fn toggle_playback(&mut self) {
-        if let Some(sound) = &mut self.sound {
-            match sound.state() {
-                PlaybackState::Playing => sound.pause(Tween::default()),
-                PlaybackState::Paused => sound.resume(Tween::default()),
-                _ => {}
-            }
-        }
-    }
-
     pub fn stop(&mut self) {
         if let Some(sound) = &mut self.sound {
             sound.stop(Tween::default());

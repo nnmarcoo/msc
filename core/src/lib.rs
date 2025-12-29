@@ -5,7 +5,6 @@ mod config;
 mod db;
 mod image_processing;
 mod library;
-mod metadata;
 mod player;
 mod queue;
 mod track;

@@ -1,6 +1,7 @@
 use std::{
     error::Error,
     fmt::{self, Display},
+    fs::create_dir_all,
     path::Path,
     sync::Arc,
 };
@@ -24,7 +25,7 @@ impl Player {
 
         let db_path = Config::database_path()?;
         if let Some(parent) = db_path.parent() {
-            std::fs::create_dir_all(parent)?;
+            create_dir_all(parent)?;
         }
 
         let mut library = Library::new(Some(&db_path))?;
