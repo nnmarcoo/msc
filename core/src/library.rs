@@ -5,11 +5,11 @@ use std::{
 };
 use thiserror::Error;
 
-use crate::{ArtCache, Config, ConfigError, Database, Track};
+use crate::{ArtCache, Colors, Config, ConfigError, Database, RgbaImage, Track};
 
 pub struct Library {
     db: Database,
-    pub art: Arc<ArtCache>,
+    art: Arc<ArtCache>,
 }
 
 impl Library {
@@ -67,24 +67,32 @@ impl Library {
         Ok(())
     }
 
-    pub fn track_from_id(&self, id: i64) -> Result<Option<Track>, LibraryError> {
+    pub fn query_track_from_id(&self, id: i64) -> Result<Option<Track>, LibraryError> {
         Ok(self.db.get_track_by_id(id)?)
     }
 
-    pub fn all_tracks(&self) -> Result<Vec<Track>, LibraryError> {
+    pub fn query_all_tracks(&self) -> Result<Vec<Track>, LibraryError> {
         Ok(self.db.get_all_tracks()?)
     }
 
-    pub fn tracks_by_album(&self, album_name: &str) -> Result<Vec<Track>, LibraryError> {
+    pub fn query_n_tracks(&self, limit: i64) -> Result<Vec<Track>, LibraryError> {
+        Ok(self.db.get_n_tracks(limit)?)
+    }
+
+    pub fn query_tracks_by_album(&self, album_name: &str) -> Result<Vec<Track>, LibraryError> {
         Ok(self.db.get_tracks_by_album(album_name)?)
     }
 
-    pub fn tracks_by_artist(&self, artist_name: &str) -> Result<Vec<Track>, LibraryError> {
+    pub fn query_tracks_by_artist(&self, artist_name: &str) -> Result<Vec<Track>, LibraryError> {
         Ok(self.db.get_tracks_by_artist(artist_name)?)
     }
 
-    pub fn track_count(&self) -> Result<i64, LibraryError> {
+    pub fn query_track_count(&self) -> Result<i64, LibraryError> {
         Ok(self.db.count_tracks()?)
+    }
+
+    pub fn artwork(&self, track: &Track) -> Option<(RgbaImage, Colors)> {
+        self.art.get(track)
     }
 }
 

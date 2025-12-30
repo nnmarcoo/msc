@@ -32,7 +32,6 @@ impl Database {
             row.get(13)?,
             row.get(14)?,
             row.get(15)?,
-            None, // TODO: Add back later
         ))
     }
 
@@ -147,6 +146,23 @@ impl Database {
 
         let tracks = stmt
             .query_map([], Self::row_to_track)?
+            .collect::<SqliteResult<Vec<_>>>()?;
+
+        Ok(tracks)
+    }
+
+    pub fn get_n_tracks(&self, limit: i64) -> SqliteResult<Vec<Track>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, path, title, track_artist, album, album_artist,
+                    genre, year, track_number, disc_number, comment,
+                    duration, bit_rate, sample_rate, bit_depth, channels, missing
+             FROM tracks
+             ORDER BY album, disc_number, track_number
+             LIMIT ?1",
+        )?;
+
+        let tracks = stmt
+            .query_map(params![limit], Self::row_to_track)?
             .collect::<SqliteResult<Vec<_>>>()?;
 
         Ok(tracks)

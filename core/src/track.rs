@@ -1,7 +1,6 @@
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-use blake3::{Hash, hash};
 use lofty::{
     error::LoftyError,
     file::{AudioFile, TaggedFileExt},
@@ -31,9 +30,6 @@ pub struct Track {
     sample_rate: Option<u32>,
     bit_depth: Option<u8>,
     channels: Option<u8>,
-
-    // TODO
-    art_id: Option<Hash>,
 }
 
 impl Track {
@@ -56,10 +52,7 @@ impl Track {
             track_number,
             disc_number,
             comment,
-            art_id,
         ) = if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
-            let art_hash = tag.pictures().first().map(|pic| hash(pic.data()));
-
             (
                 tag.title().map(|s| s.to_string()),
                 tag.artist().map(|s| s.to_string()),
@@ -71,10 +64,9 @@ impl Track {
                 tag.track(),
                 tag.disk(),
                 tag.comment().map(|s| s.to_string()),
-                art_hash,
             )
         } else {
-            (None, None, None, None, None, None, None, None, None, None)
+            (None, None, None, None, None, None, None, None, None)
         };
 
         Ok(Track {
@@ -95,7 +87,6 @@ impl Track {
             sample_rate,
             bit_depth,
             channels,
-            art_id,
         })
     }
 
@@ -167,10 +158,6 @@ impl Track {
         self.channels
     }
 
-    pub fn art_id(&self) -> Option<&Hash> {
-        self.art_id.as_ref()
-    }
-
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn from_db(
         id: Option<i64>,
@@ -190,7 +177,6 @@ impl Track {
         sample_rate: Option<u32>,
         bit_depth: Option<u8>,
         channels: Option<u8>,
-        art_id: Option<Hash>,
     ) -> Self {
         Track {
             id,
@@ -210,7 +196,6 @@ impl Track {
             sample_rate,
             bit_depth,
             channels,
-            art_id,
         }
     }
 

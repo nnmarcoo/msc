@@ -1,4 +1,3 @@
-use blake3::{Hash, hash};
 use dashmap::DashMap;
 use image::{DynamicImage, GenericImageView, imageops::FilterType};
 use lofty::file::TaggedFileExt;
@@ -26,7 +25,7 @@ enum CacheState {
 }
 
 pub struct ArtCache {
-    cache: Arc<DashMap<Hash, CacheState>>,
+    cache: Arc<DashMap<String, CacheState>>,
 }
 
 impl ArtCache {
@@ -37,36 +36,40 @@ impl ArtCache {
     }
 
     pub fn get(&self, track: &Track) -> Option<(RgbaImage, Colors)> {
-        let art_id = *track.art_id()?;
+        let cache_key = Self::cache_key(track)?;
 
-        if let Some(entry) = self.cache.get(&art_id) {
+        if let Some(entry) = self.cache.get(&cache_key) {
             match entry.value() {
                 CacheState::Ready { image, colors } => return Some((image.clone(), *colors)),
                 CacheState::Loading => return None,
             }
         }
 
-        if self.cache.insert(art_id, CacheState::Loading).is_none() {
+        if self
+            .cache
+            .insert(cache_key.clone(), CacheState::Loading)
+            .is_none()
+        {
             let cache = self.cache.clone();
             let path = track.path().clone();
 
             rayon::spawn(move || {
-                Self::load_image_sync(cache, art_id, path);
+                Self::load_image_sync(cache, cache_key, path);
             });
         }
 
         None
     }
 
-    fn load_image_sync(cache: Arc<DashMap<Hash, CacheState>>, art_id: Hash, path: PathBuf) {
-        match Self::extract_and_decode(&path) {
-            Some((data, image)) => {
-                let actual_hash = hash(&data);
-                if actual_hash != art_id {
-                    cache.remove(&art_id);
-                    return;
-                }
+    fn cache_key(track: &Track) -> Option<String> {
+        let album = track.album()?;
+        let artist = track.album_artist().or_else(|| track.track_artist())?;
+        Some(format!("{}|{}", album, artist))
+    }
 
+    fn load_image_sync(cache: Arc<DashMap<String, CacheState>>, cache_key: String, path: PathBuf) {
+        match Self::extract_and_decode(&path) {
+            Some(image) => {
                 let colors = extract_colors(&image);
                 let thumbnail = Self::resize_to_thumbnail(image);
                 let rgba = thumbnail.to_rgba8();
@@ -80,7 +83,7 @@ impl ArtCache {
                 };
 
                 cache.insert(
-                    art_id,
+                    cache_key,
                     CacheState::Ready {
                         image: rgba_image,
                         colors,
@@ -88,25 +91,18 @@ impl ArtCache {
                 );
             }
             None => {
-                cache.remove(&art_id);
+                cache.remove(&cache_key);
             }
         }
     }
 
-    pub fn get_by_hash(&self, id: &Hash) -> Option<(RgbaImage, Colors)> {
-        self.cache.get(id).and_then(|entry| match entry.value() {
-            CacheState::Ready { image, colors } => Some((image.clone(), *colors)),
-            CacheState::Loading => None,
-        })
-    }
-
-    fn extract_and_decode(path: &Path) -> Option<(Vec<u8>, DynamicImage)> {
+    fn extract_and_decode(path: &Path) -> Option<DynamicImage> {
         let file = Probe::open(path).ok()?.read().ok()?;
         let tag = file.primary_tag().or_else(|| file.first_tag())?;
         let picture = tag.pictures().first()?;
-        let data = picture.data().to_vec();
-        let image = image::load_from_memory(&data).ok()?;
-        Some((data, image))
+        let data = picture.data();
+        let image = image::load_from_memory(data).ok()?;
+        Some(image)
     }
 
     fn resize_to_thumbnail(image: DynamicImage) -> DynamicImage {
@@ -117,13 +113,5 @@ impl ArtCache {
         }
 
         image.resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, FilterType::Lanczos3)
-    }
-
-    pub fn clear(&self) {
-        self.cache.clear();
-    }
-
-    pub fn len(&self) -> usize {
-        self.cache.len()
     }
 }

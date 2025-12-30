@@ -9,7 +9,7 @@ use crate::components::context_menu::track_context_menu;
 pub fn view<'a>(player: &Player, hovered_track: &Option<i64>) -> Element<'a, Message> {
     let library = player.library();
 
-    let mut tracks = library.all_tracks().unwrap_or_default();
+    let mut tracks = library.query_all_tracks().unwrap_or_default();
 
     tracks.sort_by(|a, b| {
         a.track_artist_or_default()

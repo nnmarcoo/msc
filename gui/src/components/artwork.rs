@@ -8,10 +8,9 @@ use crate::app::Message;
 
 pub fn view<'a>(player: &Player) -> Element<'a, Message> {
     let current_track = player.clone_current_track();
-    let art_cache = player.art();
 
-    if let Some(track) = current_track {
-        if let Some((image, colors)) = art_cache.get(&track) {
+    if let Some(track) = &current_track {
+        if let Some((image, colors)) = player.artwork(track) {
             let artwork = Image::new(ImageHandle::from_rgba(
                 image.width,
                 image.height,

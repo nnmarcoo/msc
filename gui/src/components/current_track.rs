@@ -17,7 +17,7 @@ pub fn view(player: &Player) -> Element<'static, crate::app::Message> {
         let artist_text = text(track.track_artist_or_default()).size(15);
 
         let album_genre_parts = vec![
-            track.track_artist().map(|s| s.to_string()),
+            track.album().map(|s| s.to_string()),
             track.genre().map(|s| s.to_string()),
         ]
         .into_iter()

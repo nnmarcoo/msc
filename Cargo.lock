@@ -3255,7 +3255,6 @@ dependencies = [
 name = "msc-gui"
 version = "0.1.0"
 dependencies = [
- "blake3",
  "iced",
  "iced_aw",
  "image 0.25.9",

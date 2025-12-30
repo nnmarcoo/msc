@@ -1,10 +1,10 @@
-use std::{path::Path, sync::Arc};
+use std::path::Path;
 use thiserror::Error;
 
 use kira::backend::cpal;
 
 use crate::{
-    ArtCache, Backend, Config, ConfigError, Library, LibraryError, Queue, Track, VisData,
+    Backend, Colors, Config, ConfigError, Library, LibraryError, Queue, RgbaImage, Track, VisData,
     backend::PlaybackError,
 };
 
@@ -74,7 +74,7 @@ impl Player {
     }
 
     pub fn queue_library(&mut self) -> Result<(), LibraryError> {
-        let mut tracks = self.library.all_tracks()?;
+        let mut tracks = self.library.query_all_tracks()?;
 
         // Sort tracks by artist, then album, then title
         tracks.sort_by(|a, b| {
@@ -91,7 +91,7 @@ impl Player {
 
     fn play_track(&mut self, track_id: Option<i64>) -> Result<(), PlaybackError> {
         if let Some(track_id) = track_id {
-            if let Ok(Some(track)) = self.library.track_from_id(track_id) {
+            if let Ok(Some(track)) = self.library.query_track_from_id(track_id) {
                 self.backend.load_and_play(track.path())?;
             }
         }
@@ -135,11 +135,11 @@ impl Player {
 
     pub fn clone_current_track(&self) -> Option<Track> {
         let track_id = self.queue.current_id()?;
-        self.library.track_from_id(track_id).ok()?
+        self.library.query_track_from_id(track_id).ok()?
     }
 
-    pub fn art(&self) -> Arc<ArtCache> {
-        Arc::clone(&self.library.art)
+    pub fn artwork(&self, track: &Track) -> Option<(RgbaImage, Colors)> {
+        self.library.artwork(track)
     }
 
     pub fn library(&self) -> &Library {

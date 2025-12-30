@@ -15,7 +15,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<i64>) -> Element<'a, 
     let mut track_list = column![].spacing(0);
 
     if let Some(current_id) = current_id {
-        if let Ok(Some(track)) = library.track_from_id(current_id) {
+        if let Ok(Some(track)) = library.query_track_from_id(current_id) {
             let is_hovered = hovered_track.as_ref() == Some(&current_id);
 
             let track_inner = container(
@@ -86,7 +86,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<i64>) -> Element<'a, 
             break;
         }
 
-        if let Ok(Some(track)) = library.track_from_id(*track_id) {
+        if let Ok(Some(track)) = library.query_track_from_id(*track_id) {
             let is_hovered = hovered_track.as_ref() == Some(track_id);
 
             let track_inner = container(

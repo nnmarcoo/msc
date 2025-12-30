@@ -309,18 +309,18 @@ impl App {
                 }
             }
             Message::PlayTrack(track_id) => {
-                if let Ok(Some(_track)) = self.player.library().track_from_id(track_id) {
+                if let Ok(Some(_track)) = self.player.library().query_track_from_id(track_id) {
                     self.player.queue_front(track_id);
                     let _ = self.player.start_next();
                 }
             }
             Message::QueueBack(track_id) => {
-                if let Ok(Some(_track)) = self.player.library().track_from_id(track_id) {
+                if let Ok(Some(_track)) = self.player.library().query_track_from_id(track_id) {
                     self.player.queue_back(track_id);
                 }
             }
             Message::QueueFront(track_id) => {
-                if let Ok(Some(_track)) = self.player.library().track_from_id(track_id) {
+                if let Ok(Some(_track)) = self.player.library().query_track_from_id(track_id) {
                     self.player.queue_front(track_id);
                 }
             }
