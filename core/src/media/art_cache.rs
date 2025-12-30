@@ -9,7 +9,7 @@ use std::{
 };
 
 use crate::Track;
-use crate::image_processing::{Colors, extract_colors};
+use super::image_processing::{Colors, extract_colors};
 
 const THUMBNAIL_SIZE: u32 = 1024;
 
