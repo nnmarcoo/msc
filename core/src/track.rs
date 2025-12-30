@@ -1,9 +1,5 @@
-use std::{
-    error::Error,
-    fmt::Display,
-    io,
-    path::{Path, PathBuf},
-};
+use std::path::{Path, PathBuf};
+use thiserror::Error;
 
 use blake3::{Hash, hash};
 use lofty::{
@@ -12,18 +8,6 @@ use lofty::{
     probe::Probe,
     tag::Accessor,
 };
-
-impl From<LoftyError> for TrackError {
-    fn from(err: LoftyError) -> Self {
-        TrackError::Lofty(err)
-    }
-}
-
-impl From<io::Error> for TrackError {
-    fn from(err: io::Error) -> Self {
-        TrackError::Io(err)
-    }
-}
 
 #[derive(Clone)]
 pub struct Track {
@@ -252,19 +236,10 @@ impl Track {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum TrackError {
-    Lofty(LoftyError),
-    Io(io::Error),
+    #[error("Lofty error: {0}")]
+    Lofty(#[from] LoftyError),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
 }
-
-impl Display for TrackError {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            TrackError::Lofty(e) => write!(f, "Lofty error: {}", e),
-            TrackError::Io(e) => write!(f, "IO error: {}", e),
-        }
-    }
-}
-
-impl Error for TrackError {}

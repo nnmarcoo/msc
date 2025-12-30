@@ -1,37 +1,25 @@
 use serde::{Deserialize, Serialize};
-use std::{
-    error::Error,
-    fmt::{self, Display},
-    fs, io,
-    path::PathBuf,
-};
+use std::{fs, path::PathBuf};
+use thiserror::Error;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Config {
     pub(crate) root: Option<PathBuf>,
 }
 
-impl Default for Config {
-    fn default() -> Self {
-        Self { root: None }
-    }
+fn project_dirs() -> Result<directories::ProjectDirs, ConfigError> {
+    directories::ProjectDirs::from("", "", "msc").ok_or(ConfigError::DirectoryNotFound)
 }
 
 impl Config {
     pub(crate) fn path() -> Result<PathBuf, ConfigError> {
-        let proj_dirs =
-            directories::ProjectDirs::from("", "", "msc").ok_or(ConfigError::DirectoryNotFound)?;
-
-        let config_dir = proj_dirs.config_dir();
-        Ok(config_dir.join("config.toml"))
+        let proj_dirs = project_dirs()?;
+        Ok(proj_dirs.config_dir().join("config.toml"))
     }
 
     pub(crate) fn database_path() -> Result<PathBuf, ConfigError> {
-        let proj_dirs =
-            directories::ProjectDirs::from("", "", "msc").ok_or(ConfigError::DirectoryNotFound)?;
-
-        let data_dir = proj_dirs.data_dir();
-        Ok(data_dir.join("library.db"))
+        let proj_dirs = project_dirs()?;
+        Ok(proj_dirs.data_dir().join("library.db"))
     }
 
     pub(crate) fn load() -> Result<Self, ConfigError> {
@@ -59,41 +47,14 @@ impl Config {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum ConfigError {
-    Io(io::Error),
-    Toml(toml::de::Error),
-    TomlSerialize(toml::ser::Error),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("TOML parse error: {0}")]
+    TomlParse(#[from] toml::de::Error),
+    #[error("TOML serialize error: {0}")]
+    TomlSerialize(#[from] toml::ser::Error),
+    #[error("Could not find config directory")]
     DirectoryNotFound,
-}
-
-impl Display for ConfigError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ConfigError::Io(e) => write!(f, "IO error: {}", e),
-            ConfigError::Toml(e) => write!(f, "TOML parse error: {}", e),
-            ConfigError::TomlSerialize(e) => write!(f, "TOML serialize error: {}", e),
-            ConfigError::DirectoryNotFound => write!(f, "Could not find config directory"),
-        }
-    }
-}
-
-impl Error for ConfigError {}
-
-impl From<io::Error> for ConfigError {
-    fn from(err: io::Error) -> Self {
-        ConfigError::Io(err)
-    }
-}
-
-impl From<toml::de::Error> for ConfigError {
-    fn from(err: toml::de::Error) -> Self {
-        ConfigError::Toml(err)
-    }
-}
-
-impl From<toml::ser::Error> for ConfigError {
-    fn from(err: toml::ser::Error) -> Self {
-        ConfigError::TomlSerialize(err)
-    }
 }

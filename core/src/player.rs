@@ -1,10 +1,5 @@
-use std::{
-    error::Error,
-    fmt::{self, Display},
-    fs::create_dir_all,
-    path::Path,
-    sync::Arc,
-};
+use std::{path::Path, sync::Arc};
+use thiserror::Error;
 
 use kira::backend::cpal;
 
@@ -21,21 +16,9 @@ pub struct Player {
 
 impl Player {
     pub fn new() -> Result<Self, PlayerError> {
-        let config = Config::load().unwrap_or_default();
-
-        let db_path = Config::database_path()?;
-        if let Some(parent) = db_path.parent() {
-            create_dir_all(parent)?;
-        }
-
-        let mut library = Library::new(Some(&db_path))?;
-        if let Some(root) = config.root {
-            let _ = library.populate(&root);
-        }
-
         let player = Player {
             backend: Backend::new()?,
-            library,
+            library: Library::new()?,
             queue: Queue::new(),
         };
 
@@ -179,45 +162,12 @@ impl Drop for Player {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum PlayerError {
-    Backend(cpal::Error),
-    Config(ConfigError),
-    Library(LibraryError),
-}
-
-impl Display for PlayerError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            PlayerError::Backend(e) => write!(f, "Backend error: {}", e),
-            PlayerError::Config(e) => write!(f, "Config error: {}", e),
-            PlayerError::Library(e) => write!(f, "Library error: {}", e),
-        }
-    }
-}
-
-impl Error for PlayerError {}
-
-impl From<cpal::Error> for PlayerError {
-    fn from(err: cpal::Error) -> Self {
-        PlayerError::Backend(err)
-    }
-}
-
-impl From<ConfigError> for PlayerError {
-    fn from(err: ConfigError) -> Self {
-        PlayerError::Config(err)
-    }
-}
-
-impl From<LibraryError> for PlayerError {
-    fn from(err: LibraryError) -> Self {
-        PlayerError::Library(err)
-    }
-}
-
-impl From<std::io::Error> for PlayerError {
-    fn from(err: std::io::Error) -> Self {
-        PlayerError::Config(ConfigError::Io(err))
-    }
+    #[error("Backend error: {0}")]
+    Backend(#[from] cpal::Error),
+    #[error("Config error: {0}")]
+    Config(#[from] ConfigError),
+    #[error("Library error: {0}")]
+    Library(#[from] LibraryError),
 }

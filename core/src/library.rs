@@ -1,12 +1,11 @@
 use std::{
-    error::Error,
-    fmt::{self, Display},
-    fs::read_dir,
+    fs::{create_dir_all, read_dir},
     path::{Path, PathBuf},
     sync::Arc,
 };
+use thiserror::Error;
 
-use crate::{ArtCache, Database, Track};
+use crate::{ArtCache, Config, ConfigError, Database, Track};
 
 pub struct Library {
     db: Database,
@@ -15,8 +14,14 @@ pub struct Library {
 }
 
 impl Library {
-    pub fn new(db_path: Option<&Path>) -> Result<Self, LibraryError> {
-        let db = Database::new(db_path)?;
+    pub fn new() -> Result<Self, LibraryError> {
+        let db_path = Config::database_path()?;
+
+        if let Some(parent) = db_path.parent() {
+            create_dir_all(parent)?;
+        }
+
+        let db = Database::new(&db_path)?;
         Ok(Library {
             db,
             art: Arc::new(ArtCache::new()),
@@ -93,25 +98,14 @@ impl Library {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum LibraryError {
+    #[error("Library root directory not set")]
     RootNotSet,
-    Database(rusqlite::Error),
-}
-
-impl Display for LibraryError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            LibraryError::RootNotSet => write!(f, "Library root directory not set"),
-            LibraryError::Database(e) => write!(f, "Database error: {}", e),
-        }
-    }
-}
-
-impl Error for LibraryError {}
-
-impl From<rusqlite::Error> for LibraryError {
-    fn from(err: rusqlite::Error) -> Self {
-        LibraryError::Database(err)
-    }
+    #[error("Database error: {0}")]
+    Database(#[from] rusqlite::Error),
+    #[error("Config error: {0}")]
+    Config(#[from] ConfigError),
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
 }

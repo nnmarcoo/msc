@@ -9,11 +9,8 @@ pub struct Database {
 }
 
 impl Database {
-    pub fn new(path: Option<&Path>) -> SqliteResult<Self> {
-        let conn = match path {
-            Some(path) => Connection::open(path)?,
-            None => Connection::open_in_memory()?,
-        };
+    pub fn new(path: &Path) -> SqliteResult<Self> {
+        let conn = Connection::open(path)?;
         schema::create_tables(&conn)?;
         Ok(Database { conn })
     }
