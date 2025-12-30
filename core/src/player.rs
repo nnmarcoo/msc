@@ -16,6 +16,8 @@ pub struct Player {
 
 impl Player {
     pub fn new() -> Result<Self, PlayerError> {
+        Config::init()?;
+
         let player = Player {
             backend: Backend::new()?,
             library: Library::new()?,
@@ -155,10 +157,7 @@ impl Player {
 
 impl Drop for Player {
     fn drop(&mut self) {
-        let config = Config {
-            root: self.library.root().cloned(),
-        };
-        let _ = config.save();
+        let _ = Config::save_current();
     }
 }
 

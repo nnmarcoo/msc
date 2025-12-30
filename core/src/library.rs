@@ -1,6 +1,6 @@
 use std::{
     fs::{create_dir_all, read_dir},
-    path::{Path, PathBuf},
+    path::Path,
     sync::Arc,
 };
 use thiserror::Error;
@@ -10,7 +10,6 @@ use crate::{ArtCache, Config, ConfigError, Database, Track};
 pub struct Library {
     db: Database,
     pub art: Arc<ArtCache>,
-    root: Option<PathBuf>,
 }
 
 impl Library {
@@ -25,19 +24,18 @@ impl Library {
         Ok(Library {
             db,
             art: Arc::new(ArtCache::new()),
-            root: None,
         })
     }
 
     pub fn populate(&mut self, root: &Path) -> Result<(), LibraryError> {
-        self.root = Some(root.to_path_buf());
+        Config::set_root(root.to_path_buf())?;
         self.reload()
     }
 
     pub fn reload(&mut self) -> Result<(), LibraryError> {
-        if let Some(root) = &self.root {
+        if let Some(root) = Config::root() {
             self.db.mark_all_missing()?;
-            Self::scan_directory(&self.db, root)?;
+            Self::scan_directory(&self.db, &root)?;
 
             Ok(())
         } else {
@@ -87,14 +85,6 @@ impl Library {
 
     pub fn track_count(&self) -> Result<i64, LibraryError> {
         Ok(self.db.count_tracks()?)
-    }
-
-    pub fn is_loaded(&self) -> bool {
-        self.root.is_some()
-    }
-
-    pub fn root(&self) -> Option<&PathBuf> {
-        self.root.as_ref()
     }
 }
 
