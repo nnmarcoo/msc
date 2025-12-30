@@ -8,8 +8,8 @@ use std::{
     sync::Arc,
 };
 
-use crate::Track;
 use super::image_processing::{Colors, extract_colors};
+use crate::Track;
 
 const THUMBNAIL_SIZE: u32 = 1024;
 
