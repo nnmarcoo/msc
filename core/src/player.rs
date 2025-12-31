@@ -138,8 +138,8 @@ impl Player {
         self.library.query_track_from_id(track_id).ok()?
     }
 
-    pub fn artwork(&self, track: &Track) -> Option<(RgbaImage, Colors)> {
-        self.library.artwork(track)
+    pub fn artwork(&self, track: &Track, size: u32) -> Option<(RgbaImage, Colors)> {
+        self.library.artwork(track, size)
     }
 
     pub fn library(&self) -> &Library {

@@ -91,8 +91,8 @@ impl Library {
         Ok(self.db.count_tracks()?)
     }
 
-    pub fn artwork(&self, track: &Track) -> Option<(RgbaImage, Colors)> {
-        self.art.get(track)
+    pub fn artwork(&self, track: &Track, size: u32) -> Option<(RgbaImage, Colors)> {
+        self.art.get(track, size)
     }
 }
 

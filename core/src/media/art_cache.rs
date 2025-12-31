@@ -3,14 +3,17 @@ use image::{DynamicImage, GenericImageView, imageops::FilterType};
 use lofty::file::TaggedFileExt;
 use lofty::probe::Probe;
 use std::{
+    collections::BTreeMap,
     path::{Path, PathBuf},
-    sync::Arc,
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU32, Ordering},
+    },
+    thread,
 };
 
 use super::image_processing::{Colors, extract_colors};
 use crate::Track;
-
-const THUMBNAIL_SIZE: u32 = 1024;
 
 #[derive(Clone)]
 pub struct RgbaImage {
@@ -19,8 +22,17 @@ pub struct RgbaImage {
     pub data: Arc<Vec<u8>>,
 }
 
+#[derive(Clone)]
+struct CachedImages {
+    images: BTreeMap<u32, RgbaImage>,
+    colors: Colors,
+    original: Arc<DynamicImage>,
+    is_loading: Arc<AtomicBool>,
+    pending_size: Arc<AtomicU32>,
+}
+
 enum CacheState {
-    Ready { image: RgbaImage, colors: Colors },
+    Ready(CachedImages),
     Loading,
 }
 
@@ -35,12 +47,46 @@ impl ArtCache {
         }
     }
 
-    pub fn get(&self, track: &Track) -> Option<(RgbaImage, Colors)> {
+    pub fn get(&self, track: &Track, size: u32) -> Option<(RgbaImage, Colors)> {
         let cache_key = Self::cache_key(track)?;
 
         if let Some(entry) = self.cache.get(&cache_key) {
             match entry.value() {
-                CacheState::Ready { image, colors } => return Some((image.clone(), *colors)),
+                CacheState::Ready(cached) => {
+                    if let Some(image) = cached.images.get(&size) {
+                        return Some((image.clone(), cached.colors));
+                    }
+
+                    cached.pending_size.store(size, Ordering::Relaxed);
+
+                    let closest = cached
+                        .images
+                        .range(size..)
+                        .next()
+                        .or_else(|| cached.images.iter().next_back())
+                        .map(|(_, img)| img.clone());
+
+                    if let Some(image) = closest {
+                        if !cached.is_loading.swap(true, Ordering::Relaxed) {
+                            let cache = self.cache.clone();
+                            let cache_key = cache_key.clone();
+                            let original = cached.original.clone();
+                            let is_loading = cached.is_loading.clone();
+                            let pending_size = cached.pending_size.clone();
+                            std::thread::spawn(move || {
+                                Self::generate_pending_size(
+                                    cache,
+                                    cache_key,
+                                    original,
+                                    is_loading,
+                                    pending_size,
+                                );
+                            });
+                        }
+
+                        return Some((image, cached.colors));
+                    }
+                }
                 CacheState::Loading => return None,
             }
         }
@@ -53,8 +99,8 @@ impl ArtCache {
             let cache = self.cache.clone();
             let path = track.path().clone();
 
-            rayon::spawn(move || {
-                Self::load_image_sync(cache, cache_key, path);
+            thread::spawn(move || {
+                Self::load_image_sync(cache, cache_key, path, size);
             });
         }
 
@@ -67,32 +113,92 @@ impl ArtCache {
         Some(format!("{}|{}", album, artist))
     }
 
-    fn load_image_sync(cache: Arc<DashMap<String, CacheState>>, cache_key: String, path: PathBuf) {
+    fn load_image_sync(
+        cache: Arc<DashMap<String, CacheState>>,
+        cache_key: String,
+        path: PathBuf,
+        initial_size: u32,
+    ) {
         match Self::extract_and_decode(&path) {
             Some(image) => {
                 let colors = extract_colors(&image);
-                let thumbnail = Self::resize_to_thumbnail(image);
-                let rgba = thumbnail.to_rgba8();
-                let (width, height) = rgba.dimensions();
-                let bytes = rgba.into_raw();
+                let rgba_image = Self::create_rgba_image(&image, initial_size);
 
-                let rgba_image = RgbaImage {
-                    width,
-                    height,
-                    data: Arc::new(bytes),
+                let mut images = BTreeMap::new();
+                images.insert(initial_size, rgba_image);
+
+                let cached = CachedImages {
+                    images,
+                    colors,
+                    original: Arc::new(image),
+                    is_loading: Arc::new(AtomicBool::new(false)),
+                    pending_size: Arc::new(AtomicU32::new(initial_size)),
                 };
 
-                cache.insert(
-                    cache_key,
-                    CacheState::Ready {
-                        image: rgba_image,
-                        colors,
-                    },
-                );
+                cache.insert(cache_key, CacheState::Ready(cached));
             }
             None => {
                 cache.remove(&cache_key);
             }
+        }
+    }
+
+    fn generate_pending_size(
+        cache: Arc<DashMap<String, CacheState>>,
+        cache_key: String,
+        original: Arc<DynamicImage>,
+        is_loading: Arc<AtomicBool>,
+        pending_size: Arc<AtomicU32>,
+    ) {
+        let size = pending_size.load(Ordering::Relaxed);
+
+        let rgba_image = Self::create_rgba_image(&original, size);
+
+        if let Some(mut entry) = cache.get_mut(&cache_key) {
+            if let CacheState::Ready(cached) = entry.value_mut() {
+                cached.images.insert(size, rgba_image);
+            }
+        }
+
+        let current_pending = pending_size.load(Ordering::Relaxed);
+        if current_pending != size {
+            let should_spawn = if let Some(entry) = cache.get(&cache_key) {
+                if let CacheState::Ready(cached) = entry.value() {
+                    !cached.images.contains_key(&current_pending)
+                } else {
+                    false
+                }
+            } else {
+                false
+            };
+
+            if should_spawn {
+                std::thread::spawn(move || {
+                    Self::generate_pending_size(
+                        cache,
+                        cache_key,
+                        original,
+                        is_loading,
+                        pending_size,
+                    );
+                });
+                return;
+            }
+        }
+
+        is_loading.store(false, Ordering::Relaxed);
+    }
+
+    fn create_rgba_image(image: &DynamicImage, max_size: u32) -> RgbaImage {
+        let resized = Self::resize_image(image, max_size);
+        let rgba = resized.to_rgba8();
+        let (width, height) = rgba.dimensions();
+        let bytes = rgba.into_raw();
+
+        RgbaImage {
+            width,
+            height,
+            data: Arc::new(bytes),
         }
     }
 
@@ -105,13 +211,13 @@ impl ArtCache {
         Some(image)
     }
 
-    fn resize_to_thumbnail(image: DynamicImage) -> DynamicImage {
+    fn resize_image(image: &DynamicImage, max_size: u32) -> DynamicImage {
         let (width, height) = image.dimensions();
 
-        if width <= THUMBNAIL_SIZE && height <= THUMBNAIL_SIZE {
-            return image;
+        if width <= max_size && height <= max_size {
+            return image.to_rgba8().into();
         }
 
-        image.resize(THUMBNAIL_SIZE, THUMBNAIL_SIZE, FilterType::Lanczos3)
+        image.resize(max_size, max_size, FilterType::Lanczos3)
     }
 }
