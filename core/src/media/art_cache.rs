@@ -9,7 +9,6 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU32, Ordering},
     },
-    thread,
 };
 
 use super::image_processing::{Colors, extract_colors};
@@ -38,14 +37,18 @@ enum CacheState {
 
 pub struct ArtCache {
     cache: Arc<DashMap<String, CacheState>>,
+    loading_count: Arc<AtomicU32>,
 }
 
 impl ArtCache {
     pub fn new() -> Self {
         Self {
             cache: Arc::new(DashMap::new()),
+            loading_count: Arc::new(AtomicU32::new(0)),
         }
     }
+
+    const MAX_THREADS: u32 = 4;
 
     pub fn get(&self, track: &Track, size: u32) -> Option<(RgbaImage, Colors)> {
         let cache_key = Self::cache_key(track)?;
@@ -96,12 +99,18 @@ impl ArtCache {
             .insert(cache_key.clone(), CacheState::Loading)
             .is_none()
         {
-            let cache = self.cache.clone();
-            let path = track.path().clone();
+            if self.loading_count.load(Ordering::Relaxed) < Self::MAX_THREADS {
+                self.loading_count.fetch_add(1, Ordering::Relaxed);
 
-            thread::spawn(move || {
-                Self::load_image_sync(cache, cache_key, path, size);
-            });
+                let cache = self.cache.clone();
+                let path = track.path().clone();
+                let loading_count = self.loading_count.clone();
+
+                std::thread::spawn(move || {
+                    Self::load_image_sync(cache, cache_key, path, size);
+                    loading_count.fetch_sub(1, Ordering::Relaxed);
+                });
+            }
         }
 
         None
@@ -151,42 +160,29 @@ impl ArtCache {
         pending_size: Arc<AtomicU32>,
     ) {
         let size = pending_size.load(Ordering::Relaxed);
-
         let rgba_image = Self::create_rgba_image(&original, size);
 
-        if let Some(mut entry) = cache.get_mut(&cache_key) {
+        let should_continue = if let Some(mut entry) = cache.get_mut(&cache_key) {
             if let CacheState::Ready(cached) = entry.value_mut() {
                 cached.images.insert(size, rgba_image);
-            }
-        }
 
-        let current_pending = pending_size.load(Ordering::Relaxed);
-        if current_pending != size {
-            let should_spawn = if let Some(entry) = cache.get(&cache_key) {
-                if let CacheState::Ready(cached) = entry.value() {
-                    !cached.images.contains_key(&current_pending)
-                } else {
-                    false
-                }
+                // Check for new pending size while we have the lock
+                let current_pending = pending_size.load(Ordering::Relaxed);
+                current_pending != size && !cached.images.contains_key(&current_pending)
             } else {
                 false
-            };
-
-            if should_spawn {
-                std::thread::spawn(move || {
-                    Self::generate_pending_size(
-                        cache,
-                        cache_key,
-                        original,
-                        is_loading,
-                        pending_size,
-                    );
-                });
-                return;
             }
-        }
+        } else {
+            false
+        };
 
-        is_loading.store(false, Ordering::Relaxed);
+        if should_continue {
+            std::thread::spawn(move || {
+                Self::generate_pending_size(cache, cache_key, original, is_loading, pending_size);
+            });
+        } else {
+            is_loading.store(false, Ordering::Relaxed);
+        }
     }
 
     fn create_rgba_image(image: &DynamicImage, max_size: u32) -> RgbaImage {
@@ -215,7 +211,7 @@ impl ArtCache {
         let (width, height) = image.dimensions();
 
         if width <= max_size && height <= max_size {
-            return image.to_rgba8().into();
+            return image.clone();
         }
 
         image.resize(max_size, max_size, FilterType::Lanczos3)
