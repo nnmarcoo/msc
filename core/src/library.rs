@@ -70,6 +70,7 @@ impl Library {
             .collect();
 
         db.batch_upsert_tracks(&tracks)?;
+        db.batch_upsert_albums_from_tracks(&tracks)?;
 
         for subdir in subdirs {
             Self::scan_directory(db, &subdir)?;
@@ -100,6 +101,16 @@ impl Library {
 
     pub fn query_track_count(&self) -> Result<i64, LibraryError> {
         Ok(self.db.count_tracks()?)
+    }
+
+    pub fn query_all_albums(
+        &self,
+    ) -> Result<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>, LibraryError> {
+        Ok(self.db.get_all_albums()?)
+    }
+
+    pub fn query_track_from_path(&self, path: &str) -> Result<Option<Track>, LibraryError> {
+        Ok(self.db.get_track_by_path(path)?)
     }
 
     pub fn artwork(&self, track: &Track, size: u32) -> Option<(RgbaImage, Colors)> {

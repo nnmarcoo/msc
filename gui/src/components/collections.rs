@@ -1,25 +1,21 @@
-use blake3::Hash;
-use iced::widget::{button, column, container, row, scrollable, text};
+use iced::widget::svg::Handle as SvgHandle;
+use iced::widget::{button, column, container, image, responsive, row, scrollable, svg, text};
 use iced::{Element, Length, Theme};
 use msc_core::Player;
 
 use crate::app::Message;
 
-pub fn view<'a>(player: &Player, _hovered_track: &Option<Hash>) -> Element<'a, Message> {
+pub fn view<'a>(
+    player: &'a Player,
+    cached_albums: Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>,
+) -> Element<'a, Message> {
     let library = player.library();
 
-    // this seems dumb
-    let mut collections: Vec<_> = library
-        .collections
-        .iter()
-        .map(|entry| entry.value().clone())
-        .collect();
+    let albums = cached_albums;
 
-    collections.sort_by(|a, b| a.name.cmp(&b.name));
-
-    if collections.is_empty() {
+    if albums.is_empty() {
         return container(
-            text("No collections")
+            text("No albums")
                 .size(18)
                 .style(|theme: &Theme| text::Style {
                     color: Some(theme.extended_palette().background.base.text),
@@ -37,83 +33,159 @@ pub fn view<'a>(player: &Player, _hovered_track: &Option<Hash>) -> Element<'a, M
         .into();
     }
 
-    let header = container(
-        row![
-            container(
-                text("Collection")
-                    .size(12)
-                    .style(|theme: &Theme| text::Style {
-                        color: Some(theme.extended_palette().background.strong.text),
-                    })
+    let album_cards: Vec<_> = albums
+        .iter()
+        .map(|(album_id, album_name, artist, _year, sample_track_path)| {
+            (
+                *album_id,
+                album_name.clone(),
+                artist.clone(),
+                sample_track_path.clone(),
             )
-            .width(Length::FillPortion(3)),
-            container(text("Artist").size(12).style(|theme: &Theme| text::Style {
-                color: Some(theme.extended_palette().background.strong.text),
-            }))
-            .width(Length::FillPortion(2)),
-            container(text("Tracks").size(12).style(|theme: &Theme| text::Style {
-                color: Some(theme.extended_palette().background.strong.text),
-            }))
-            .width(Length::Fixed(80.0)),
-        ]
-        .spacing(10),
-    )
-    .padding(10)
-    .width(Length::Fill)
-    .style(|theme: &Theme| container::Style {
-        text_color: Some(theme.extended_palette().background.strong.text),
-        background: Some(theme.extended_palette().background.strong.color.into()),
-        ..Default::default()
-    });
+        })
+        .collect();
 
-    let mut collection_list = column![].spacing(0);
+    responsive(move |size| {
+        const MIN_CARD_WIDTH: f32 = 150.0;
+        const EDGE_PADDING: f32 = 15.0;
+        const MIN_GAP: f32 = 15.0;
 
-    for collection in collections {
-        let collection_id = collection.id;
-        let collection_name = collection.name.to_string();
-        let artist_name = collection.artist.as_deref().unwrap_or("-").to_string();
-        let track_count = collection.tracks.len();
+        let available_width = size.width - (EDGE_PADDING * 2.0);
 
-        let collection_row = container(
-            button(
-                row![
-                    container(text(collection_name).size(12)).width(Length::FillPortion(3)),
-                    container(text(artist_name).size(12)).width(Length::FillPortion(2)),
-                    container(text(track_count.to_string()).size(12)).width(Length::Fixed(80.0)),
-                ]
-                .spacing(10),
-            )
-            .padding(10)
-            .width(Length::Fill)
-            .style(|theme: &Theme, status| {
-                let palette = theme.extended_palette();
-                let appearance = button::Style {
-                    background: Some(match status {
-                        button::Status::Hovered => palette.primary.weak.color.into(),
-                        button::Status::Pressed => palette.primary.base.color.into(),
-                        _ => palette.background.base.color.into(),
-                    }),
-                    text_color: palette.background.base.text,
-                    ..Default::default()
-                };
-                appearance
-            })
-            .on_press(Message::PlayCollection(collection_id)),
-        )
-        .width(Length::Fill);
+        let albums_per_row = ((available_width + MIN_GAP) / (MIN_CARD_WIDTH + MIN_GAP))
+            .floor()
+            .max(1.0) as usize;
 
-        collection_list = collection_list.push(collection_row);
-    }
+        let gap = MIN_GAP;
+        let card_size = if albums_per_row > 1 {
+            (available_width - (gap * (albums_per_row - 1) as f32)) / albums_per_row as f32
+        } else {
+            available_width
+        };
 
-    column![
-        header,
-        scrollable(collection_list).height(Length::Fill).direction(
+        let mut content = column![].spacing(gap).padding(EDGE_PADDING);
+
+        for chunk in album_cards.chunks(albums_per_row) {
+            let mut album_row = row![].spacing(gap);
+
+            for (album_id, album_name, artist, sample_track_path) in chunk.iter() {
+                let album_element = create_album_card(
+                    player,
+                    library,
+                    *album_id,
+                    album_name.clone(),
+                    artist.clone(),
+                    sample_track_path.clone(),
+                    card_size,
+                );
+                album_row = album_row.push(album_element);
+            }
+
+            content = content.push(album_row);
+        }
+
+        container(scrollable(content).width(Length::Fill).direction(
             scrollable::Direction::Vertical(
                 scrollable::Scrollbar::new().width(0).scroller_width(0),
-            )
-        )
-    ]
-    .width(Length::Fill)
-    .height(Length::Fill)
+            ),
+        ))
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+    })
+    .into()
+}
+
+fn create_album_card<'a>(
+    player: &'a Player,
+    library: &msc_core::Library,
+    _album_id: i64,
+    album_name: String,
+    artist: Option<String>,
+    sample_track_path: Option<String>,
+    card_size: f32,
+) -> Element<'a, Message> {
+    let artwork_size = card_size.max(64.0).min(400.0) as u32;
+
+    let artwork_element: Element<'a, Message> = if let Some(track_path) = sample_track_path {
+        if let Ok(Some(track)) = player.library().query_track_from_path(&track_path) {
+            if let Some((rgba_image, _colors)) = library.artwork(&track, artwork_size) {
+                let width = rgba_image.width;
+                let height = rgba_image.height;
+                let raw_data = (*rgba_image.data).clone();
+
+                let handle = image::Handle::from_rgba(width, height, raw_data);
+                image(handle)
+                    .width(Length::Fixed(card_size))
+                    .height(Length::Fixed(card_size))
+                    .into()
+            } else {
+                create_placeholder_artwork(card_size)
+            }
+        } else {
+            create_placeholder_artwork(card_size)
+        }
+    } else {
+        create_placeholder_artwork(card_size)
+    };
+
+    let album_name_display = album_name.clone();
+    let artist_display = artist
+        .clone()
+        .unwrap_or_else(|| "Unknown Artist".to_string());
+
+    let album_text = text(album_name_display)
+        .size(13)
+        .style(|theme: &Theme| text::Style {
+            color: Some(theme.extended_palette().background.base.text),
+        });
+
+    let artist_text = text(artist_display)
+        .size(11)
+        .style(|theme: &Theme| text::Style {
+            color: Some(theme.extended_palette().background.weak.text),
+        });
+
+    let info = column![album_text, artist_text]
+        .spacing(3)
+        .width(Length::Fixed(card_size));
+
+    let card_content = column![artwork_element, info].spacing(8);
+
+    button(card_content)
+        .padding(0)
+        .style(|theme: &Theme, status| {
+            let palette = theme.extended_palette();
+            button::Style {
+                background: Some(match status {
+                    button::Status::Hovered => palette.primary.weak.color.into(),
+                    button::Status::Pressed => palette.primary.base.color.into(),
+                    _ => iced::Color::TRANSPARENT.into(),
+                }),
+                ..Default::default()
+            }
+        })
+        .on_press(Message::PlayAlbum(album_name, artist))
+        .into()
+}
+
+fn create_placeholder_artwork<'a>(card_size: f32) -> Element<'a, Message> {
+    let icon_size = (card_size * 0.4).max(32.0).min(128.0);
+
+    container(
+        svg(SvgHandle::from_memory(include_bytes!(
+            "../../../assets/icons/disk.svg"
+        )))
+        .width(Length::Fixed(icon_size))
+        .height(Length::Fixed(icon_size)),
+    )
+    .width(Length::Fixed(card_size))
+    .height(Length::Fixed(card_size))
+    .center_x(card_size)
+    .center_y(card_size)
+    .style(|theme: &Theme| container::Style {
+        background: Some(theme.extended_palette().background.weak.color.into()),
+        ..Default::default()
+    })
     .into()
 }

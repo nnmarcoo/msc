@@ -3,7 +3,8 @@ use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container};
 use iced::{Element, Event, Length, Subscription, Task, Theme};
-use msc_core::Player;
+use msc_core::{Player, Track};
+use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -11,6 +12,8 @@ use crate::components::{bottom_bar, controls};
 use crate::media_controls::MediaSession;
 use crate::pane::{Pane, PaneContent};
 use crate::window_handle;
+
+// caching system kinda sucks anbd should prob be in core
 
 pub struct App {
     panes: pane_grid::State<Pane>,
@@ -24,6 +27,8 @@ pub struct App {
     current_preset: usize,
     hovered_track: Option<i64>,
     media_session: Option<MediaSession>,
+    cached_tracks: RefCell<Option<Vec<Track>>>,
+    cached_albums: RefCell<Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>>,
 }
 
 #[derive(Debug, Clone)]
@@ -42,6 +47,7 @@ pub enum Message {
     PlayTrack(i64),
     QueueBack(i64),
     QueueFront(i64),
+    PlayAlbum(String, Option<String>),
     TrackHovered(i64),
     TrackUnhovered,
     Event(Event),
@@ -89,11 +95,34 @@ impl Default for App {
             current_preset: 0,
             hovered_track: None,
             media_session: None,
+            cached_tracks: RefCell::new(None),
+            cached_albums: RefCell::new(None),
         }
     }
 }
 
 impl App {
+    fn invalidate_library_cache(&self) {
+        *self.cached_tracks.borrow_mut() = None;
+        *self.cached_albums.borrow_mut() = None;
+    }
+
+    fn ensure_cached_tracks(&self) {
+        let mut cache = self.cached_tracks.borrow_mut();
+        if cache.is_none() {
+            let tracks = self.player.library().query_all_tracks().unwrap_or_default();
+            *cache = Some(tracks);
+        }
+    }
+
+    fn ensure_cached_albums(&self) {
+        let mut cache = self.cached_albums.borrow_mut();
+        if cache.is_none() {
+            let albums = self.player.library().query_all_albums().unwrap_or_default();
+            *cache = Some(albums);
+        }
+    }
+
     fn save_current_layout(&mut self) {
         let config = self.panes.layout().clone();
         self.layout_presets[self.current_preset] =
@@ -206,6 +235,7 @@ impl App {
             Message::LibraryPathSelected(path) => {
                 if let Some(path) = path {
                     let _ = self.player.populate_library(&path);
+                    self.invalidate_library_cache();
                 }
             }
             Message::SetLibrary => {
@@ -220,6 +250,8 @@ impl App {
                         },
                         Message::LibraryPathSelected,
                     );
+                } else {
+                    self.invalidate_library_cache();
                 }
             }
             Message::Controls(msg) => {
@@ -324,6 +356,17 @@ impl App {
                     self.player.queue_front(track_id);
                 }
             }
+            Message::PlayAlbum(album_name, _artist) => {
+                if let Ok(tracks) = self.player.library().query_tracks_by_album(&album_name) {
+                    self.player.clear_queue();
+                    for track in tracks {
+                        if let Some(id) = track.id() {
+                            self.player.queue_back(id);
+                        }
+                    }
+                    let _ = self.player.start_next();
+                }
+            }
             Message::TrackHovered(track_id) => {
                 self.hovered_track = Some(track_id);
             }
@@ -371,10 +414,16 @@ impl App {
         let total_panes = self.panes.len();
         let edit_mode = self.edit_mode;
 
+        self.ensure_cached_tracks();
+        self.ensure_cached_albums();
+
         let player = &self.player;
         let volume = self.volume;
         let hovered_track = &self.hovered_track;
         let seeking_position = self.seeking_position;
+        let cached_tracks = &self.cached_tracks;
+        let cached_albums = &self.cached_albums;
+
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
             pane.view(
                 id,
@@ -384,6 +433,8 @@ impl App {
                 volume,
                 hovered_track,
                 seeking_position,
+                cached_tracks,
+                cached_albums,
             )
         })
         .width(Length::Fill)

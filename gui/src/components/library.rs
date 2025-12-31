@@ -1,15 +1,17 @@
 use iced::alignment::Horizontal;
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text};
 use iced::{Element, Length, Theme};
-use msc_core::Player;
+use msc_core::{Player, Track};
 
 use crate::app::Message;
 use crate::components::context_menu::track_context_menu;
 
-pub fn view<'a>(player: &Player, hovered_track: &Option<i64>) -> Element<'a, Message> {
-    let library = player.library();
-
-    let mut tracks = library.query_all_tracks().unwrap_or_default();
+pub fn view<'a>(
+    _player: &Player,
+    hovered_track: &Option<i64>,
+    cached_tracks: Vec<Track>,
+) -> Element<'a, Message> {
+    let mut tracks: Vec<_> = cached_tracks.iter().collect();
 
     tracks.sort_by(|a, b| {
         a.track_artist_or_default()
@@ -80,7 +82,7 @@ pub fn view<'a>(player: &Player, hovered_track: &Option<i64>) -> Element<'a, Mes
 
     let mut track_list = column![].spacing(0);
 
-    for track in tracks {
+    for track in tracks.iter() {
         if let Some(track_id) = track.id() {
             let duration_text = format_seconds(track.duration());
             let is_hovered = hovered_track.as_ref() == Some(&track_id);

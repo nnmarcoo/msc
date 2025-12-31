@@ -2,7 +2,8 @@ use iced::alignment::Vertical;
 use iced::widget::svg::Handle;
 use iced::widget::{button, container, pane_grid, pick_list, responsive, row, svg, text};
 use iced::{Border, Element, Length, Theme};
-use msc_core::Player;
+use msc_core::{Player, Track};
+use std::cell::RefCell;
 use std::fmt::{self, Display};
 
 use crate::app::Message;
@@ -14,6 +15,7 @@ pub enum PaneContent {
     Controls,
     Queue,
     Library,
+    Collections,
     Artwork,
     Timeline,
     Spectrum,
@@ -23,10 +25,11 @@ pub enum PaneContent {
 }
 
 impl PaneContent {
-    pub const ALL: [PaneContent; 9] = [
+    pub const ALL: [PaneContent; 10] = [
         PaneContent::Controls,
         PaneContent::Queue,
         PaneContent::Library,
+        PaneContent::Collections,
         PaneContent::Artwork,
         PaneContent::Timeline,
         PaneContent::Spectrum,
@@ -40,6 +43,7 @@ impl PaneContent {
             PaneContent::Controls => "Controls",
             PaneContent::Queue => "Queue",
             PaneContent::Library => "Library",
+            PaneContent::Collections => "Collections",
             PaneContent::Artwork => "Artwork",
             PaneContent::Timeline => "Timeline",
             PaneContent::Spectrum => "Spectrum",
@@ -78,6 +82,10 @@ impl Pane {
         volume: f32,
         hovered_track: &Option<i64>,
         seeking_position: Option<f32>,
+        cached_tracks: &'a RefCell<Option<Vec<Track>>>,
+        cached_albums: &'a RefCell<
+            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
+        >,
     ) -> pane_grid::Content<'a, Message> {
         if edit_mode {
             let title = row![
@@ -171,6 +179,8 @@ impl Pane {
                 volume,
                 hovered_track,
                 seeking_position,
+                cached_tracks,
+                cached_albums,
             ))
         }
     }
@@ -181,13 +191,22 @@ impl Pane {
         volume: f32,
         hovered_track: &Option<i64>,
         seeking_position: Option<f32>,
+        cached_tracks: &'a RefCell<Option<Vec<Track>>>,
+        cached_albums: &'a RefCell<
+            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
+        >,
     ) -> Element<'a, Message> {
+        // Clone the cached data for use in the view components
+        let tracks = cached_tracks.borrow().clone().unwrap_or_default();
+        let albums = cached_albums.borrow().clone().unwrap_or_default();
+
         let content = match self.content {
             PaneContent::Controls => {
                 components::controls::view(player, volume, seeking_position).map(Message::Controls)
             }
             PaneContent::Queue => components::queue::view(player, hovered_track),
-            PaneContent::Library => components::library::view(player, hovered_track),
+            PaneContent::Library => components::library::view(player, hovered_track, tracks),
+            PaneContent::Collections => components::collections::view(player, albums),
             PaneContent::Artwork => components::artwork::view(player),
             PaneContent::Timeline => components::timeline::view(),
             PaneContent::Spectrum => components::spectrum::view(player),

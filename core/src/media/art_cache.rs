@@ -6,10 +6,11 @@ use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
     sync::{
-        Arc,
+        Arc, Mutex,
         atomic::{AtomicBool, AtomicU32, Ordering},
+        mpsc::{self, Receiver, Sender},
     },
-    thread,
+    thread::{self, JoinHandle},
 };
 
 use super::image_processing::{Colors, extract_colors};
@@ -36,20 +37,95 @@ enum CacheState {
     Loading,
 }
 
+#[derive(Debug)]
+enum WorkItem {
+    LoadInitial {
+        cache_key: String,
+        path: PathBuf,
+        size: u32,
+    },
+    GenerateSize {
+        cache_key: String,
+        original: Arc<DynamicImage>,
+        size: u32,
+        is_loading: Arc<AtomicBool>,
+        pending_size: Arc<AtomicU32>,
+    },
+}
+
 pub struct ArtCache {
     cache: Arc<DashMap<String, CacheState>>,
-    loading_count: Arc<AtomicU32>,
+    work_queue: Arc<Mutex<Sender<WorkItem>>>,
+    _workers: Vec<JoinHandle<()>>,
 }
 
 impl ArtCache {
     pub fn new() -> Self {
+        const MAX_THREADS: usize = 4;
+
+        let (tx, rx) = mpsc::channel::<WorkItem>();
+        let rx = Arc::new(Mutex::new(rx));
+        let cache = Arc::new(DashMap::new());
+
+        let mut workers = Vec::new();
+        for _ in 0..MAX_THREADS {
+            let rx = Arc::clone(&rx);
+            let cache = Arc::clone(&cache);
+
+            let handle = thread::spawn(move || {
+                Self::worker_loop(rx, cache);
+            });
+            workers.push(handle);
+        }
+
         Self {
-            cache: Arc::new(DashMap::new()),
-            loading_count: Arc::new(AtomicU32::new(0)),
+            cache,
+            work_queue: Arc::new(Mutex::new(tx)),
+            _workers: workers,
         }
     }
 
-    const MAX_THREADS: u32 = 4;
+    fn worker_loop(rx: Arc<Mutex<Receiver<WorkItem>>>, cache: Arc<DashMap<String, CacheState>>) {
+        loop {
+            let work_item = {
+                let receiver = match rx.lock() {
+                    Ok(r) => r,
+                    Err(_) => break,
+                };
+
+                match receiver.recv() {
+                    Ok(item) => item,
+                    Err(_) => break,
+                }
+            };
+
+            match work_item {
+                WorkItem::LoadInitial {
+                    cache_key,
+                    path,
+                    size,
+                } => {
+                    Self::load_image_sync(cache.clone(), cache_key, path, size);
+                }
+                WorkItem::GenerateSize {
+                    cache_key,
+                    original,
+                    size,
+                    is_loading,
+                    pending_size,
+                } => {
+                    Self::generate_size_sync(
+                        cache.clone(),
+                        cache_key,
+                        original,
+                        size,
+                        is_loading,
+                        pending_size,
+                    );
+                }
+            }
+        }
+    }
 
     pub fn get(&self, track: &Track, size: u32) -> Option<(RgbaImage, Colors)> {
         let cache_key = Self::cache_key(track)?;
@@ -57,12 +133,15 @@ impl ArtCache {
         if let Some(entry) = self.cache.get(&cache_key) {
             match entry.value() {
                 CacheState::Ready(cached) => {
+                    // Check if we have this exact size
                     if let Some(image) = cached.images.get(&size) {
                         return Some((image.clone(), cached.colors));
                     }
 
+                    // Update the pending size
                     cached.pending_size.store(size, Ordering::Relaxed);
 
+                    // Find the closest available size
                     let closest = cached
                         .images
                         .range(size..)
@@ -71,21 +150,19 @@ impl ArtCache {
                         .map(|(_, img)| img.clone());
 
                     if let Some(image) = closest {
+                        // Queue generation of the requested size if not already loading
                         if !cached.is_loading.swap(true, Ordering::Relaxed) {
-                            let cache = self.cache.clone();
-                            let cache_key = cache_key.clone();
-                            let original = cached.original.clone();
-                            let is_loading = cached.is_loading.clone();
-                            let pending_size = cached.pending_size.clone();
-                            std::thread::spawn(move || {
-                                Self::generate_pending_size(
-                                    cache,
-                                    cache_key,
-                                    original,
-                                    is_loading,
-                                    pending_size,
-                                );
-                            });
+                            let work_item = WorkItem::GenerateSize {
+                                cache_key: cache_key.clone(),
+                                original: cached.original.clone(),
+                                size,
+                                is_loading: cached.is_loading.clone(),
+                                pending_size: cached.pending_size.clone(),
+                            };
+
+                            if let Ok(queue) = self.work_queue.lock() {
+                                let _ = queue.send(work_item);
+                            }
                         }
 
                         return Some((image, cached.colors));
@@ -95,22 +172,20 @@ impl ArtCache {
             }
         }
 
+        // Not in cache - queue it for loading
         if self
             .cache
             .insert(cache_key.clone(), CacheState::Loading)
             .is_none()
         {
-            if self.loading_count.load(Ordering::Relaxed) < Self::MAX_THREADS {
-                self.loading_count.fetch_add(1, Ordering::Relaxed);
+            let work_item = WorkItem::LoadInitial {
+                cache_key,
+                path: track.path().clone(),
+                size,
+            };
 
-                let cache = self.cache.clone();
-                let path = track.path().clone();
-                let loading_count = self.loading_count.clone();
-
-                std::thread::spawn(move || {
-                    Self::load_image_sync(cache, cache_key, path, size);
-                    loading_count.fetch_sub(1, Ordering::Relaxed);
-                });
+            if let Ok(queue) = self.work_queue.lock() {
+                let _ = queue.send(work_item);
             }
         }
 
@@ -119,7 +194,7 @@ impl ArtCache {
 
     fn cache_key(track: &Track) -> Option<String> {
         let album = track.album()?;
-        let artist = track.album_artist().or_else(|| track.track_artist())?;
+        let artist = track.album_artist().unwrap_or("Unknown");
         Some(format!("{}|{}", album, artist))
     }
 
@@ -153,14 +228,14 @@ impl ArtCache {
         }
     }
 
-    fn generate_pending_size(
+    fn generate_size_sync(
         cache: Arc<DashMap<String, CacheState>>,
         cache_key: String,
         original: Arc<DynamicImage>,
+        size: u32,
         is_loading: Arc<AtomicBool>,
         pending_size: Arc<AtomicU32>,
     ) {
-        let size = pending_size.load(Ordering::Relaxed);
         let rgba_image = Self::create_rgba_image(&original, size);
 
         let should_continue = if let Some(mut entry) = cache.get_mut(&cache_key) {
@@ -177,9 +252,7 @@ impl ArtCache {
         };
 
         if should_continue {
-            thread::spawn(move || {
-                Self::generate_pending_size(cache, cache_key, original, is_loading, pending_size);
-            });
+            is_loading.store(false, Ordering::Relaxed);
         } else {
             is_loading.store(false, Ordering::Relaxed);
         }

@@ -42,7 +42,9 @@ pub fn create_tables(conn: &Connection) -> SqliteResult<()> {
 
             -- Timestamps
             created_at INTEGER NOT NULL,            -- Unix timestamp when album was added to library
-            updated_at INTEGER NOT NULL             -- Unix timestamp when album was last updated
+            updated_at INTEGER NOT NULL,            -- Unix timestamp when album was last updated
+
+            UNIQUE(name, artist)
         );
 
         CREATE TABLE IF NOT EXISTS playlists (
