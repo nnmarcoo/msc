@@ -109,6 +109,85 @@ impl Database {
         }
     }
 
+    pub fn batch_upsert_tracks(&self, tracks: &[Track]) -> SqliteResult<()> {
+        if tracks.is_empty() {
+            return Ok(());
+        }
+
+        let now = Self::now();
+
+        self.conn.execute_batch("BEGIN TRANSACTION")?;
+
+        let result = (|| {
+            for track in tracks {
+                let updated = self.conn.execute(
+                    "UPDATE tracks SET
+                        title = ?1, track_artist = ?2, album = ?3, album_artist = ?4,
+                        genre = ?5, year = ?6, track_number = ?7, disc_number = ?8,
+                        comment = ?9, duration = ?10, bit_rate = ?11, sample_rate = ?12,
+                        bit_depth = ?13, channels = ?14, updated_at = ?15, missing = 0
+                     WHERE path = ?16",
+                    params![
+                        track.title(),
+                        track.track_artist(),
+                        track.album(),
+                        track.album_artist(),
+                        track.genre(),
+                        track.year(),
+                        track.track_number(),
+                        track.disc_number(),
+                        track.comment(),
+                        track.duration(),
+                        track.bit_rate(),
+                        track.sample_rate(),
+                        track.bit_depth(),
+                        track.channels(),
+                        now,
+                        track.path().to_str(),
+                    ],
+                )?;
+
+                if updated == 0 {
+                    self.conn.execute(
+                        "INSERT INTO tracks (
+                            path, title, track_artist, album, album_artist, genre,
+                            year, track_number, disc_number, comment,
+                            duration, bit_rate, sample_rate, bit_depth, channels,
+                            created_at, updated_at, missing
+                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16, 0)",
+                        params![
+                            track.path().to_str(),
+                            track.title(),
+                            track.track_artist(),
+                            track.album(),
+                            track.album_artist(),
+                            track.genre(),
+                            track.year(),
+                            track.track_number(),
+                            track.disc_number(),
+                            track.comment(),
+                            track.duration(),
+                            track.bit_rate(),
+                            track.sample_rate(),
+                            track.bit_depth(),
+                            track.channels(),
+                            now,
+                        ],
+                    )?;
+                }
+            }
+            Ok(())
+        })();
+
+        if result.is_ok() {
+            self.conn.execute_batch("COMMIT")?;
+        } else {
+            self.conn.execute_batch("ROLLBACK")?;
+        }
+
+        result
+    }
+
     pub fn get_track_by_id(&self, id: i64) -> SqliteResult<Option<Track>> {
         self.conn
             .query_row(

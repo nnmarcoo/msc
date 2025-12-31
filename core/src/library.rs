@@ -1,3 +1,4 @@
+use rayon::prelude::*;
 use std::{
     fs::{create_dir_all, read_dir},
     path::Path,
@@ -44,6 +45,9 @@ impl Library {
     }
 
     fn scan_directory(db: &Database, dir: &Path) -> Result<(), LibraryError> {
+        let mut audio_files = Vec::new();
+        let mut subdirs = Vec::new();
+
         if let Ok(entries) = read_dir(dir) {
             for entry in entries.flatten() {
                 let path = entry.path();
@@ -51,19 +55,26 @@ impl Library {
                     if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
                         let ext = ext.to_lowercase();
                         if ["mp3", "flac", "wav", "ogg", "m4a", "aac"].contains(&ext.as_str()) {
-                            if let Ok(track) = Track::from_path(&path) {
-                                db.upsert_track(&track)?;
-                                if let Some(path_str) = track.path().to_str() {
-                                    db.mark_not_missing(path_str)?;
-                                }
-                            }
+                            audio_files.push(path);
                         }
                     }
                 } else if path.is_dir() {
-                    Self::scan_directory(db, &path)?;
+                    subdirs.push(path);
                 }
             }
         }
+
+        let tracks: Vec<Track> = audio_files
+            .par_iter()
+            .filter_map(|path| Track::from_path(path).ok())
+            .collect();
+
+        db.batch_upsert_tracks(&tracks)?;
+
+        for subdir in subdirs {
+            Self::scan_directory(db, &subdir)?;
+        }
+
         Ok(())
     }
 
