@@ -9,6 +9,7 @@ use std::{
         Arc,
         atomic::{AtomicBool, AtomicU32, Ordering},
     },
+    thread,
 };
 
 use super::image_processing::{Colors, extract_colors};
@@ -166,7 +167,6 @@ impl ArtCache {
             if let CacheState::Ready(cached) = entry.value_mut() {
                 cached.images.insert(size, rgba_image);
 
-                // Check for new pending size while we have the lock
                 let current_pending = pending_size.load(Ordering::Relaxed);
                 current_pending != size && !cached.images.contains_key(&current_pending)
             } else {
@@ -177,7 +177,7 @@ impl ArtCache {
         };
 
         if should_continue {
-            std::thread::spawn(move || {
+            thread::spawn(move || {
                 Self::generate_pending_size(cache, cache_key, original, is_loading, pending_size);
             });
         } else {
