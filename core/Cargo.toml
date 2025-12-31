@@ -16,3 +16,5 @@ toml = "0.9.10"
 directories = "6.0.0"
 rustfft = "6.4.1"
 crossbeam = "0.8.4"
+rusqlite = { version = "0.38.0", features = ["bundled", "blob"] }
+thiserror = "2.0.17"

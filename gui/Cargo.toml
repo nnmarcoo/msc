@@ -7,7 +7,6 @@ edition = "2024"
 iced = { version = "0.13.1", features = ["tokio", "image", "advanced", "lazy", "svg"] }
 msc-core = { path = "../core" }
 image = "0.25.9"
-blake3 = "1.8.2"
 rfd = "0.16.0"
 iced_aw = "0.12.0"
 souvlaki = "0.8.3"

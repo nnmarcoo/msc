@@ -1,4 +1,3 @@
-use blake3::Hash;
 use iced::keyboard::{self, Key, key};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
@@ -23,7 +22,7 @@ pub struct App {
     seeking_position: Option<f32>,
     layout_presets: Vec<pane_grid::Configuration<Pane>>,
     current_preset: usize,
-    hovered_track: Option<Hash>,
+    hovered_track: Option<i64>,
     media_session: Option<MediaSession>,
 }
 
@@ -40,11 +39,10 @@ pub enum Message {
     SetLibrary,
     PaneContentChanged(pane_grid::Pane, PaneContent),
     BottomBar(bottom_bar::Message),
-    PlayTrack(Hash),
-    PlayCollection(Hash),
-    QueueBack(Hash),
-    QueueFront(Hash),
-    TrackHovered(Hash),
+    PlayTrack(i64),
+    QueueBack(i64),
+    QueueFront(i64),
+    TrackHovered(i64),
     TrackUnhovered,
     Event(Event),
 }
@@ -196,18 +194,10 @@ impl App {
                     }
 
                     if let Some(track) = self.player.clone_current_track() {
-                        let title = track.metadata.title.as_deref().unwrap_or("Unknown Title");
-                        let artist = track
-                            .metadata
-                            .track_artist
-                            .as_deref()
-                            .unwrap_or("Unknown Artist");
-                        let album = track
-                            .metadata
-                            .track_artist
-                            .as_deref()
-                            .unwrap_or("Unknown Album");
-                        let duration = Some(track.metadata.duration as f64);
+                        let title = track.title().unwrap_or("Unknown Title");
+                        let artist = track.track_artist().unwrap_or("Unknown Artist");
+                        let album = track.album().unwrap_or("Unknown Album");
+                        let duration = Some(track.duration() as f64);
 
                         session.set_metadata(title, artist, album, duration);
                     }
@@ -280,7 +270,7 @@ impl App {
                 use bottom_bar::Message as BottomBarMessage;
                 match msg {
                     BottomBarMessage::QueueLibrary => {
-                        self.player.queue_library();
+                        let _ = self.player.queue_library();
                         let _ = self.player.play();
                     }
                     BottomBarMessage::ClearQueue => {
@@ -319,23 +309,18 @@ impl App {
                 }
             }
             Message::PlayTrack(track_id) => {
-                if let Some(_track) = self.player.library().track_from_id(track_id) {
+                if let Ok(Some(_track)) = self.player.library().query_track_from_id(track_id) {
                     self.player.queue_front(track_id);
                     let _ = self.player.start_next();
                 }
             }
-            Message::PlayCollection(collection_id) => {
-                if let Some(collection) = self.player.library().collection_from_id(collection_id) {
-                    self.player.queue_many(collection.tracks.iter().copied());
-                }
-            }
             Message::QueueBack(track_id) => {
-                if let Some(_track) = self.player.library().track_from_id(track_id) {
+                if let Ok(Some(_track)) = self.player.library().query_track_from_id(track_id) {
                     self.player.queue_back(track_id);
                 }
             }
             Message::QueueFront(track_id) => {
-                if let Some(_track) = self.player.library().track_from_id(track_id) {
+                if let Ok(Some(_track)) = self.player.library().query_track_from_id(track_id) {
                     self.player.queue_front(track_id);
                 }
             }

@@ -1,6 +1,5 @@
 pub mod artwork;
 pub mod bottom_bar;
-pub mod collections;
 pub mod context_menu;
 pub mod controls;
 pub mod current_track;

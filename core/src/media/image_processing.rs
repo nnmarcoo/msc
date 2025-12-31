@@ -7,7 +7,7 @@ pub struct Colors {
     pub accent: [u8; 3],
 }
 
-pub fn extract_colors(image: &DynamicImage) -> Colors {
+pub(crate) fn extract_colors(image: &DynamicImage) -> Colors {
     let img = resize(image);
     let mut buckets: HashMap<(u8, u8, u8), usize> = HashMap::new();
 

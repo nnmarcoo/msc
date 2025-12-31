@@ -14,7 +14,6 @@ pub enum PaneContent {
     Controls,
     Queue,
     Library,
-    Collections,
     Artwork,
     Timeline,
     Spectrum,
@@ -24,11 +23,10 @@ pub enum PaneContent {
 }
 
 impl PaneContent {
-    pub const ALL: [PaneContent; 10] = [
+    pub const ALL: [PaneContent; 9] = [
         PaneContent::Controls,
         PaneContent::Queue,
         PaneContent::Library,
-        PaneContent::Collections,
         PaneContent::Artwork,
         PaneContent::Timeline,
         PaneContent::Spectrum,
@@ -42,7 +40,6 @@ impl PaneContent {
             PaneContent::Controls => "Controls",
             PaneContent::Queue => "Queue",
             PaneContent::Library => "Library",
-            PaneContent::Collections => "Collections",
             PaneContent::Artwork => "Artwork",
             PaneContent::Timeline => "Timeline",
             PaneContent::Spectrum => "Spectrum",
@@ -79,7 +76,7 @@ impl Pane {
         edit_mode: bool,
         player: &'a Player,
         volume: f32,
-        hovered_track: &Option<blake3::Hash>,
+        hovered_track: &Option<i64>,
         seeking_position: Option<f32>,
     ) -> pane_grid::Content<'a, Message> {
         if edit_mode {
@@ -182,7 +179,7 @@ impl Pane {
         &self,
         player: &'a Player,
         volume: f32,
-        hovered_track: &Option<blake3::Hash>,
+        hovered_track: &Option<i64>,
         seeking_position: Option<f32>,
     ) -> Element<'a, Message> {
         let content = match self.content {
@@ -191,7 +188,6 @@ impl Pane {
             }
             PaneContent::Queue => components::queue::view(player, hovered_track),
             PaneContent::Library => components::library::view(player, hovered_track),
-            PaneContent::Collections => components::collections::view(player, hovered_track),
             PaneContent::Artwork => components::artwork::view(player),
             PaneContent::Timeline => components::timeline::view(),
             PaneContent::Spectrum => components::spectrum::view(player),

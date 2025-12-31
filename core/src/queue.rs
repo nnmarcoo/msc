@@ -1,11 +1,10 @@
-use blake3::Hash;
 use rand::seq::SliceRandom;
 use std::collections::VecDeque;
 
 pub struct Queue {
-    history: VecDeque<Hash>,
-    current: Option<Hash>,
-    upcoming: VecDeque<Hash>,
+    history: VecDeque<i64>,
+    current: Option<i64>,
+    upcoming: VecDeque<i64>,
 }
 
 impl Queue {
@@ -17,11 +16,11 @@ impl Queue {
         }
     }
 
-    pub fn add_next(&mut self, track_id: Hash) {
+    pub fn add_next(&mut self, track_id: i64) {
         self.upcoming.push_front(track_id);
     }
 
-    pub fn add(&mut self, track_id: Hash) {
+    pub fn add(&mut self, track_id: i64) {
         if self.current.is_none() {
             self.current = Some(track_id);
         } else {
@@ -29,7 +28,7 @@ impl Queue {
         }
     }
 
-    pub fn add_many(&mut self, track_ids: impl Iterator<Item = Hash>) {
+    pub fn add_many(&mut self, track_ids: impl Iterator<Item = i64>) {
         if self.current.is_none() {
             let mut ids = track_ids;
             self.current = ids.next();
@@ -39,7 +38,7 @@ impl Queue {
         }
     }
 
-    pub fn next(&mut self) -> Option<Hash> {
+    pub fn next(&mut self) -> Option<i64> {
         if let Some(next) = self.upcoming.pop_front() {
             if let Some(current) = self.current.take() {
                 self.history.push_back(current);
@@ -49,7 +48,7 @@ impl Queue {
         self.current
     }
 
-    pub fn previous(&mut self) -> Option<Hash> {
+    pub fn previous(&mut self) -> Option<i64> {
         if let Some(prev) = self.history.pop_back() {
             if let Some(current) = self.current.take() {
                 self.upcoming.push_front(current);
@@ -59,7 +58,7 @@ impl Queue {
         self.current
     }
 
-    pub fn current_id(&self) -> Option<Hash> {
+    pub fn current_id(&self) -> Option<i64> {
         self.current
     }
 
@@ -70,16 +69,16 @@ impl Queue {
     }
 
     pub fn shuffle(&mut self) {
-        let mut tracks: Vec<Hash> = self.upcoming.drain(..).collect();
+        let mut tracks: Vec<i64> = self.upcoming.drain(..).collect();
         tracks.shuffle(&mut rand::rng());
         self.upcoming = VecDeque::from(tracks);
     }
 
-    pub fn upcoming(&self) -> &VecDeque<Hash> {
+    pub fn upcoming(&self) -> &VecDeque<i64> {
         &self.upcoming
     }
 
-    pub fn history(&self) -> &VecDeque<Hash> {
+    pub fn history(&self) -> &VecDeque<i64> {
         &self.history
     }
 }

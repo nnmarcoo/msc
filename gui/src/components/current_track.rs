@@ -9,19 +9,20 @@ pub fn view(player: &Player) -> Element<'static, crate::app::Message> {
     let current_track = player.clone_current_track();
 
     if let Some(track) = current_track {
-        let metadata = &track.metadata;
-
-        let title_text = text(metadata.title_or_default()).size(18).font(Font {
+        let title_text = text(track.title_or_default()).size(18).font(Font {
             weight: Weight::Bold,
             ..Default::default()
         });
 
-        let artist_text = text(metadata.track_artist_or_default()).size(15);
+        let artist_text = text(track.track_artist_or_default()).size(15);
 
-        let album_genre_parts = vec![metadata.track_artist.clone(), metadata.genre.clone()]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+        let album_genre_parts = vec![
+            track.album().map(|s| s.to_string()),
+            track.genre().map(|s| s.to_string()),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
 
         let album_genre = if !album_genre_parts.is_empty() {
             text(album_genre_parts.join(" • "))
@@ -31,14 +32,14 @@ pub fn view(player: &Player) -> Element<'static, crate::app::Message> {
             text("").size(13)
         };
 
-        let duration_text = text(formatters::format_duration(metadata.duration))
+        let duration_text = text(formatters::format_duration(track.duration()))
             .size(13)
             .style(secondary_style);
 
         let quality_parts = vec![
-            formatters::format_sample_rate(metadata.sample_rate),
-            formatters::format_optional_u8(metadata.bit_depth, "bit"),
-            formatters::format_optional_u32(metadata.bit_rate, "kbps"),
+            formatters::format_sample_rate(track.sample_rate()),
+            formatters::format_optional_u8(track.bit_depth(), "bit"),
+            formatters::format_optional_u32(track.bit_rate(), "kbps"),
         ]
         .into_iter()
         .filter(|s| s != "-")
@@ -52,8 +53,8 @@ pub fn view(player: &Player) -> Element<'static, crate::app::Message> {
             text("").size(13)
         };
 
-        let channels_text = if metadata.channels.is_some() {
-            text(formatters::format_channels(metadata.channels))
+        let channels_text = if track.channels().is_some() {
+            text(formatters::format_channels(track.channels()))
                 .size(13)
                 .style(secondary_style)
         } else {

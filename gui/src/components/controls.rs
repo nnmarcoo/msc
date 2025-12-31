@@ -33,9 +33,9 @@ pub fn view<'a>(
 
     let (title, artist, duration) = if let Some(track) = current_track {
         (
-            track.metadata.title_or_default().to_string(),
-            track.metadata.track_artist_or_default().to_string(),
-            track.metadata.duration,
+            track.title_or_default().to_string(),
+            track.track_artist_or_default().to_string(),
+            track.duration(),
         )
     } else {
         ("-".to_string(), "-".to_string(), 0.0)

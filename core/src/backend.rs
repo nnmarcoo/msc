@@ -1,5 +1,6 @@
 use crossbeam::atomic::AtomicCell;
-use std::{error::Error, fmt::Display, path::Path, sync::Arc};
+use std::{path::Path, sync::Arc};
+use thiserror::Error;
 
 use kira::{
     AudioManager, AudioManagerSettings, DefaultBackend, PlaySoundError, Tween,
@@ -69,16 +70,6 @@ impl Backend {
         }
     }
 
-    pub fn toggle_playback(&mut self) {
-        if let Some(sound) = &mut self.sound {
-            match sound.state() {
-                PlaybackState::Playing => sound.pause(Tween::default()),
-                PlaybackState::Paused => sound.resume(Tween::default()),
-                _ => {}
-            }
-        }
-    }
-
     pub fn stop(&mut self) {
         if let Some(sound) = &mut self.sound {
             sound.stop(Tween::default());
@@ -132,19 +123,10 @@ impl Backend {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Error)]
 pub enum PlaybackError {
+    #[error("Failed to load audio file: {0}")]
     LoadError(FromFileError),
+    #[error("Failed to play audio: {0}")]
     PlayError(PlaySoundError<FromFileError>),
 }
-
-impl Display for PlaybackError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            PlaybackError::LoadError(e) => write!(f, "Failed to load audio file: {}", e),
-            PlaybackError::PlayError(e) => write!(f, "Failed to play audio: {}", e),
-        }
-    }
-}
-
-impl Error for PlaybackError {}
