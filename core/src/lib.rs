@@ -17,4 +17,5 @@ pub(crate) use media::ArtCache;
 pub use media::{Colors, RgbaImage};
 pub use player::{Player, PlayerError};
 pub(crate) use queue::Queue;
+pub use queue::LoopMode;
 pub use track::Track;

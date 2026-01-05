@@ -1,10 +1,24 @@
 use rand::seq::SliceRandom;
 use std::collections::VecDeque;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LoopMode {
+    None,
+    Queue,
+    Single,
+}
+
+impl Default for LoopMode {
+    fn default() -> Self {
+        LoopMode::None
+    }
+}
+
 pub struct Queue {
     history: VecDeque<i64>,
     current: Option<i64>,
     upcoming: VecDeque<i64>,
+    loop_mode: LoopMode,
 }
 
 impl Queue {
@@ -13,6 +27,7 @@ impl Queue {
             history: VecDeque::new(),
             current: None,
             upcoming: VecDeque::new(),
+            loop_mode: LoopMode::None,
         }
     }
 
@@ -39,13 +54,41 @@ impl Queue {
     }
 
     pub fn next(&mut self) -> Option<i64> {
-        if let Some(next) = self.upcoming.pop_front() {
-            if let Some(current) = self.current.take() {
-                self.history.push_back(current);
+        match self.loop_mode {
+            LoopMode::Single => {
+                // Just return current track without advancing
+                self.current
             }
-            self.current = Some(next);
+            LoopMode::Queue => {
+                if let Some(next) = self.upcoming.pop_front() {
+                    // Normal advance within queue
+                    if let Some(current) = self.current.take() {
+                        self.history.push_back(current);
+                    }
+                    self.current = Some(next);
+                } else if self.current.is_some() && !self.history.is_empty() {
+                    // Reached end of queue - restart from beginning
+                    // Move current to history
+                    if let Some(current) = self.current.take() {
+                        self.history.push_back(current);
+                    }
+                    // Move all history back to upcoming (in order)
+                    self.upcoming.extend(self.history.drain(..));
+                    // Pop the first track as current
+                    self.current = self.upcoming.pop_front();
+                }
+                self.current
+            }
+            LoopMode::None => {
+                if let Some(next) = self.upcoming.pop_front() {
+                    if let Some(current) = self.current.take() {
+                        self.history.push_back(current);
+                    }
+                    self.current = Some(next);
+                }
+                self.current
+            }
         }
-        self.current
     }
 
     pub fn previous(&mut self) -> Option<i64> {
@@ -80,5 +123,22 @@ impl Queue {
 
     pub fn history(&self) -> &VecDeque<i64> {
         &self.history
+    }
+
+    pub fn loop_mode(&self) -> LoopMode {
+        self.loop_mode
+    }
+
+    pub fn set_loop_mode(&mut self, mode: LoopMode) {
+        self.loop_mode = mode;
+    }
+
+    pub fn cycle_loop_mode(&mut self) -> LoopMode {
+        self.loop_mode = match self.loop_mode {
+            LoopMode::None => LoopMode::Queue,
+            LoopMode::Queue => LoopMode::Single,
+            LoopMode::Single => LoopMode::None,
+        };
+        self.loop_mode
     }
 }

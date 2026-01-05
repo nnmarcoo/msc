@@ -5,7 +5,7 @@ use kira::backend::cpal;
 
 use crate::{
     Backend, Colors, Config, ConfigError, Library, LibraryError, Queue, RgbaImage, Track, VisData,
-    backend::PlaybackError,
+    backend::PlaybackError, queue::LoopMode,
 };
 
 pub struct Player {
@@ -87,6 +87,18 @@ impl Player {
         self.queue
             .add_many(tracks.into_iter().filter_map(|t| t.id()));
         Ok(())
+    }
+
+    pub fn set_loop_mode(&mut self, mode: LoopMode) {
+        self.queue.set_loop_mode(mode);
+    }
+
+    pub fn cycle_loop_mode(&mut self) -> LoopMode {
+        self.queue.cycle_loop_mode()
+    }
+
+    pub fn loop_mode(&self) -> LoopMode {
+        self.queue.loop_mode()
     }
 
     fn play_track(&mut self, track_id: Option<i64>) -> Result<(), PlaybackError> {
