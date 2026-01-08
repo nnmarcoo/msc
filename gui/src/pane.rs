@@ -10,6 +10,8 @@ use crate::app::Message;
 use crate::components;
 use crate::widgets::square_button::square_button;
 
+// in edit mode the panes should be changed with a right click menu instead of the drop down!!!
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaneContent {
     Controls,
@@ -22,10 +24,11 @@ pub enum PaneContent {
     VUMeters,
     TrackInfo,
     Empty,
+    Settings,
 }
 
 impl PaneContent {
-    pub const ALL: [PaneContent; 10] = [
+    pub const ALL: [PaneContent; 11] = [
         PaneContent::Controls,
         PaneContent::Queue,
         PaneContent::Library,
@@ -36,6 +39,7 @@ impl PaneContent {
         PaneContent::VUMeters,
         PaneContent::TrackInfo,
         PaneContent::Empty,
+        PaneContent::Settings,
     ];
 
     pub fn title(&self) -> &str {
@@ -50,6 +54,7 @@ impl PaneContent {
             PaneContent::VUMeters => "VU Meters",
             PaneContent::TrackInfo => "Track Info",
             PaneContent::Empty => "Empty",
+            PaneContent::Settings => "Settings",
         }
     }
 }
@@ -213,6 +218,7 @@ impl Pane {
             PaneContent::VUMeters => components::vu_meters::view(player),
             PaneContent::TrackInfo => components::current_track::view(player),
             PaneContent::Empty => components::empty::view(),
+            PaneContent::Settings => components::empty::view(),
         };
 
         container(content)

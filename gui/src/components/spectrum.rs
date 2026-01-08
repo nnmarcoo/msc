@@ -54,9 +54,11 @@ impl canvas::Program<Message> for Spectrum {
         let bar_width = bounds.width / self.bins.len() as f32;
         let max_height = bounds.height;
 
+        let spacing = (bar_width * 0.1).clamp(1.0, 4.0);
+
         for (i, &amplitude) in self.bins.iter().enumerate() {
             let height = amplitude * max_height;
-            let x = i as f32 * bar_width + 2.0;
+            let x = i as f32 * bar_width + spacing / 2.0;
             let y = bounds.height - height;
 
             let intensity = amplitude.clamp(0.0, 1.0);
@@ -68,7 +70,7 @@ impl canvas::Program<Message> for Spectrum {
 
             frame.fill_rectangle(
                 iced::Point::new(x, y),
-                Size::new(bar_width - 4.0, height),
+                Size::new(bar_width - spacing, height),
                 color,
             );
         }

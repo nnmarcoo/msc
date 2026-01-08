@@ -26,6 +26,7 @@ impl<Message: Clone> MenuElement<Message> {
 pub fn context_menu<'a, Message: 'a + Clone>(
     content: impl Into<Element<'a, Message>>,
     items: Vec<MenuElement<Message>>,
+    width: Length,
 ) -> Element<'a, Message> {
     ContextMenu::new(content, move || {
         let menu_column = items.iter().fold(column![].spacing(2), |col, item| {
@@ -47,7 +48,7 @@ pub fn context_menu<'a, Message: 'a + Clone>(
         });
 
         container(menu_column)
-            .width(Length::Fixed(140.0))
+            .width(width)
             .padding(6)
             .style(menu_container_style)
             .into()

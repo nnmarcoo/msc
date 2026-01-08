@@ -1,5 +1,7 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use iced::{
-    Theme,
+    Size, Theme,
     window::{Settings, icon::from_file_data},
 };
 
@@ -16,6 +18,7 @@ use app::App;
 pub fn main() -> iced::Result {
     iced::application("msc", App::update, App::view)
         .window(Settings {
+            min_size: Some(Size::new(300., 0.)),
             icon: from_file_data(include_bytes!("../../assets/logo.png"), None).ok(),
             ..Default::default()
         })

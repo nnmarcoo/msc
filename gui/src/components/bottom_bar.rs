@@ -7,12 +7,12 @@ use crate::widgets::canvas_button::canvas_button;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    QueueLibrary,
     ClearQueue,
     ShuffleQueue,
     ToggleEditMode,
     SwitchPreset(usize),
     AddPreset,
+    RemovePreset,
     CycleLoopMode,
 }
 
@@ -39,14 +39,26 @@ pub fn view(
     }
 
     if edit_mode {
-        preset_buttons = preset_buttons.push(
-            canvas_button(svg(Handle::from_memory(include_bytes!(
-                "../../../assets/icons/plus.svg"
-            ))))
-            .width(20)
-            .height(20)
-            .on_press(Message::AddPreset),
-        );
+        if preset_count < 10 {
+            preset_buttons = preset_buttons.push(
+                canvas_button(svg(Handle::from_memory(include_bytes!(
+                    "../../../assets/icons/plus.svg"
+                ))))
+                .width(20)
+                .height(20)
+                .on_press(Message::AddPreset),
+            );
+        }
+        if preset_count > 1 {
+            preset_buttons = preset_buttons.push(
+                canvas_button(svg(Handle::from_memory(include_bytes!(
+                    "../../../assets/icons/minus.svg"
+                ))))
+                .width(20)
+                .height(20)
+                .on_press(Message::RemovePreset),
+            );
+        }
     }
 
     let bottom_bar = if edit_mode {
@@ -54,12 +66,18 @@ pub fn view(
             row![
                 preset_buttons,
                 horizontal_space(),
-                canvas_button(svg(Handle::from_memory(include_bytes!(
-                    "../../../assets/icons/checkmark.svg"
-                ))))
-                .width(20)
-                .height(20)
-                .on_press(Message::ToggleEditMode)
+                tooltip(
+                    canvas_button(svg(Handle::from_memory(include_bytes!(
+                        "../../../assets/icons/checkmark.svg"
+                    ))))
+                    .width(20)
+                    .height(20)
+                    .on_press(Message::ToggleEditMode),
+                    container(text("Done").size(12))
+                        .padding(6)
+                        .style(container::rounded_box),
+                    tooltip::Position::Top
+                )
             ]
             .spacing(5)
             .align_y(Vertical::Center),
@@ -84,13 +102,6 @@ pub fn view(
                         .style(container::rounded_box),
                     tooltip::Position::Top,
                 ),
-                canvas_button(
-                    text("quelib")
-                        .align_x(Horizontal::Center)
-                        .align_y(Vertical::Center)
-                )
-                .height(20)
-                .on_press(Message::QueueLibrary),
                 canvas_button(
                     text("clear")
                         .align_x(Horizontal::Center)

@@ -6,10 +6,10 @@ pub fn hover_slider<'a, Message: Clone + 'a>(
     value: f32,
     on_change: impl Fn(f32) -> Message + 'a,
 ) -> Slider<'a, f32, Message> {
-    Slider::new(range, value, on_change).style(style)
+    Slider::new(range, value, on_change).style(move |theme, status| style(theme, status, value))
 }
 
-fn style(theme: &Theme, status: Status) -> slider::Style {
+fn style(theme: &Theme, status: Status, value: f32) -> slider::Style {
     let palette = theme.extended_palette();
 
     let handle = match status {
@@ -20,7 +20,9 @@ fn style(theme: &Theme, status: Status) -> slider::Style {
             border_color: Color::TRANSPARENT,
         },
         Status::Active => Handle {
-            shape: HandleShape::Circle { radius: 2.0 },
+            shape: HandleShape::Circle {
+                radius: if value == 0.0 { 0.0 } else { 4.0 },
+            },
             background: palette.primary.strong.color.into(),
             border_width: 0.0,
             border_color: Color::TRANSPARENT,

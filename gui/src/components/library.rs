@@ -1,13 +1,10 @@
 use iced::alignment::Horizontal;
-use iced::overlay::menu::Menu;
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text};
 use iced::{Element, Length, Theme};
 use msc_core::{Player, Track};
 
 use crate::app::Message;
 use crate::components::context_menu::{MenuElement, context_menu};
-use crate::widgets::canvas_button::canvas_button;
-use crate::widgets::sharp_button::sharp_button;
 
 pub fn view<'a>(
     _player: &Player,
@@ -120,6 +117,7 @@ pub fn view<'a>(
             let track_content =
                 mouse_area(track_inner).on_move(move |_| Message::TrackHovered(track_id));
 
+            // add dropdown to make new playlist or add to existing
             let track_row = context_menu(
                 track_content,
                 vec![
@@ -128,7 +126,10 @@ pub fn view<'a>(
                     MenuElement::button("Play", Message::PlayTrack(track_id)),
                     MenuElement::button("Queue next", Message::QueueFront(track_id)),
                     MenuElement::button("Queue", Message::QueueBack(track_id)),
+                    MenuElement::Separator,
+                    MenuElement::button("Queue library", Message::QueueLibrary),
                 ],
+                Length::Fixed(130.),
             );
 
             track_list = track_list.push(track_row);

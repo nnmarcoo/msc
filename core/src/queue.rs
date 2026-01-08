@@ -141,4 +141,14 @@ impl Queue {
         };
         self.loop_mode
     }
+
+    pub fn remove_index(&mut self, i: usize) -> Option<i64> {
+        self.upcoming.remove(i)
+    }
+
+    pub fn move_front(&mut self, i: usize) {
+        if let Some(track_id) = self.upcoming.remove(i) {
+            self.upcoming.push_front(track_id);
+        }
+    }
 }

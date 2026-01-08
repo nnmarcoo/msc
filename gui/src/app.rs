@@ -45,6 +45,7 @@ pub enum Message {
     PaneContentChanged(pane_grid::Pane, PaneContent),
     BottomBar(bottom_bar::Message),
     PlayTrack(i64),
+    QueueLibrary,
     QueueBack(i64),
     QueueFront(i64),
     PlayAlbum(String, Option<String>),
@@ -151,6 +152,10 @@ impl App {
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
+            Message::QueueLibrary => {
+                let _ = self.player.queue_library();
+                let _ = self.player.play();
+            }
             Message::Split(axis, pane) => {
                 if let Some((new_pane, _)) =
                     self.panes.split(axis, pane, Pane::new(PaneContent::Empty))
@@ -304,10 +309,6 @@ impl App {
                     BottomBarMessage::CycleLoopMode => {
                         self.player.cycle_loop_mode();
                     }
-                    BottomBarMessage::QueueLibrary => {
-                        let _ = self.player.queue_library();
-                        let _ = self.player.play();
-                    }
                     BottomBarMessage::ClearQueue => {
                         self.player.clear_queue();
                     }
@@ -341,6 +342,20 @@ impl App {
                         self.panes = pane_grid::State::with_configuration(new_preset);
                         self.focus = None;
                     }
+                    BottomBarMessage::RemovePreset => {
+                        if self.layout_presets.len() > 1 {
+                            self.layout_presets.remove(self.current_preset);
+
+                            self.current_preset =
+                                self.current_preset.min(self.layout_presets.len() - 1);
+
+                            self.panes = pane_grid::State::with_configuration(
+                                self.layout_presets[self.current_preset].clone(),
+                            );
+
+                            self.focus = None;
+                        }
+                    }
                 }
             }
             Message::PlayTrack(track_id) => {
@@ -359,6 +374,7 @@ impl App {
                     self.player.queue_front(track_id);
                 }
             }
+            // this should prob move the current queue into history or something idk
             Message::PlayAlbum(album_name, _artist) => {
                 if let Ok(tracks) = self.player.library().query_tracks_by_album(&album_name) {
                     self.player.clear_queue();
@@ -367,7 +383,7 @@ impl App {
                             self.player.queue_back(id);
                         }
                     }
-                    let _ = self.player.start_next();
+                    let _ = self.player.play();
                 }
             }
             Message::TrackHovered(track_id) => {
