@@ -129,42 +129,8 @@ fn create_album_card<'a>(
         create_placeholder_artwork(card_size)
     };
 
-    let album_name_display = album_name.clone();
-    let artist_display = artist
-        .clone()
-        .unwrap_or_else(|| "Unknown Artist".to_string());
-
-    let album_text = text(album_name_display)
-        .size(13)
-        .style(|theme: &Theme| text::Style {
-            color: Some(theme.extended_palette().background.base.text),
-        });
-
-    let artist_text = text(artist_display)
-        .size(11)
-        .style(|theme: &Theme| text::Style {
-            color: Some(theme.extended_palette().background.weak.text),
-        });
-
-    let info = column![album_text, artist_text]
-        .spacing(3)
-        .width(Length::Fixed(card_size));
-
-    let card_content = column![artwork_element, info].spacing(8);
-
-    button(card_content)
+    button(artwork_element)
         .padding(0)
-        .style(|theme: &Theme, status| {
-            let palette = theme.extended_palette();
-            button::Style {
-                background: Some(match status {
-                    button::Status::Hovered => palette.primary.weak.color.into(),
-                    button::Status::Pressed => palette.primary.base.color.into(),
-                    _ => iced::Color::TRANSPARENT.into(),
-                }),
-                ..Default::default()
-            }
-        })
         .on_press(Message::PlayAlbum(album_name, artist))
         .into()
 }
