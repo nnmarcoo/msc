@@ -1,9 +1,9 @@
 use crossbeam::atomic::AtomicCell;
-use std::{path::Path, sync::Arc};
+use std::{path::Path, sync::Arc, time::Duration};
 use thiserror::Error;
 
 use kira::{
-    AudioManager, AudioManagerSettings, DefaultBackend, PlaySoundError, Tween,
+    AudioManager, AudioManagerSettings, DefaultBackend, Easing, PlaySoundError, StartTime, Tween,
     backend::cpal,
     sound::{
         FromFileError, PlaybackState,
@@ -65,7 +65,11 @@ impl Backend {
     pub fn pause(&mut self) {
         if let Some(sound) = &mut self.sound {
             if sound.state() == PlaybackState::Playing {
-                sound.pause(Tween::default());
+                sound.pause(Tween {
+                    start_time: StartTime::Immediate,
+                    duration: Duration::from_millis(500),
+                    easing: Easing::OutPowi(2),
+                });
             }
         }
     }
