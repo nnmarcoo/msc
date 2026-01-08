@@ -13,6 +13,7 @@ pub enum Message {
     ToggleEditMode,
     SwitchPreset(usize),
     AddPreset,
+    CycleLoopMode,
 }
 
 pub fn view(
@@ -70,6 +71,19 @@ pub fn view(
             row![
                 preset_buttons,
                 horizontal_space(),
+                tooltip(
+                    canvas_button(
+                        text("cyclemode")
+                            .align_x(Horizontal::Center)
+                            .align_y(Vertical::Center)
+                    )
+                    .height(20)
+                    .on_press(Message::CycleLoopMode),
+                    container(text("Cycle loop mode").size(12))
+                        .padding(6)
+                        .style(container::rounded_box),
+                    tooltip::Position::Top,
+                ),
                 canvas_button(
                     text("quelib")
                         .align_x(Horizontal::Center)

@@ -301,6 +301,9 @@ impl App {
             Message::BottomBar(msg) => {
                 use bottom_bar::Message as BottomBarMessage;
                 match msg {
+                    BottomBarMessage::CycleLoopMode => {
+                        self.player.cycle_loop_mode();
+                    }
                     BottomBarMessage::QueueLibrary => {
                         let _ = self.player.queue_library();
                         let _ = self.player.play();
