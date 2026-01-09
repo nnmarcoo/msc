@@ -16,6 +16,8 @@ use std::{
 use super::image_processing::{Colors, extract_colors};
 use crate::Track;
 
+// this should be completely changed to just process 1 imag eat a time with a queue
+
 #[derive(Clone)]
 pub struct RgbaImage {
     pub width: u32,
