@@ -5,6 +5,10 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::Database;
 
+const TRACK_COLUMNS: &str = "id, path, title, track_artist, album, album_artist, \
+                             genre, year, track_number, disc_number, comment, \
+                             duration, bit_rate, sample_rate, bit_depth, channels, missing";
+
 impl Database {
     fn now() -> i64 {
         SystemTime::now()
@@ -191,10 +195,7 @@ impl Database {
     pub fn get_track_by_id(&self, id: i64) -> SqliteResult<Option<Track>> {
         self.conn
             .query_row(
-                "SELECT id, path, title, track_artist, album, album_artist,
-                        genre, year, track_number, disc_number, comment,
-                        duration, bit_rate, sample_rate, bit_depth, channels, missing
-                 FROM tracks WHERE id = ?1",
+                &format!("SELECT {TRACK_COLUMNS} FROM tracks WHERE id = ?1"),
                 params![id],
                 Self::row_to_track,
             )
@@ -204,10 +205,7 @@ impl Database {
     pub fn get_track_by_path(&self, path: &str) -> SqliteResult<Option<Track>> {
         self.conn
             .query_row(
-                "SELECT id, path, title, track_artist, album, album_artist,
-                        genre, year, track_number, disc_number, comment,
-                        duration, bit_rate, sample_rate, bit_depth, channels, missing
-                 FROM tracks WHERE path = ?1",
+                &format!("SELECT {TRACK_COLUMNS} FROM tracks WHERE path = ?1"),
                 params![path],
                 Self::row_to_track,
             )
@@ -216,11 +214,7 @@ impl Database {
 
     pub fn get_all_tracks(&self) -> SqliteResult<Vec<Track>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, path, title, track_artist, album, album_artist,
-                    genre, year, track_number, disc_number, comment,
-                    duration, bit_rate, sample_rate, bit_depth, channels, missing
-             FROM tracks
-             ORDER BY album, disc_number, track_number",
+            &format!("SELECT {TRACK_COLUMNS} FROM tracks ORDER BY album, disc_number, track_number"),
         )?;
 
         let tracks = stmt
@@ -232,12 +226,7 @@ impl Database {
 
     pub fn get_n_tracks(&self, limit: i64) -> SqliteResult<Vec<Track>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, path, title, track_artist, album, album_artist,
-                    genre, year, track_number, disc_number, comment,
-                    duration, bit_rate, sample_rate, bit_depth, channels, missing
-             FROM tracks
-             ORDER BY album, disc_number, track_number
-             LIMIT ?1",
+            &format!("SELECT {TRACK_COLUMNS} FROM tracks ORDER BY album, disc_number, track_number LIMIT ?1"),
         )?;
 
         let tracks = stmt
@@ -249,12 +238,7 @@ impl Database {
 
     pub fn get_tracks_by_album(&self, album_name: &str) -> SqliteResult<Vec<Track>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, path, title, track_artist, album, album_artist,
-                    genre, year, track_number, disc_number, comment,
-                    duration, bit_rate, sample_rate, bit_depth, channels, missing
-             FROM tracks
-             WHERE album = ?1
-             ORDER BY disc_number, track_number",
+            &format!("SELECT {TRACK_COLUMNS} FROM tracks WHERE album = ?1 ORDER BY disc_number, track_number"),
         )?;
 
         let tracks = stmt
@@ -266,12 +250,7 @@ impl Database {
 
     pub fn get_tracks_by_artist(&self, artist_name: &str) -> SqliteResult<Vec<Track>> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, path, title, track_artist, album, album_artist,
-                    genre, year, track_number, disc_number, comment,
-                    duration, bit_rate, sample_rate, bit_depth, channels, missing
-             FROM tracks
-             WHERE track_artist = ?1 OR album_artist = ?1
-             ORDER BY album, disc_number, track_number",
+            &format!("SELECT {TRACK_COLUMNS} FROM tracks WHERE track_artist = ?1 OR album_artist = ?1 ORDER BY album, disc_number, track_number"),
         )?;
 
         let tracks = stmt

@@ -5,6 +5,7 @@ use msc_core::{Player, Track};
 
 use crate::app::Message;
 use crate::components::context_menu::{MenuElement, context_menu};
+use crate::formatters;
 
 pub fn view<'a>(
     _player: &Player,
@@ -77,7 +78,7 @@ pub fn view<'a>(
 
     for track in tracks.iter() {
         if let Some(track_id) = track.id() {
-            let duration_text = format_seconds(track.duration());
+            let duration_text = formatters::format_duration(track.duration());
             let is_hovered = hovered_track.as_ref() == Some(&track_id);
 
             let track_inner = container(
@@ -143,11 +144,4 @@ pub fn view<'a>(
     )
     .on_exit(Message::TrackUnhovered)
     .into()
-}
-
-fn format_seconds(seconds: f32) -> String {
-    let total_secs = seconds as u32;
-    let mins = total_secs / 60;
-    let secs = total_secs % 60;
-    format!("{:02}:{:02}", mins, secs)
 }
