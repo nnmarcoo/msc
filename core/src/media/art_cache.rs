@@ -115,12 +115,16 @@ impl ArtCache {
 
                     if let Some(image) = closest {
                         if !cached.is_loading.swap(true, Ordering::AcqRel) {
-                            if self.work_queue.send(WorkItem::GenerateSize {
-                                cache_key,
-                                path: cached.path.clone(),
-                                size,
-                                is_loading: cached.is_loading.clone(),
-                            }).is_err() {
+                            if self
+                                .work_queue
+                                .send(WorkItem::GenerateSize {
+                                    cache_key,
+                                    path: cached.path.clone(),
+                                    size,
+                                    is_loading: cached.is_loading.clone(),
+                                })
+                                .is_err()
+                            {
                                 eprintln!("ArtCache: worker thread disconnected");
                             }
                         }
@@ -132,12 +136,20 @@ impl ArtCache {
             }
         }
 
-        if self.cache.insert(cache_key.clone(), CacheState::Loading).is_none() {
-            if self.work_queue.send(WorkItem::LoadInitial {
-                cache_key,
-                path: track.path().clone(),
-                size,
-            }).is_err() {
+        if self
+            .cache
+            .insert(cache_key.clone(), CacheState::Loading)
+            .is_none()
+        {
+            if self
+                .work_queue
+                .send(WorkItem::LoadInitial {
+                    cache_key,
+                    path: track.path().clone(),
+                    size,
+                })
+                .is_err()
+            {
                 eprintln!("ArtCache: worker thread disconnected");
             }
         }
@@ -206,7 +218,9 @@ impl ArtCache {
         let rgba = if img_width <= max_size && img_height <= max_size {
             image.to_rgba8()
         } else {
-            image.resize(max_size, max_size, FilterType::Lanczos3).to_rgba8()
+            image
+                .resize(max_size, max_size, FilterType::Lanczos3)
+                .to_rgba8()
         };
 
         let (width, height) = rgba.dimensions();
