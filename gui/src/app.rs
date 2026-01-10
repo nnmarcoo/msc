@@ -1,7 +1,7 @@
 use iced::keyboard::{self, Key, key};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
-use iced::widget::{column, container};
+use iced::widget::{Space, column, container};
 use iced::{Element, Event, Length, Subscription, Task, Theme};
 use msc_core::{Player, Track};
 use std::cell::RefCell;
@@ -194,13 +194,6 @@ impl App {
 
                 let _ = self.player.update();
 
-                if let Some(seeking_pos) = self.seeking_position {
-                    let current_pos = self.player.position() as f32;
-                    if (current_pos - seeking_pos).abs() < 0.1 {
-                        self.seeking_position = None;
-                    }
-                }
-
                 if let Some(session) = &self.media_session {
                     for event in session.poll_events() {
                         match event {
@@ -224,6 +217,15 @@ impl App {
                                 let _ = self.player.start_previous();
                             }
                             _ => {}
+                        }
+                    }
+                }
+
+                if !self.is_minimized {
+                    if let Some(seeking_pos) = self.seeking_position {
+                        let current_pos = self.player.position() as f32;
+                        if (current_pos - seeking_pos).abs() < 0.1 {
+                            self.seeking_position = None;
                         }
                     }
                 }
@@ -441,6 +443,10 @@ impl App {
     }
 
     pub fn view(&self) -> Element<Message> {
+        if self.is_minimized {
+            return Space::new(0, 0).into();
+        }
+
         let total_panes = self.panes.len();
         let edit_mode = self.edit_mode;
 
