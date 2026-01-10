@@ -29,6 +29,7 @@ pub struct App {
     media_session: Option<MediaSession>,
     cached_tracks: RefCell<Option<Vec<Track>>>,
     cached_albums: RefCell<Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>>,
+    is_minimized: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -98,6 +99,7 @@ impl Default for App {
             media_session: None,
             cached_tracks: RefCell::new(None),
             cached_albums: RefCell::new(None),
+            is_minimized: false,
         }
     }
 }
@@ -398,38 +400,41 @@ impl App {
             Message::TrackUnhovered => {
                 self.hovered_track = None;
             }
-            Message::Event(event) => {
-                if let Event::Keyboard(keyboard::Event::KeyPressed {
-                    key, modifiers: _, ..
-                }) = event
-                {
-                    match key {
-                        Key::Named(key::Named::Space) => {
-                            if self.player.is_playing() {
-                                self.player.pause();
-                            } else {
-                                let _ = self.player.play();
-                            }
-                        }
-                        Key::Character(c) => {
-                            if let Ok(num) = c.parse::<usize>() {
-                                if num >= 1 && num <= self.layout_presets.len() {
-                                    let index = num - 1;
-                                    if self.edit_mode {
-                                        self.save_current_layout();
-                                    }
-                                    self.current_preset = index;
-                                    self.panes = pane_grid::State::with_configuration(
-                                        self.layout_presets[index].clone(),
-                                    );
-                                    self.focus = None;
-                                }
-                            }
-                        }
-                        _ => {}
+            Message::Event(event) => match event {
+                Event::Window(window_event) => {
+                    if let iced::window::Event::Resized(size) = window_event {
+                        self.is_minimized = size.width == 0.0 && size.height == 0.0;
                     }
                 }
-            }
+                Event::Keyboard(keyboard::Event::KeyPressed {
+                    key, modifiers: _, ..
+                }) => match key {
+                    Key::Named(key::Named::Space) => {
+                        if self.player.is_playing() {
+                            self.player.pause();
+                        } else {
+                            let _ = self.player.play();
+                        }
+                    }
+                    Key::Character(c) => {
+                        if let Ok(num) = c.parse::<usize>() {
+                            if num >= 1 && num <= self.layout_presets.len() {
+                                let index = num - 1;
+                                if self.edit_mode {
+                                    self.save_current_layout();
+                                }
+                                self.current_preset = index;
+                                self.panes = pane_grid::State::with_configuration(
+                                    self.layout_presets[index].clone(),
+                                );
+                                self.focus = None;
+                            }
+                        }
+                    }
+                    _ => {}
+                },
+                _ => {}
+            },
         }
 
         Task::none()
@@ -503,8 +508,14 @@ impl App {
     }
 
     pub fn subscription(&self) -> Subscription<Message> {
+        let tick_duration = if self.is_minimized {
+            Duration::from_secs(1)
+        } else {
+            Duration::from_millis(30)
+        };
+
         Subscription::batch([
-            every(Duration::from_millis(30)).map(|_| Message::Tick),
+            every(tick_duration).map(|_| Message::Tick),
             iced::event::listen().map(Message::Event),
         ])
     }
