@@ -115,12 +115,14 @@ impl ArtCache {
 
                     if let Some(image) = closest {
                         if !cached.is_loading.swap(true, Ordering::AcqRel) {
-                            let _ = self.work_queue.send(WorkItem::GenerateSize {
+                            if self.work_queue.send(WorkItem::GenerateSize {
                                 cache_key,
                                 path: cached.path.clone(),
                                 size,
                                 is_loading: cached.is_loading.clone(),
-                            });
+                            }).is_err() {
+                                eprintln!("ArtCache: worker thread disconnected");
+                            }
                         }
 
                         return Some((image, cached.colors));
@@ -131,11 +133,13 @@ impl ArtCache {
         }
 
         if self.cache.insert(cache_key.clone(), CacheState::Loading).is_none() {
-            let _ = self.work_queue.send(WorkItem::LoadInitial {
+            if self.work_queue.send(WorkItem::LoadInitial {
                 cache_key,
                 path: track.path().clone(),
                 size,
-            });
+            }).is_err() {
+                eprintln!("ArtCache: worker thread disconnected");
+            }
         }
 
         None
