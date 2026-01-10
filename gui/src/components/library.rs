@@ -11,14 +11,7 @@ pub fn view<'a>(
     hovered_track: &Option<i64>,
     cached_tracks: Vec<Track>,
 ) -> Element<'a, Message> {
-    let mut tracks: Vec<_> = cached_tracks.iter().collect();
-
-    tracks.sort_by(|a, b| {
-        a.track_artist_or_default()
-            .cmp(&b.track_artist_or_default())
-            .then_with(|| a.album_or_default().cmp(&b.album_or_default()))
-            .then_with(|| a.title_or_default().cmp(&b.title_or_default()))
-    });
+    let tracks: Vec<_> = cached_tracks.iter().collect();
 
     if tracks.is_empty() {
         return container(
@@ -89,11 +82,11 @@ pub fn view<'a>(
 
             let track_inner = container(
                 row![
-                    container(text(track.title_or_default()).size(12))
+                    container(text(track.title_or_default().to_string()).size(12))
                         .width(Length::FillPortion(3)),
-                    container(text(track.track_artist_or_default()).size(12))
+                    container(text(track.track_artist_or_default().to_string()).size(12))
                         .width(Length::FillPortion(2)),
-                    container(text(track.album_or_default()).size(12))
+                    container(text(track.album_or_default().to_string()).size(12))
                         .width(Length::FillPortion(2)),
                     container(text(duration_text).size(12)).width(Length::Fixed(80.0)),
                 ]

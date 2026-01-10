@@ -199,25 +199,24 @@ impl Track {
         }
     }
 
-    // these are ugly
-    pub fn title_or_default(&self) -> String {
-        self.title.clone().unwrap_or_else(|| "-".to_string())
+    pub fn title_or_default(&self) -> &str {
+        self.title.as_deref().unwrap_or("-")
     }
 
-    pub fn track_artist_or_default(&self) -> String {
-        self.track_artist.clone().unwrap_or_else(|| "-".to_string())
+    pub fn track_artist_or_default(&self) -> &str {
+        self.track_artist.as_deref().unwrap_or("-")
     }
 
-    pub fn album_or_default(&self) -> String {
-        self.album.clone().unwrap_or_else(|| "-".to_string())
+    pub fn album_or_default(&self) -> &str {
+        self.album.as_deref().unwrap_or("-")
     }
 
-    pub fn album_artist_or_default(&self) -> String {
-        self.album_artist.clone().unwrap_or_else(|| "-".to_string())
+    pub fn album_artist_or_default(&self) -> &str {
+        self.album_artist.as_deref().unwrap_or("-")
     }
 
-    pub fn genre_or_default(&self) -> String {
-        self.genre.clone().unwrap_or_else(|| "-".to_string())
+    pub fn genre_or_default(&self) -> &str {
+        self.genre.as_deref().unwrap_or("-")
     }
 }
 

@@ -98,9 +98,10 @@ impl Database {
         &self,
     ) -> SqliteResult<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>> {
         let mut stmt = self.conn.prepare(
-            "SELECT a.id, a.name, a.artist, a.year,
-                    (SELECT path FROM tracks t WHERE t.album = a.name LIMIT 1) as sample_track_path
+            "SELECT a.id, a.name, a.artist, a.year, MIN(t.path) as sample_track_path
              FROM albums a
+             LEFT JOIN tracks t ON t.album = a.name
+             GROUP BY a.id, a.name, a.artist, a.year
              ORDER BY a.name",
         )?;
 

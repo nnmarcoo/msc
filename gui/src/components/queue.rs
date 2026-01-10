@@ -20,7 +20,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<i64>) -> Element<'a, 
 
             let track_inner = container(
                 column![
-                    text(track.title_or_default())
+                    text(track.title_or_default().to_string())
                         .size(15)
                         .font(Font {
                             weight: Weight::Bold,
@@ -29,7 +29,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<i64>) -> Element<'a, 
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),
                         }),
-                    text(track.track_artist_or_default())
+                    text(track.track_artist_or_default().to_string())
                         .size(13)
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),
@@ -91,7 +91,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<i64>) -> Element<'a, 
 
             let track_inner = container(
                 column![
-                    text(track.title_or_default())
+                    text(track.title_or_default().to_string())
                         .size(15)
                         .font(Font {
                             weight: Weight::Bold,
@@ -100,7 +100,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<i64>) -> Element<'a, 
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),
                         }),
-                    text(track.track_artist_or_default())
+                    text(track.track_artist_or_default().to_string())
                         .size(13)
                         .style(|theme: &Theme| text::Style {
                             color: Some(theme.extended_palette().background.base.text),

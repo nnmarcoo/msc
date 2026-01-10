@@ -9,12 +9,12 @@ pub fn view(player: &Player) -> Element<'static, crate::app::Message> {
     let current_track = player.clone_current_track();
 
     if let Some(track) = current_track {
-        let title_text = text(track.title_or_default()).size(18).font(Font {
+        let title_text = text(track.title_or_default().to_string()).size(18).font(Font {
             weight: Weight::Bold,
             ..Default::default()
         });
 
-        let artist_text = text(track.track_artist_or_default()).size(15);
+        let artist_text = text(track.track_artist_or_default().to_string()).size(15);
 
         let album_genre_parts = vec![
             track.album().map(|s| s.to_string()),

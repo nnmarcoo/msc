@@ -111,7 +111,13 @@ impl App {
     fn ensure_cached_tracks(&self) {
         let mut cache = self.cached_tracks.borrow_mut();
         if cache.is_none() {
-            let tracks = self.player.library().query_all_tracks().unwrap_or_default();
+            let mut tracks = self.player.library().query_all_tracks().unwrap_or_default();
+            tracks.sort_by(|a, b| {
+                a.track_artist_or_default()
+                    .cmp(b.track_artist_or_default())
+                    .then_with(|| a.album_or_default().cmp(b.album_or_default()))
+                    .then_with(|| a.title_or_default().cmp(b.title_or_default()))
+            });
             *cache = Some(tracks);
         }
     }
