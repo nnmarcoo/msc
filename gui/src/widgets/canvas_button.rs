@@ -126,30 +126,6 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
             );
         }
 
-        if is_mouse_over && self.on_press.is_some() {
-            let inset = 2.0;
-            let hover_bounds = Rectangle {
-                x: bounds.x + inset,
-                y: bounds.y + inset,
-                width: bounds.width - inset * 2.0,
-                height: bounds.height - inset * 2.0,
-            };
-
-            renderer.fill_quad(
-                renderer::Quad {
-                    bounds: hover_bounds,
-                    border: Border {
-                        radius: 0.0.into(),
-                        width: 0.0,
-                        color: Color::TRANSPARENT,
-                    },
-                    shadow: Shadow::default(),
-                    snap: true,
-                },
-                Color::TRANSPARENT,
-            );
-        }
-
         self.content.as_widget().draw(
             &tree.children[0],
             renderer,
