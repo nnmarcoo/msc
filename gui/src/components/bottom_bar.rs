@@ -1,6 +1,6 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::svg::Handle;
-use iced::widget::{container, horizontal_space, row, svg, text, tooltip};
+use iced::widget::{container, row, space, svg, text, tooltip};
 use iced::{Background, Element, Length, Theme};
 
 use crate::widgets::canvas_button::canvas_button;
@@ -65,7 +65,7 @@ pub fn view(
         container(
             row![
                 preset_buttons,
-                horizontal_space(),
+                space().width(Length::Fill),
                 tooltip(
                     canvas_button(svg(Handle::from_memory(include_bytes!(
                         "../../../assets/icons/checkmark.svg"
@@ -88,7 +88,7 @@ pub fn view(
         container(
             row![
                 preset_buttons,
-                horizontal_space(),
+                space().width(Length::Fill),
                 tooltip(
                     canvas_button(
                         text("cyclemode")

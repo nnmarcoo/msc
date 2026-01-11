@@ -1,5 +1,5 @@
 use iced::font::Weight;
-use iced::widget::{column, container, horizontal_rule, mouse_area, scrollable, text};
+use iced::widget::{column, container, mouse_area, rule, scrollable, text};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
@@ -56,7 +56,7 @@ pub fn view<'a>(player: &'a Player, hovered_track: &Option<i64>) -> Element<'a, 
                 mouse_area(track_inner).on_move(move |_| Message::TrackHovered(current_id));
 
             track_list = track_list.push(track_content);
-            track_list = track_list.push(container(horizontal_rule(1)).padding([4, 0]));
+            track_list = track_list.push(container(rule::horizontal(1)).padding([4, 0]));
         }
     }
 

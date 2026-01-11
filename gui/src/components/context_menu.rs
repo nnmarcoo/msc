@@ -84,5 +84,6 @@ fn menu_container_style(theme: &Theme) -> container::Style {
             offset: iced::Vector::new(0.0, 2.0),
             blur_radius: 6.0,
         },
+        snap: true,
     }
 }

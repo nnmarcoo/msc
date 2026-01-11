@@ -16,7 +16,7 @@ mod window_handle;
 use app::App;
 
 pub fn main() -> iced::Result {
-    iced::application("msc", App::update, App::view)
+    iced::application(App::default, App::update, App::view)
         .window(Settings {
             min_size: Some(Size::new(300., 0.)),
             icon: from_file_data(include_bytes!("../../assets/logo.png"), None).ok(),
@@ -24,6 +24,6 @@ pub fn main() -> iced::Result {
         })
         .centered()
         .subscription(App::subscription)
-        .theme(|_| Theme::KanagawaDragon)
+        .theme(|_: &App| Theme::KanagawaDragon)
         .run()
 }

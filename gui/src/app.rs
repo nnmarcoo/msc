@@ -1,7 +1,7 @@
 use iced::keyboard::{self, Key, key};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
-use iced::widget::{Space, column, container};
+use iced::widget::{column, container, space};
 use iced::{Element, Event, Length, Subscription, Task, Theme};
 use msc_core::{Player, Track};
 use std::cell::RefCell;
@@ -444,7 +444,7 @@ impl App {
 
     pub fn view(&self) -> Element<Message> {
         if self.is_minimized {
-            return Space::new(0, 0).into();
+            return space().into();
         }
 
         let total_panes = self.panes.len();
