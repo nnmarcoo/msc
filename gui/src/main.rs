@@ -10,6 +10,8 @@ mod components;
 mod formatters;
 mod media_controls;
 mod pane;
+mod pane_view;
+mod panes;
 mod widgets;
 mod window_handle;
 

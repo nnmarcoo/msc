@@ -7,13 +7,14 @@ use std::cell::RefCell;
 use std::fmt::{self, Display};
 
 use crate::app::Message;
-use crate::components;
+use crate::pane_view::PaneView;
+use crate::panes::*;
 use crate::widgets::square_button::square_button;
 
 // in edit mode the panes should be changed with a right click menu instead of the drop down!!!
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PaneContent {
+pub enum PaneType {
     Controls,
     Queue,
     Library,
@@ -27,39 +28,55 @@ pub enum PaneContent {
     Settings,
 }
 
-impl PaneContent {
-    pub const ALL: [PaneContent; 11] = [
-        PaneContent::Controls,
-        PaneContent::Queue,
-        PaneContent::Library,
-        PaneContent::Collections,
-        PaneContent::Artwork,
-        PaneContent::Timeline,
-        PaneContent::Spectrum,
-        PaneContent::VUMeters,
-        PaneContent::TrackInfo,
-        PaneContent::Empty,
-        PaneContent::Settings,
+impl PaneType {
+    pub const ALL: [PaneType; 11] = [
+        PaneType::Controls,
+        PaneType::Queue,
+        PaneType::Library,
+        PaneType::Collections,
+        PaneType::Artwork,
+        PaneType::Timeline,
+        PaneType::Spectrum,
+        PaneType::VUMeters,
+        PaneType::TrackInfo,
+        PaneType::Empty,
+        PaneType::Settings,
     ];
 
     pub fn title(&self) -> &str {
         match self {
-            PaneContent::Controls => "Controls",
-            PaneContent::Queue => "Queue",
-            PaneContent::Library => "Library",
-            PaneContent::Collections => "Collections",
-            PaneContent::Artwork => "Artwork",
-            PaneContent::Timeline => "Timeline",
-            PaneContent::Spectrum => "Spectrum",
-            PaneContent::VUMeters => "VU Meters",
-            PaneContent::TrackInfo => "Track Info",
-            PaneContent::Empty => "Empty",
-            PaneContent::Settings => "Settings",
+            PaneType::Controls => "Controls",
+            PaneType::Queue => "Queue",
+            PaneType::Library => "Library",
+            PaneType::Collections => "Collections",
+            PaneType::Artwork => "Artwork",
+            PaneType::Timeline => "Timeline",
+            PaneType::Spectrum => "Spectrum",
+            PaneType::VUMeters => "VU Meters",
+            PaneType::TrackInfo => "Track Info",
+            PaneType::Empty => "Empty",
+            PaneType::Settings => "Settings",
+        }
+    }
+
+    pub fn create(&self) -> Box<dyn PaneView> {
+        match self {
+            PaneType::Controls => Box::new(ControlsPane::new()),
+            PaneType::Queue => Box::new(QueuePane::new()),
+            PaneType::Library => Box::new(LibraryPane::new()),
+            PaneType::Collections => Box::new(CollectionsPane::new()),
+            PaneType::Artwork => Box::new(ArtworkPane::new()),
+            PaneType::Timeline => Box::new(TimelinePane::new()),
+            PaneType::Spectrum => Box::new(SpectrumPane::new()),
+            PaneType::VUMeters => Box::new(VUMetersPane::new()),
+            PaneType::TrackInfo => Box::new(TrackInfoPane::new()),
+            PaneType::Empty => Box::new(EmptyPane::new()),
+            PaneType::Settings => Box::new(SettingsPane::new()),
         }
     }
 }
 
-impl Display for PaneContent {
+impl Display for PaneType {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{}", self.title())
     }
@@ -67,19 +84,42 @@ impl Display for PaneContent {
 
 #[derive(Debug, Clone)]
 pub struct Pane {
-    pub content: PaneContent,
+    pub content: Box<dyn PaneView>,
 }
 
 impl Pane {
-    pub fn new(content: PaneContent) -> Self {
-        Self { content }
+    pub fn new(pane_type: PaneType) -> Self {
+        Self {
+            content: pane_type.create(),
+        }
     }
 
-    pub fn set_content(&mut self, content: PaneContent) {
-        self.content = content;
+    pub fn set_content(&mut self, pane_type: PaneType) {
+        self.content = pane_type.create();
+    }
+
+    pub fn update(&mut self, player: &Player) {
+        self.content.update(player);
+    }
+
+    pub fn get_type(&self) -> PaneType {
+        let title = self.content.title();
+        match title {
+            "Controls" => PaneType::Controls,
+            "Queue" => PaneType::Queue,
+            "Library" => PaneType::Library,
+            "Collections" => PaneType::Collections,
+            "Artwork" => PaneType::Artwork,
+            "Timeline" => PaneType::Timeline,
+            "Spectrum" => PaneType::Spectrum,
+            "VU Meters" => PaneType::VUMeters,
+            "Track Info" => PaneType::TrackInfo,
+            "Settings" => PaneType::Settings,
+            _ => PaneType::Empty,
+        }
     }
     pub fn view<'a>(
-        &self,
+        &'a self,
         pane: pane_grid::Pane,
         total_panes: usize,
         edit_mode: bool,
@@ -93,9 +133,10 @@ impl Pane {
         >,
     ) -> pane_grid::Content<'a, Message> {
         if edit_mode {
+            let current_type = self.get_type();
             let title = row![
-                pick_list(&PaneContent::ALL[..], Some(self.content), move |content| {
-                    Message::PaneContentChanged(pane, content)
+                pick_list(&PaneType::ALL[..], Some(current_type), move |pane_type| {
+                    Message::PaneTypeChanged(pane, pane_type)
                 })
                 .text_size(14)
             ]
@@ -179,53 +220,22 @@ impl Pane {
 
             pane_grid::Content::new(edit_content).title_bar(title_bar)
         } else {
-            pane_grid::Content::new(self.render_content(
+            let content = self.content.view(
                 player,
                 volume,
                 hovered_track,
                 seeking_position,
                 cached_tracks,
                 cached_albums,
-            ))
+            );
+
+            pane_grid::Content::new(
+                container(content)
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill),
+            )
         }
-    }
-
-    fn render_content<'a>(
-        &self,
-        player: &'a Player,
-        volume: f32,
-        hovered_track: &Option<i64>,
-        seeking_position: Option<f32>,
-        cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        cached_albums: &'a RefCell<
-            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
-        >,
-    ) -> Element<'a, Message> {
-        // Clone the cached data for use in the view components
-        let tracks = cached_tracks.borrow().clone().unwrap_or_default();
-        let albums = cached_albums.borrow().clone().unwrap_or_default();
-
-        let content = match self.content {
-            PaneContent::Controls => {
-                components::controls::view(player, volume, seeking_position).map(Message::Controls)
-            }
-            PaneContent::Queue => components::queue::view(player, hovered_track),
-            PaneContent::Library => components::library::view(player, hovered_track, tracks),
-            PaneContent::Collections => components::collections::view(player, albums),
-            PaneContent::Artwork => components::artwork::view(player),
-            PaneContent::Timeline => components::timeline::view(),
-            PaneContent::Spectrum => components::spectrum::view(player),
-            PaneContent::VUMeters => components::vu_meters::view(player),
-            PaneContent::TrackInfo => components::current_track::view(player),
-            PaneContent::Empty => components::empty::view(),
-            PaneContent::Settings => components::empty::view(),
-        };
-
-        container(content)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .into()
     }
 }

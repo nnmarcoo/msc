@@ -8,9 +8,10 @@ use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::components::{bottom_bar, controls};
+use crate::components::bottom_bar;
 use crate::media_controls::MediaSession;
-use crate::pane::{Pane, PaneContent};
+use crate::pane::{Pane, PaneType};
+use crate::panes::ControlsMessage;
 use crate::window_handle;
 
 // caching system kinda sucks anbd should prob be in core
@@ -40,10 +41,10 @@ pub enum Message {
     Clicked(pane_grid::Pane),
     Dragged(pane_grid::DragEvent),
     Resized(pane_grid::ResizeEvent),
-    Controls(controls::Message),
+    Controls(ControlsMessage),
     LibraryPathSelected(Option<PathBuf>),
     SetLibrary,
-    PaneContentChanged(pane_grid::Pane, PaneContent),
+    PaneTypeChanged(pane_grid::Pane, PaneType),
     BottomBar(bottom_bar::Message),
     PlayTrack(i64),
     QueueLibrary,
@@ -64,21 +65,21 @@ impl Default for App {
                 axis: pane_grid::Axis::Vertical,
                 ratio: 0.7,
                 a: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                    PaneContent::Library,
+                    PaneType::Library,
                 ))),
                 b: Box::new(pane_grid::Configuration::Split {
                     axis: pane_grid::Axis::Horizontal,
                     ratio: 0.5,
                     a: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                        PaneContent::Artwork,
+                        PaneType::Artwork,
                     ))),
                     b: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                        PaneContent::Queue,
+                        PaneType::Queue,
                     ))),
                 }),
             }),
             b: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                PaneContent::Controls,
+                PaneType::Controls,
             ))),
         };
 
@@ -166,7 +167,7 @@ impl App {
             }
             Message::Split(axis, pane) => {
                 if let Some((new_pane, _)) =
-                    self.panes.split(axis, pane, Pane::new(PaneContent::Empty))
+                    self.panes.split(axis, pane, Pane::new(PaneType::Empty))
                 {
                     self.focus = Some(new_pane);
                 }
@@ -193,6 +194,11 @@ impl App {
                 }
 
                 let _ = self.player.update();
+
+                // Update all panes
+                for (_, pane) in self.panes.iter_mut() {
+                    pane.update(&self.player);
+                }
 
                 if let Some(session) = &self.media_session {
                     for event in session.poll_events() {
@@ -270,7 +276,6 @@ impl App {
                 }
             }
             Message::Controls(msg) => {
-                use controls::Message as ControlsMessage;
                 match msg {
                     ControlsMessage::PlayPause => {
                         if self.player.is_playing() {
@@ -308,9 +313,9 @@ impl App {
                     }
                 }
             }
-            Message::PaneContentChanged(pane_id, new_content) => {
+            Message::PaneTypeChanged(pane_id, new_type) => {
                 if let Some(pane) = self.panes.get_mut(pane_id) {
-                    pane.set_content(new_content);
+                    pane.set_content(new_type);
                 }
             }
             Message::BottomBar(msg) => {
@@ -346,7 +351,7 @@ impl App {
                     }
                     BottomBarMessage::AddPreset => {
                         let new_preset =
-                            pane_grid::Configuration::Pane(Pane::new(PaneContent::Empty));
+                            pane_grid::Configuration::Pane(Pane::new(PaneType::Empty));
                         self.layout_presets.push(new_preset.clone());
                         self.current_preset = self.layout_presets.len() - 1;
                         self.panes = pane_grid::State::with_configuration(new_preset);
