@@ -157,7 +157,9 @@ impl PaneView for QueuePane {
         }
 
         mouse_area(scrollable(track_list).height(Length::Fill).direction(
-            scrollable::Direction::Vertical(scrollable::Scrollbar::new().width(0).scroller_width(0)),
+            scrollable::Direction::Vertical(
+                scrollable::Scrollbar::new().width(0).scroller_width(0),
+            ),
         ))
         .on_exit(Message::TrackUnhovered)
         .into()

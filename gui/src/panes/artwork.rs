@@ -1,6 +1,6 @@
 use iced::widget::image::Handle as ImageHandle;
 use iced::widget::svg::Handle as SvgHandle;
-use iced::widget::{container, responsive, svg, Image};
+use iced::widget::{Image, container, responsive, svg};
 use iced::{Color, ContentFit, Element, Length};
 use msc_core::{Player, Track};
 use std::cell::RefCell;

@@ -136,11 +136,9 @@ impl PaneView for ControlsPane {
         .gap(8)
         .snap_within_viewport(true);
 
-        let volume_slider = hover_slider(
-            0.0..=1.0,
-            volume,
-            |v| Message::Controls(ControlsMessage::VolumeChanged(v)),
-        )
+        let volume_slider = hover_slider(0.0..=1.0, volume, |v| {
+            Message::Controls(ControlsMessage::VolumeChanged(v))
+        })
         .step(0.01)
         .width(Length::Fixed(100.0));
 
@@ -159,11 +157,9 @@ impl PaneView for ControlsPane {
             let truncated_title = truncate_text(&title, title_max);
             let truncated_artist = truncate_text(&artist, artist_max);
 
-            let timeline_slider = hover_slider(
-                0.0..=duration,
-                position,
-                |v| Message::Controls(ControlsMessage::SeekChanged(v)),
-            )
+            let timeline_slider = hover_slider(0.0..=duration, position, |v| {
+                Message::Controls(ControlsMessage::SeekChanged(v))
+            })
             .on_release(Message::Controls(ControlsMessage::SeekReleased))
             .width(Length::Fill);
 

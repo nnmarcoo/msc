@@ -64,18 +64,12 @@ impl Default for App {
             a: Box::new(pane_grid::Configuration::Split {
                 axis: pane_grid::Axis::Vertical,
                 ratio: 0.7,
-                a: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                    PaneType::Library,
-                ))),
+                a: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Library))),
                 b: Box::new(pane_grid::Configuration::Split {
                     axis: pane_grid::Axis::Horizontal,
                     ratio: 0.5,
-                    a: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                        PaneType::Artwork,
-                    ))),
-                    b: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                        PaneType::Queue,
-                    ))),
+                    a: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Artwork))),
+                    b: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Queue))),
                 }),
             }),
             b: Box::new(pane_grid::Configuration::Pane(Pane::new(
@@ -275,44 +269,42 @@ impl App {
                     self.invalidate_library_cache();
                 }
             }
-            Message::Controls(msg) => {
-                match msg {
-                    ControlsMessage::PlayPause => {
-                        if self.player.is_playing() {
-                            self.player.pause();
-                        } else {
-                            let _ = self.player.play();
-                        }
-                    }
-                    ControlsMessage::Previous => {
-                        let _ = self.player.start_previous();
-                    }
-                    ControlsMessage::Next => {
-                        let _ = self.player.start_next();
-                    }
-                    ControlsMessage::VolumeChanged(vol) => {
-                        self.volume = vol;
-                        self.player.set_volume(vol);
-                    }
-                    ControlsMessage::ToggleMute => {
-                        if self.volume > 0.0 {
-                            self.previous_volume = self.volume;
-                            self.volume = 0.0;
-                        } else {
-                            self.volume = self.previous_volume;
-                        }
-                        self.player.set_volume(self.volume);
-                    }
-                    ControlsMessage::SeekChanged(pos) => {
-                        self.seeking_position = Some(pos);
-                    }
-                    ControlsMessage::SeekReleased => {
-                        if let Some(pos) = self.seeking_position {
-                            self.player.seek(pos as f64);
-                        }
+            Message::Controls(msg) => match msg {
+                ControlsMessage::PlayPause => {
+                    if self.player.is_playing() {
+                        self.player.pause();
+                    } else {
+                        let _ = self.player.play();
                     }
                 }
-            }
+                ControlsMessage::Previous => {
+                    let _ = self.player.start_previous();
+                }
+                ControlsMessage::Next => {
+                    let _ = self.player.start_next();
+                }
+                ControlsMessage::VolumeChanged(vol) => {
+                    self.volume = vol;
+                    self.player.set_volume(vol);
+                }
+                ControlsMessage::ToggleMute => {
+                    if self.volume > 0.0 {
+                        self.previous_volume = self.volume;
+                        self.volume = 0.0;
+                    } else {
+                        self.volume = self.previous_volume;
+                    }
+                    self.player.set_volume(self.volume);
+                }
+                ControlsMessage::SeekChanged(pos) => {
+                    self.seeking_position = Some(pos);
+                }
+                ControlsMessage::SeekReleased => {
+                    if let Some(pos) = self.seeking_position {
+                        self.player.seek(pos as f64);
+                    }
+                }
+            },
             Message::PaneTypeChanged(pane_id, new_type) => {
                 if let Some(pane) = self.panes.get_mut(pane_id) {
                     pane.set_content(new_type);
@@ -350,8 +342,7 @@ impl App {
                         }
                     }
                     BottomBarMessage::AddPreset => {
-                        let new_preset =
-                            pane_grid::Configuration::Pane(Pane::new(PaneType::Empty));
+                        let new_preset = pane_grid::Configuration::Pane(Pane::new(PaneType::Empty));
                         self.layout_presets.push(new_preset.clone());
                         self.current_preset = self.layout_presets.len() - 1;
                         self.panes = pane_grid::State::with_configuration(new_preset);

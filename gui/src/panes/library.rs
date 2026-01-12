@@ -156,11 +156,11 @@ impl PaneView for LibraryPane {
         mouse_area(
             column![
                 header,
-                scrollable(track_list)
-                    .height(Length::Fill)
-                    .direction(scrollable::Direction::Vertical(
+                scrollable(track_list).height(Length::Fill).direction(
+                    scrollable::Direction::Vertical(
                         scrollable::Scrollbar::new().width(0).scroller_width(0),
-                    ))
+                    )
+                )
             ]
             .width(Length::Fill)
             .height(Length::Fill),

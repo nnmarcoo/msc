@@ -15,7 +15,9 @@ pub trait PaneView: fmt::Debug {
         hovered_track: &Option<i64>,
         seeking_position: Option<f32>,
         cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        cached_albums: &'a RefCell<Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>>,
+        cached_albums: &'a RefCell<
+            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
+        >,
     ) -> Element<'a, Message>;
 
     fn title(&self) -> &str;

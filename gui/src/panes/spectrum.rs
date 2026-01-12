@@ -1,5 +1,5 @@
 use iced::{
-    mouse, Color, Element, Length, Rectangle, Size, Theme,
+    Color, Element, Length, Rectangle, Size, Theme, mouse,
     widget::{
         canvas::{self, Canvas, Frame, Geometry},
         container,
