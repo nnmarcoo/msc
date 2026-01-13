@@ -1,91 +1,34 @@
-use iced::widget::image::Handle as ImageHandle;
-use iced::widget::svg::Handle as SvgHandle;
-use iced::widget::{Image, container, svg};
-use iced::{Color, ContentFit, Element, Length};
+use iced::{Element, Length};
 use msc_core::{Player, Track};
 use std::cell::RefCell;
-use std::sync::Arc;
 
 use crate::app::Message;
 use crate::pane_view::PaneView;
+use crate::widgets::ArtworkImage;
 
 #[derive(Debug, Clone)]
 pub struct ArtworkPane {
-    cache: RefCell<Option<CachedArtwork>>,
+    artwork: ArtworkImage,
     requested_size: RefCell<u32>,
-}
-
-#[derive(Clone)]
-struct CachedArtwork {
-    track_id: i64,
-    actual_size: u32,
-    handle: ImageHandle,
-    colors: [u8; 3],
-}
-
-impl std::fmt::Debug for CachedArtwork {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("CachedArtwork")
-            .field("track_id", &self.track_id)
-            .field("actual_size", &self.actual_size)
-            .finish()
-    }
 }
 
 impl ArtworkPane {
     pub fn new() -> Self {
         Self {
-            cache: RefCell::new(None),
-            requested_size: RefCell::new(0),
+            artwork: ArtworkImage::new(512),
+            requested_size: RefCell::new(512),
         }
     }
 }
 
 impl PaneView for ArtworkPane {
     fn update(&mut self, player: &Player) {
-        let Some(track) = player.clone_current_track() else {
-            *self.cache.borrow_mut() = None;
-            return;
-        };
-
-        let Some(track_id) = track.id() else {
-            *self.cache.borrow_mut() = None;
-            return;
-        };
-
         let requested = *self.requested_size.borrow();
-        if requested == 0 {
-            return;
+        if requested > 0 && requested != self.artwork.requested_size {
+            self.artwork = ArtworkImage::new(requested);
         }
 
-        let needs_update = self.cache.borrow().as_ref().map_or(true, |cached| {
-            cached.track_id != track_id || cached.actual_size != requested
-        });
-
-        if !needs_update {
-            return;
-        }
-
-        if let Some((image, colors)) = player.artwork(&track, requested) {
-            let actual_size = image.width.max(image.height);
-
-            let should_update = self.cache.borrow().as_ref().map_or(true, |cached| {
-                cached.track_id != track_id || actual_size == requested
-            });
-
-            if should_update {
-                *self.cache.borrow_mut() = Some(CachedArtwork {
-                    track_id,
-                    actual_size,
-                    handle: ImageHandle::from_rgba(
-                        image.width,
-                        image.height,
-                        Arc::unwrap_or_clone(image.data),
-                    ),
-                    colors: colors.background,
-                });
-            }
-        }
+        self.artwork.update(player, player.clone_current_track().as_ref());
     }
 
     fn view<'a>(
@@ -100,41 +43,12 @@ impl PaneView for ArtworkPane {
         >,
     ) -> Element<'a, Message> {
         let requested_size = &self.requested_size;
-        let cache = &self.cache;
 
         iced::widget::responsive(move |size| {
             *requested_size.borrow_mut() =
                 (size.width.max(size.height).ceil() as u32).clamp(64, 2048);
 
-            if let Some(cached) = cache.borrow().as_ref() {
-                let [r, g, b] = cached.colors;
-
-                container(
-                    Image::new(cached.handle.clone())
-                        .width(Length::Fill)
-                        .height(Length::Fill)
-                        .content_fit(ContentFit::Contain),
-                )
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x(Length::Fill)
-                .center_y(Length::Fill)
-                .padding(10)
-                .style(move |_theme| container::Style {
-                    background: Some(Color::from_rgb8(r, g, b).into()),
-                    ..Default::default()
-                })
-                .into()
-            } else {
-                container(svg(SvgHandle::from_memory(include_bytes!(
-                    "../../../assets/icons/disk.svg"
-                ))))
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x(Length::Fill)
-                .center_y(Length::Fill)
-                .into()
-            }
+            self.artwork.view_with_background()
         })
         .into()
     }
