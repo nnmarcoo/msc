@@ -1,6 +1,6 @@
 use blake3::Hash as Blake3Hash;
 use dashmap::DashMap;
-use image::{DynamicImage, GenericImageView, imageops::FilterType};
+use image::{DynamicImage, imageops::FilterType};
 use lofty::{file::TaggedFileExt, picture::PictureType, probe::Probe};
 use std::{
     collections::BTreeMap,
