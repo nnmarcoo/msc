@@ -1,6 +1,6 @@
 use iced::widget::image::Handle as ImageHandle;
 use iced::widget::svg::Handle as SvgHandle;
-use iced::widget::{Image, container, responsive, svg};
+use iced::widget::{Image, container, svg};
 use iced::{Color, ContentFit, Element, Length};
 use msc_core::{Player, Track};
 use std::cell::RefCell;
@@ -11,42 +11,86 @@ use crate::pane_view::PaneView;
 
 #[derive(Debug, Clone)]
 pub struct ArtworkPane {
-    // track_id, size, handle ts sucks tho maybe should have 2 image handles so it doesnt flicker
-    cache: RefCell<Option<(i64, u32, ImageHandle)>>,
+    cache: RefCell<Option<CachedArtwork>>,
+    requested_size: RefCell<u32>,
+}
+
+#[derive(Clone)]
+struct CachedArtwork {
+    track_id: i64,
+    actual_size: u32,
+    handle: ImageHandle,
+    colors: [u8; 3],
+}
+
+impl std::fmt::Debug for CachedArtwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CachedArtwork")
+            .field("track_id", &self.track_id)
+            .field("actual_size", &self.actual_size)
+            .finish()
+    }
 }
 
 impl ArtworkPane {
     pub fn new() -> Self {
         Self {
             cache: RefCell::new(None),
+            requested_size: RefCell::new(0),
         }
     }
 }
 
 impl PaneView for ArtworkPane {
     fn update(&mut self, player: &Player) {
-        // Clear cache if track changes
-        if let Some(track) = player.clone_current_track() {
-            if let Some(track_id) = track.id() {
-                let should_clear = self
-                    .cache
-                    .borrow()
-                    .as_ref()
-                    .map(|(cached_id, _, _)| *cached_id != track_id)
-                    .unwrap_or(false);
-
-                if should_clear {
-                    *self.cache.borrow_mut() = None;
-                }
-            }
-        } else {
+        let Some(track) = player.clone_current_track() else {
             *self.cache.borrow_mut() = None;
+            return;
+        };
+
+        let Some(track_id) = track.id() else {
+            *self.cache.borrow_mut() = None;
+            return;
+        };
+
+        let requested = *self.requested_size.borrow();
+        if requested == 0 {
+            return;
+        }
+
+        let needs_update = self.cache.borrow().as_ref().map_or(true, |cached| {
+            cached.track_id != track_id || cached.actual_size != requested
+        });
+
+        if !needs_update {
+            return;
+        }
+
+        if let Some((image, colors)) = player.artwork(&track, requested) {
+            let actual_size = image.width.max(image.height);
+
+            let should_update = self.cache.borrow().as_ref().map_or(true, |cached| {
+                cached.track_id != track_id || actual_size == requested
+            });
+
+            if should_update {
+                *self.cache.borrow_mut() = Some(CachedArtwork {
+                    track_id,
+                    actual_size,
+                    handle: ImageHandle::from_rgba(
+                        image.width,
+                        image.height,
+                        Arc::unwrap_or_clone(image.data),
+                    ),
+                    colors: colors.background,
+                });
+            }
         }
     }
 
     fn view<'a>(
         &'a self,
-        player: &'a Player,
+        _player: &'a Player,
         _volume: f32,
         _hovered_track: &Option<i64>,
         _seeking_position: Option<f32>,
@@ -55,75 +99,42 @@ impl PaneView for ArtworkPane {
             Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
         >,
     ) -> Element<'a, Message> {
-        let current_track = player.clone_current_track();
+        let requested_size = &self.requested_size;
         let cache = &self.cache;
 
-        responsive(move |size| {
-            if let Some(track) = &current_track {
-                if let Some(track_id) = track.id() {
-                    let max_dimension = (size.width.max(size.height) - 20.0) as u32;
-                    let requested_size = max_dimension.clamp(64, 2048);
+        iced::widget::responsive(move |size| {
+            *requested_size.borrow_mut() =
+                (size.width.max(size.height).ceil() as u32).clamp(64, 2048);
 
-                    // Check if we need to update cache
-                    let mut cached = cache.borrow_mut();
-                    let needs_update = cached
-                        .as_ref()
-                        .map(|(id, size, _)| {
-                            *id != track_id || (*size as i32 - requested_size as i32).abs() > 100
-                        })
-                        .unwrap_or(true);
+            if let Some(cached) = cache.borrow().as_ref() {
+                let [r, g, b] = cached.colors;
 
-                    if needs_update {
-                        if let Some((image, _)) = player.artwork(track, requested_size) {
-                            let handle = ImageHandle::from_rgba(
-                                image.width,
-                                image.height,
-                                Arc::unwrap_or_clone(image.data),
-                            );
-                            *cached = Some((track_id, requested_size, handle));
-                        }
-                    }
-
-                    // Render with cached handle
-                    if let Some((id, _, handle)) = cached.as_ref() {
-                        if *id == track_id {
-                            let handle = handle.clone();
-                            drop(cached); // Release borrow
-
-                            if let Some((_, colors)) = player.artwork(track, requested_size) {
-                                let artwork = Image::new(handle)
-                                    .width(Length::Fill)
-                                    .height(Length::Fill)
-                                    .content_fit(ContentFit::Contain);
-
-                                let [r, g, b] = colors.background;
-                                let bg_color = Color::from_rgb8(r, g, b);
-
-                                return container(artwork)
-                                    .width(Length::Fill)
-                                    .height(Length::Fill)
-                                    .center_x(Length::Fill)
-                                    .center_y(Length::Fill)
-                                    .padding(10)
-                                    .style(move |_theme| container::Style {
-                                        background: Some(bg_color.into()),
-                                        ..Default::default()
-                                    })
-                                    .into();
-                            }
-                        }
-                    }
-                }
+                container(
+                    Image::new(cached.handle.clone())
+                        .width(Length::Fill)
+                        .height(Length::Fill)
+                        .content_fit(ContentFit::Contain),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .padding(10)
+                .style(move |_theme| container::Style {
+                    background: Some(Color::from_rgb8(r, g, b).into()),
+                    ..Default::default()
+                })
+                .into()
+            } else {
+                container(svg(SvgHandle::from_memory(include_bytes!(
+                    "../../../assets/icons/disk.svg"
+                ))))
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .into()
             }
-
-            container(svg(SvgHandle::from_memory(include_bytes!(
-                "../../../assets/icons/disk.svg"
-            ))))
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .center_x(Length::Fill)
-            .center_y(Length::Fill)
-            .into()
         })
         .into()
     }

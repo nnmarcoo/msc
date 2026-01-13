@@ -25,7 +25,7 @@ impl PaneView for LibraryPane {
 
     fn view<'a>(
         &'a self,
-        player: &'a Player,
+        _player: &'a Player,
         _volume: f32,
         hovered_track: &Option<i64>,
         _seeking_position: Option<f32>,
