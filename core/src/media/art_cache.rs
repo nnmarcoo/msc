@@ -20,7 +20,7 @@ use crate::Track;
 pub struct RgbaImage {
     pub width: u32,
     pub height: u32,
-    pub data: Arc<Vec<u8>>,
+    pub data: Arc<[u8]>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -348,7 +348,7 @@ impl ArtCache {
         RgbaImage {
             width,
             height,
-            data: Arc::new(rgba.into_raw()),
+            data: rgba.into_raw().into(),
         }
     }
 }

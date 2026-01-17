@@ -4,7 +4,6 @@ use iced::widget::{container, svg, Image};
 use iced::{Color, ContentFit, Element, Length};
 use msc_core::{Player, Track};
 use std::cell::RefCell;
-use std::sync::Arc;
 
 #[derive(Debug, Clone)]
 struct CachedArtwork {
@@ -61,7 +60,7 @@ impl ArtworkImage {
                     handle: ImageHandle::from_rgba(
                         image.width,
                         image.height,
-                        Arc::unwrap_or_clone(image.data),
+                        image.data.to_vec(),
                     ),
                     colors: colors.background,
                 });

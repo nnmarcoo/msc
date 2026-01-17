@@ -142,11 +142,11 @@ fn create_album_card<'a>(
     let artwork_element: Element<'a, Message> = if let Some(track_path) = sample_track_path {
         if let Ok(Some(track)) = player.library().query_track_from_path(&track_path) {
             if let Some((rgba_image, _colors)) = library.artwork(&track, artwork_size) {
-                let width = rgba_image.width;
-                let height = rgba_image.height;
-                let raw_data = (*rgba_image.data).clone();
-
-                let handle = image::Handle::from_rgba(width, height, raw_data);
+                let handle = image::Handle::from_rgba(
+                    rgba_image.width,
+                    rgba_image.height,
+                    rgba_image.data.to_vec(),
+                );
                 image(handle)
                     .width(Length::Fixed(card_size))
                     .height(Length::Fixed(card_size))
