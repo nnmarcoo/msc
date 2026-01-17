@@ -1,6 +1,6 @@
 use iced::widget::image::Handle as ImageHandle;
 use iced::widget::svg::Handle as SvgHandle;
-use iced::widget::{container, svg, Image};
+use iced::widget::{Image, container, svg};
 use iced::{Color, ContentFit, Element, Length};
 use msc_core::{Player, Track};
 use std::cell::RefCell;
@@ -57,11 +57,7 @@ impl ArtworkImage {
                 *self.cache.borrow_mut() = Some(CachedArtwork {
                     track_id,
                     actual_size,
-                    handle: ImageHandle::from_rgba(
-                        image.width,
-                        image.height,
-                        image.data.to_vec(),
-                    ),
+                    handle: ImageHandle::from_rgba(image.width, image.height, image.data.to_vec()),
                     colors: colors.background,
                 });
             }

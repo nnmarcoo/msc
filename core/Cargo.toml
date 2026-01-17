@@ -18,3 +18,10 @@ rustfft = "6.4.1"
 crossbeam = "0.8.4"
 rusqlite = { version = "0.38.0", features = ["bundled", "blob"] }
 thiserror = "2.0.17"
+
+[dev-dependencies]
+criterion = "0.8.1"
+
+[[bench]]
+name = "track_picture_map"
+harness = false

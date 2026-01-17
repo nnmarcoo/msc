@@ -28,7 +28,8 @@ impl PaneView for ArtworkPane {
             self.artwork = ArtworkImage::new(requested);
         }
 
-        self.artwork.update(player, player.clone_current_track().as_ref());
+        self.artwork
+            .update(player, player.clone_current_track().as_ref());
     }
 
     fn view<'a>(
