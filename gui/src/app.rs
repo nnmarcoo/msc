@@ -304,6 +304,12 @@ impl App {
                         self.player.seek(pos as f64);
                     }
                 }
+                ControlsMessage::ShuffleQueue => {
+                    self.player.shuffle_queue();
+                }
+                ControlsMessage::CycleLoopMode => {
+                    self.player.cycle_loop_mode();
+                }
             },
             Message::PaneTypeChanged(pane_id, new_type) => {
                 if let Some(pane) = self.panes.get_mut(pane_id) {
@@ -313,14 +319,8 @@ impl App {
             Message::BottomBar(msg) => {
                 use bottom_bar::Message as BottomBarMessage;
                 match msg {
-                    BottomBarMessage::CycleLoopMode => {
-                        self.player.cycle_loop_mode();
-                    }
                     BottomBarMessage::ClearQueue => {
                         self.player.clear_queue();
-                    }
-                    BottomBarMessage::ShuffleQueue => {
-                        self.player.shuffle_queue();
                     }
                     BottomBarMessage::ToggleEditMode => {
                         if self.edit_mode {

@@ -142,6 +142,44 @@ impl PaneView for ControlsPane {
         .step(0.01)
         .width(Length::Fixed(100.0));
 
+        let shuffle_button = tooltip(
+            canvas_button(
+                svg(SvgHandle::from_memory(include_bytes!(
+                    "../../../assets/icons/shuffle.svg"
+                )))
+                .width(22)
+                .height(22),
+            )
+            .width(22)
+            .height(22)
+            .on_press(Message::Controls(ControlsMessage::ShuffleQueue)),
+            container(text("Shuffle queue").size(12))
+                .padding(6)
+                .style(container::rounded_box),
+            tooltip::Position::Top,
+        )
+        .gap(8)
+        .snap_within_viewport(true);
+
+        let cycle_button = tooltip(
+            canvas_button(
+                svg(SvgHandle::from_memory(include_bytes!(
+                    "../../../assets/icons/cycle.svg"
+                )))
+                .width(22)
+                .height(22),
+            )
+            .width(22)
+            .height(22)
+            .on_press(Message::Controls(ControlsMessage::CycleLoopMode)),
+            container(text("Cycle loop mode").size(12))
+                .padding(6)
+                .style(container::rounded_box),
+            tooltip::Position::Top,
+        )
+        .gap(8)
+        .snap_within_viewport(true);
+
         let time_text = format!(
             "{} / {}",
             format_duration(position),
@@ -210,6 +248,9 @@ impl PaneView for ControlsPane {
             volume_slider,
             container(text("")).width(Length::Fixed(20.0)),
             track_info,
+            container(text("")).width(Length::Fixed(20.0)),
+            shuffle_button,
+            cycle_button,
         ]
         .spacing(10)
         .padding(15)
@@ -241,6 +282,8 @@ pub enum ControlsMessage {
     ToggleMute,
     SeekChanged(f32),
     SeekReleased,
+    ShuffleQueue,
+    CycleLoopMode,
 }
 
 fn truncate_text(text: &str, max_chars: usize) -> String {
