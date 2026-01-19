@@ -37,7 +37,7 @@ impl PaneView for SpectrumPane {
         >,
     ) -> Element<'a, Message> {
         let viz_data = player.vis_data();
-        let bins = viz_data.bins_smooth().to_vec();
+        let bins = viz_data.bins().to_vec();
 
         container(
             Canvas::new(Spectrum { bins })
