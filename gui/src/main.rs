@@ -19,6 +19,7 @@ use app::App;
 
 pub fn main() -> iced::Result {
     iced::application(App::default, App::update, App::view)
+        .title("msc")
         .window(Settings {
             min_size: Some(Size::new(300., 0.)),
             icon: from_file_data(include_bytes!("../../assets/logo.png"), None).ok(),
