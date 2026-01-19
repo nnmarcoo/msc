@@ -1,13 +1,14 @@
 use crossbeam::atomic::AtomicCell;
 use kira::effect::{Effect, EffectBuilder};
 use kira::{Frame, info::Info};
-use rustfft::{FftPlanner, num_complex::Complex};
+use rustfft::{Fft, FftPlanner, num_complex::Complex};
 use std::sync::Arc;
 
 // all ai
 
 const FFT_SIZE: usize = 2048;
-const NUM_BINS: usize = 16;
+const NUM_BINS: usize = 32;
+const SAMPLE_RATE: f32 = 44100.0;
 
 #[derive(Clone, Copy, Debug)]
 pub struct VisData {
@@ -68,114 +69,122 @@ impl EffectBuilder for AudioAnalyzerBuilder {
 
 struct AudioAnalyzer {
     shared_data: Arc<AtomicCell<VisData>>,
-    buffer_left: Vec<f32>,
-    buffer_right: Vec<f32>,
-    fft_planner: FftPlanner<f32>,
-    sample_count: usize,
+    buffer: [f32; FFT_SIZE],
+    buffer_pos: usize,
+    fft: Arc<dyn Fft<f32>>,
+    fft_scratch: Vec<Complex<f32>>,
+    fft_buffer: Vec<Complex<f32>>,
     smoothed_bins: [f32; NUM_BINS],
-    // Temporary storage to avoid extra load/store
     pending_peak_left: f32,
     pending_peak_right: f32,
-    pending_rms_left: f32,
-    pending_rms_right: f32,
-    // Pre-computed Hann window coefficients
-    hann_window: Vec<f32>,
+    pending_rms_sum_left: f32,
+    pending_rms_sum_right: f32,
+    pending_sample_count: usize,
+    hann_window: [f32; FFT_SIZE],
+    bin_frequencies: [f32; NUM_BINS],
+    agc_peak_db: f32,
 }
 
 impl AudioAnalyzer {
     fn new(shared_data: Arc<AtomicCell<VisData>>) -> Self {
-        // Pre-compute Hann window coefficients once
-        let hann_window: Vec<f32> = (0..FFT_SIZE)
-            .map(|i| {
-                0.5 * (1.0
-                    - ((2.0 * std::f32::consts::PI * i as f32) / (FFT_SIZE as f32 - 1.0)).cos())
-            })
-            .collect();
+        let mut hann_window = [0.0f32; FFT_SIZE];
+        let fft_size_minus_one = (FFT_SIZE - 1) as f32;
+        for (i, w) in hann_window.iter_mut().enumerate() {
+            *w = 0.5 * (1.0 - (2.0 * std::f32::consts::PI * i as f32 / fft_size_minus_one).cos());
+        }
+
+        let mut planner = FftPlanner::new();
+        let fft = planner.plan_fft_forward(FFT_SIZE);
+        let fft_scratch = vec![Complex::new(0.0, 0.0); fft.get_inplace_scratch_len()];
+        let fft_buffer = vec![Complex::new(0.0, 0.0); FFT_SIZE];
+
+        let bin_frequencies = Self::compute_bin_frequencies();
 
         Self {
             shared_data,
-            buffer_left: Vec::with_capacity(FFT_SIZE),
-            buffer_right: Vec::with_capacity(FFT_SIZE),
-            fft_planner: FftPlanner::new(),
-            sample_count: 0,
+            buffer: [0.0; FFT_SIZE],
+            buffer_pos: 0,
+            fft,
+            fft_scratch,
+            fft_buffer,
             smoothed_bins: [0.0; NUM_BINS],
             pending_peak_left: 0.0,
             pending_peak_right: 0.0,
-            pending_rms_left: 0.0,
-            pending_rms_right: 0.0,
+            pending_rms_sum_left: 0.0,
+            pending_rms_sum_right: 0.0,
+            pending_sample_count: 0,
             hann_window,
+            bin_frequencies,
+            agc_peak_db: -60.0,
         }
     }
 
+    fn compute_bin_frequencies() -> [f32; NUM_BINS] {
+        let mut frequencies = [0.0f32; NUM_BINS];
+        let freq_per_bin = SAMPLE_RATE / FFT_SIZE as f32;
+        let min_freq = 20.0f32;
+        let max_freq = SAMPLE_RATE / 2.0;
+        let log_min = min_freq.ln();
+        let log_max = max_freq.ln();
+        let log_range = log_max - log_min;
+
+        for (bin_idx, freq) in frequencies.iter_mut().enumerate() {
+            let center_freq =
+                (log_min + log_range * (bin_idx as f32 + 0.5) / NUM_BINS as f32).exp();
+            *freq = center_freq / freq_per_bin;
+        }
+
+        frequencies
+    }
+
     fn analyze_spectrum(&mut self) {
-        if self.buffer_left.len() < FFT_SIZE {
-            return;
+        for (i, (sample, window)) in self.buffer.iter().zip(&self.hann_window).enumerate() {
+            self.fft_buffer[i] = Complex::new(sample * window, 0.0);
         }
 
-        let fft = self.fft_planner.plan_fft_forward(FFT_SIZE);
+        self.fft
+            .process_with_scratch(&mut self.fft_buffer, &mut self.fft_scratch);
 
-        // Apply pre-computed Hann window to reduce spectral leakage
-        let mut windowed: Vec<Complex<f32>> = self.buffer_left[..FFT_SIZE]
-            .iter()
-            .zip(&self.hann_window)
-            .map(|(&sample, &window)| Complex::new(sample * window, 0.0))
-            .collect();
+        let mut frequency_bins = [0.0f32; NUM_BINS];
+        let mut frame_max_db = -120.0f32;
 
-        fft.process(&mut windowed);
+        for (bin_idx, &fft_pos) in self.bin_frequencies.iter().enumerate() {
+            let idx = (fft_pos.round() as usize).clamp(0, FFT_SIZE / 2 - 1);
+            let power = self.fft_buffer[idx].norm_sqr();
 
-        // Use logarithmic binning for more natural frequency distribution
-        let mut frequency_bins = [0.0; NUM_BINS];
-
-        // Calculate logarithmic bin edges
-        let min_freq = 20.0f32; // 20 Hz
-        let max_freq = (FFT_SIZE / 2) as f32; // Nyquist frequency in bins
-
-        for (bin_idx, bin_value) in frequency_bins.iter_mut().enumerate() {
-            // Logarithmic spacing
-            let f_start = min_freq * (max_freq / min_freq).powf(bin_idx as f32 / NUM_BINS as f32);
-            let f_end =
-                min_freq * (max_freq / min_freq).powf((bin_idx + 1) as f32 / NUM_BINS as f32);
-
-            let start = f_start.floor() as usize;
-            let end = f_end.ceil().min(FFT_SIZE as f32 / 2.0) as usize;
-
-            if start >= end || end > FFT_SIZE / 2 {
-                continue;
-            }
-
-            let mut sum = 0.0;
-            let mut count = 0;
-            for i in start..end {
-                let magnitude = windowed[i].norm();
-                sum += magnitude;
-                count += 1;
-            }
-
-            if count > 0 {
-                let avg_magnitude = sum / count as f32;
-                // Convert to dB scale and normalize
-                let db = 20.0 * (avg_magnitude + 1e-10).log10();
-                // Map from typical range of -60dB to 0dB to 0.0-1.0
-                *bin_value = ((db + 60.0) / 60.0).clamp(0.0, 1.0);
-            }
+            let db = 10.0 * (power + 1e-10).log10();
+            frequency_bins[bin_idx] = db;
+            frame_max_db = frame_max_db.max(db);
         }
 
-        // Apply temporal smoothing using exponential moving average
-        // Use different smoothing for attack (going up) vs decay (going down)
-        const ATTACK_SMOOTHING: f32 = 0.1; // Very fast attack (90% new value)
-        const DECAY_SMOOTHING: f32 = 0.85; // Slow decay (85% old value)
+        // AGC: track peak with fast attack, slow release
+        const AGC_ATTACK: f32 = 0.3;
+        const AGC_RELEASE: f32 = 0.995;
+        const MIN_RANGE_DB: f32 = 40.0;
+
+        if frame_max_db > self.agc_peak_db {
+            self.agc_peak_db = self.agc_peak_db * (1.0 - AGC_ATTACK) + frame_max_db * AGC_ATTACK;
+        } else {
+            self.agc_peak_db = self.agc_peak_db * AGC_RELEASE + frame_max_db * (1.0 - AGC_RELEASE);
+        }
+
+        let floor_db = self.agc_peak_db - MIN_RANGE_DB;
+        let range_db = MIN_RANGE_DB;
+
+        for bin in frequency_bins.iter_mut() {
+            *bin = ((*bin - floor_db) / range_db).clamp(0.0, 1.0);
+        }
+
+        const ATTACK_SMOOTHING: f32 = 0.1;
+        const DECAY_SMOOTHING: f32 = 0.85;
 
         for (smoothed, &new_value) in self.smoothed_bins.iter_mut().zip(&frequency_bins) {
-            // Use asymmetric smoothing: very fast attack, slow decay
             let new_smoothed = if new_value > *smoothed {
-                // Attack: almost immediately follow increases
                 *smoothed * ATTACK_SMOOTHING + new_value * (1.0 - ATTACK_SMOOTHING)
             } else {
-                // Decay: slowly fall off for smooth visual
                 *smoothed * DECAY_SMOOTHING + new_value * (1.0 - DECAY_SMOOTHING)
             };
 
-            // Ensure no NaN or invalid values
             *smoothed = if new_smoothed.is_finite() {
                 new_smoothed
             } else {
@@ -183,66 +192,80 @@ impl AudioAnalyzer {
             };
         }
 
-        // Update shared data with bins AND pending peak/RMS values in one atomic store
+        let rms_left = if self.pending_sample_count > 0 {
+            (self.pending_rms_sum_left / self.pending_sample_count as f32).sqrt()
+        } else {
+            0.0
+        };
+        let rms_right = if self.pending_sample_count > 0 {
+            (self.pending_rms_sum_right / self.pending_sample_count as f32).sqrt()
+        } else {
+            0.0
+        };
+
         let data = VisData {
             bins_raw: frequency_bins,
             bins_smooth: self.smoothed_bins,
             peak_left: self.pending_peak_left,
             peak_right: self.pending_peak_right,
-            rms_left: self.pending_rms_left,
-            rms_right: self.pending_rms_right,
+            rms_left,
+            rms_right,
         };
         self.shared_data.store(data);
 
-        // Clear buffers for next batch
-        self.buffer_left.clear();
-        self.buffer_right.clear();
+        self.buffer_pos = 0;
+        self.pending_peak_left = 0.0;
+        self.pending_peak_right = 0.0;
+        self.pending_rms_sum_left = 0.0;
+        self.pending_rms_sum_right = 0.0;
+        self.pending_sample_count = 0;
     }
 }
 
 impl Effect for AudioAnalyzer {
     fn process(&mut self, input: &mut [Frame], _dt: f64, _info: &Info) {
-        let mut peak_left = 0.0f32;
-        let mut peak_right = 0.0f32;
-        let mut sum_squares_left = 0.0f32;
-        let mut sum_squares_right = 0.0f32;
-
-        for frame in input.iter() {
-            // Calculate peaks
-            peak_left = peak_left.max(frame.left.abs());
-            peak_right = peak_right.max(frame.right.abs());
-
-            // Calculate RMS
-            sum_squares_left += frame.left * frame.left;
-            sum_squares_right += frame.right * frame.right;
-
-            // Add to FFT buffers
-            self.buffer_left.push(frame.left);
-            self.buffer_right.push(frame.right);
-
-            self.sample_count += 1;
+        if input.is_empty() {
+            return;
         }
 
-        let num_samples = input.len() as f32;
-        let rms_left = (sum_squares_left / num_samples).sqrt();
-        let rms_right = (sum_squares_right / num_samples).sqrt();
+        for frame in input.iter() {
+            self.pending_peak_left = self.pending_peak_left.max(frame.left.abs());
+            self.pending_peak_right = self.pending_peak_right.max(frame.right.abs());
 
-        // Store peak and RMS values temporarily - will be written with FFT data
-        self.pending_peak_left = peak_left;
-        self.pending_peak_right = peak_right;
-        self.pending_rms_left = rms_left;
-        self.pending_rms_right = rms_right;
+            self.pending_rms_sum_left += frame.left * frame.left;
+            self.pending_rms_sum_right += frame.right * frame.right;
 
-        // Perform FFT analysis when we have enough samples (this will store everything)
-        if self.buffer_left.len() >= FFT_SIZE {
-            self.analyze_spectrum();
-        } else {
-            // If we're not doing FFT this frame, still update peak/RMS
-            let mut data = self.shared_data.load();
-            data.peak_left = peak_left;
-            data.peak_right = peak_right;
-            data.rms_left = rms_left;
-            data.rms_right = rms_right;
+            let mono = (frame.left + frame.right) * 0.5;
+            self.buffer[self.buffer_pos] = mono;
+            self.buffer_pos += 1;
+
+            if self.buffer_pos >= FFT_SIZE {
+                self.analyze_spectrum();
+            }
+        }
+
+        self.pending_sample_count += input.len();
+
+        if self.buffer_pos < FFT_SIZE && self.buffer_pos > 0 {
+            let rms_left = if self.pending_sample_count > 0 {
+                (self.pending_rms_sum_left / self.pending_sample_count as f32).sqrt()
+            } else {
+                0.0
+            };
+            let rms_right = if self.pending_sample_count > 0 {
+                (self.pending_rms_sum_right / self.pending_sample_count as f32).sqrt()
+            } else {
+                0.0
+            };
+
+            let data = VisData {
+                bins_raw: self.shared_data.load().bins_raw,
+                bins_smooth: self.smoothed_bins,
+                peak_left: self.pending_peak_left,
+                peak_right: self.pending_peak_right,
+                rms_left,
+                rms_right,
+            };
             self.shared_data.store(data);
         }
     }
