@@ -1,6 +1,6 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::svg::Handle;
-use iced::widget::{container, horizontal_space, row, svg, text, tooltip};
+use iced::widget::{container, row, space, svg, text, tooltip};
 use iced::{Background, Element, Length, Theme};
 
 use crate::widgets::canvas_button::canvas_button;
@@ -8,12 +8,10 @@ use crate::widgets::canvas_button::canvas_button;
 #[derive(Debug, Clone)]
 pub enum Message {
     ClearQueue,
-    ShuffleQueue,
     ToggleEditMode,
     SwitchPreset(usize),
     AddPreset,
     RemovePreset,
-    CycleLoopMode,
 }
 
 pub fn view(
@@ -65,7 +63,7 @@ pub fn view(
         container(
             row![
                 preset_buttons,
-                horizontal_space(),
+                space().width(Length::Fill),
                 tooltip(
                     canvas_button(svg(Handle::from_memory(include_bytes!(
                         "../../../assets/icons/checkmark.svg"
@@ -88,20 +86,7 @@ pub fn view(
         container(
             row![
                 preset_buttons,
-                horizontal_space(),
-                tooltip(
-                    canvas_button(
-                        text("cyclemode")
-                            .align_x(Horizontal::Center)
-                            .align_y(Vertical::Center)
-                    )
-                    .height(20)
-                    .on_press(Message::CycleLoopMode),
-                    container(text("Cycle loop mode").size(12))
-                        .padding(6)
-                        .style(container::rounded_box),
-                    tooltip::Position::Top,
-                ),
+                space().width(Length::Fill),
                 canvas_button(
                     text("clear")
                         .align_x(Horizontal::Center)
@@ -109,20 +94,6 @@ pub fn view(
                 )
                 .height(20)
                 .on_press(Message::ClearQueue),
-                tooltip(
-                    canvas_button(svg(Handle::from_memory(include_bytes!(
-                        "../../../assets/icons/shuffle.svg"
-                    ))))
-                    .width(20)
-                    .height(20)
-                    .on_press(Message::ShuffleQueue),
-                    container(text("Shuffle queue").size(12))
-                        .padding(6)
-                        .style(container::rounded_box),
-                    tooltip::Position::Top,
-                )
-                .gap(8)
-                .snap_within_viewport(true),
                 tooltip(
                     canvas_button(svg(Handle::from_memory(include_bytes!(
                         "../../../assets/icons/gear.svg"

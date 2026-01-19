@@ -3,7 +3,7 @@ use iced::advanced::mouse;
 use iced::advanced::renderer::{self, Renderer as _};
 use iced::advanced::widget::{self, Widget};
 use iced::advanced::{Clipboard, Shell};
-use iced::event::{self, Event};
+use iced::event::Event;
 use iced::{Border, Color, Element, Length, Rectangle, Shadow, Size, Theme};
 
 pub struct CanvasButton<'a, Message> {
@@ -63,7 +63,7 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
     }
 
     fn layout(
-        &self,
+        &mut self,
         tree: &mut widget::Tree,
         renderer: &iced::Renderer,
         limits: &layout::Limits,
@@ -72,7 +72,7 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
 
         let content_layout =
             self.content
-                .as_widget()
+                .as_widget_mut()
                 .layout(&mut tree.children[0], renderer, &limits);
 
         let padding = self.padding * 2.0;
@@ -120,31 +120,9 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
                         color: Color::TRANSPARENT,
                     },
                     shadow: Shadow::default(),
+                    snap: true,
                 },
                 background_color,
-            );
-        }
-
-        if is_mouse_over && self.on_press.is_some() {
-            let inset = 2.0;
-            let hover_bounds = Rectangle {
-                x: bounds.x + inset,
-                y: bounds.y + inset,
-                width: bounds.width - inset * 2.0,
-                height: bounds.height - inset * 2.0,
-            };
-
-            renderer.fill_quad(
-                renderer::Quad {
-                    bounds: hover_bounds,
-                    border: Border {
-                        radius: 0.0.into(),
-                        width: 0.0,
-                        color: Color::TRANSPARENT,
-                    },
-                    shadow: Shadow::default(),
-                },
-                Color::TRANSPARENT,
             );
         }
 
@@ -176,54 +154,47 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
     }
 
     fn operate(
-        &self,
+        &mut self,
         tree: &mut widget::Tree,
         layout: Layout<'_>,
         renderer: &iced::Renderer,
         operation: &mut dyn widget::Operation<()>,
     ) {
-        operation.container(None, layout.bounds(), &mut |operation| {
-            self.content.as_widget().operate(
-                &mut tree.children[0],
-                layout.children().next().unwrap(),
-                renderer,
-                operation,
-            );
-        });
+        operation.container(None, layout.bounds());
+        self.content.as_widget_mut().operate(
+            &mut tree.children[0],
+            layout.children().next().unwrap(),
+            renderer,
+            operation,
+        );
     }
 
-    fn on_event(
+    fn update(
         &mut self,
         tree: &mut widget::Tree,
-        event: Event,
+        event: &Event,
         layout: Layout<'_>,
         cursor: mouse::Cursor,
         _renderer: &iced::Renderer,
         _clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
         _viewport: &Rectangle,
-    ) -> event::Status {
+    ) {
         if self.on_press.is_none() {
-            return event::Status::Ignored;
+            return;
         }
 
         let state = tree.state.downcast_mut::<State>();
         let bounds = layout.bounds();
         let is_mouse_over = cursor.is_over(bounds);
 
-        match event {
+        match *event {
             Event::Mouse(mouse::Event::CursorMoved { .. }) => {
-                let was_hovered = state.is_hovered;
                 state.is_hovered = is_mouse_over;
-
-                if was_hovered != state.is_hovered {
-                    return event::Status::Captured;
-                }
             }
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
                 if is_mouse_over {
                     state.is_pressed = true;
-                    return event::Status::Captured;
                 }
             }
             Event::Mouse(mouse::Event::ButtonReleased(mouse::Button::Left)) => {
@@ -234,14 +205,11 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
                         if let Some(on_press) = self.on_press.clone() {
                             shell.publish(on_press);
                         }
-                        return event::Status::Captured;
                     }
                 }
             }
             _ => {}
         }
-
-        event::Status::Ignored
     }
 
     fn mouse_interaction(

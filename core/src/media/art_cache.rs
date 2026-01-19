@@ -1,7 +1,7 @@
+use blake3::Hash as Blake3Hash;
 use dashmap::DashMap;
-use image::{DynamicImage, GenericImageView, imageops::FilterType};
-use lofty::file::TaggedFileExt;
-use lofty::probe::Probe;
+use image::{DynamicImage, imageops::FilterType};
+use lofty::{file::TaggedFileExt, picture::PictureType, probe::Probe};
 use std::{
     collections::BTreeMap,
     path::{Path, PathBuf},
@@ -13,6 +13,8 @@ use std::{
     thread::{self, JoinHandle},
 };
 
+const MAX_PICTURES: usize = 21;
+
 use super::image_processing::{Colors, extract_colors};
 use crate::Track;
 
@@ -20,222 +22,333 @@ use crate::Track;
 pub struct RgbaImage {
     pub width: u32,
     pub height: u32,
-    pub data: Arc<Vec<u8>>,
+    pub data: Arc<[u8]>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+struct ImageHash([u8; 32]);
+
+impl ImageHash {
+    fn compute(data: &[u8]) -> Self {
+        blake3::hash(data).into()
+    }
+}
+
+impl From<Blake3Hash> for ImageHash {
+    fn from(hash: Blake3Hash) -> Self {
+        Self(*hash.as_bytes())
+    }
+}
+
+enum ImageState {
+    Ready(CachedImage),
+    Loading,
 }
 
 #[derive(Clone)]
-struct CachedImages {
-    images: BTreeMap<u32, RgbaImage>,
+struct CachedImage {
+    original: Arc<DynamicImage>,
+    sizes: BTreeMap<u32, RgbaImage>,
     colors: Colors,
-    path: PathBuf,
     is_loading: Arc<AtomicBool>,
 }
 
-enum CacheState {
-    Ready(CachedImages),
-    Loading,
+#[derive(Clone, Debug)]
+struct TrackPictureMap {
+    data: [(u8, ImageHash); MAX_PICTURES],
+    len: u8,
+}
+
+impl TrackPictureMap {
+    fn new() -> Self {
+        Self {
+            data: [(0, ImageHash([0; 32])); MAX_PICTURES],
+            len: 0,
+        }
+    }
+
+    fn insert(&mut self, pic_type: PictureType, hash: ImageHash) {
+        if (self.len as usize) < MAX_PICTURES {
+            self.data[self.len as usize] = (picture_type_id(pic_type), hash);
+            self.len += 1;
+        }
+    }
+
+    fn get(&self, pic_type: PictureType) -> Option<ImageHash> {
+        let id = picture_type_id(pic_type);
+        self.data[..self.len as usize]
+            .iter()
+            .find(|(k, _)| *k == id)
+            .map(|(_, h)| *h)
+    }
+
+    fn get_any(&self) -> Option<ImageHash> {
+        (self.len > 0).then(|| self.data[0].1)
+    }
+}
+
+fn picture_type_id(pic_type: PictureType) -> u8 {
+    match pic_type {
+        PictureType::Other => 0,
+        PictureType::Icon => 1,
+        PictureType::OtherIcon => 2,
+        PictureType::CoverFront => 3,
+        PictureType::CoverBack => 4,
+        PictureType::Leaflet => 5,
+        PictureType::Media => 6,
+        PictureType::LeadArtist => 7,
+        PictureType::Artist => 8,
+        PictureType::Conductor => 9,
+        PictureType::Band => 10,
+        PictureType::Composer => 11,
+        PictureType::Lyricist => 12,
+        PictureType::RecordingLocation => 13,
+        PictureType::DuringRecording => 14,
+        PictureType::DuringPerformance => 15,
+        PictureType::ScreenCapture => 16,
+        PictureType::BrightFish => 17,
+        PictureType::Illustration => 18,
+        PictureType::BandLogo => 19,
+        PictureType::PublisherLogo => 20,
+        PictureType::Undefined(val) => val,
+        _ => 255,
+    }
 }
 
 #[derive(Debug)]
 enum WorkItem {
-    LoadInitial {
-        cache_key: String,
+    Load {
+        track_key: String,
         path: PathBuf,
-        size: u32,
+        initial_size: u32,
     },
-    GenerateSize {
-        cache_key: String,
-        path: PathBuf,
+    Resize {
+        hash: ImageHash,
         size: u32,
         is_loading: Arc<AtomicBool>,
     },
 }
 
+fn worker_loop(
+    rx: Receiver<WorkItem>,
+    track_pictures: Arc<DashMap<String, TrackPictureMap>>,
+    images: Arc<DashMap<ImageHash, ImageState>>,
+) {
+    while let Ok(item) = rx.recv() {
+        match item {
+            WorkItem::Load {
+                track_key,
+                path,
+                initial_size,
+            } => load_track_pictures(&track_pictures, &images, track_key, path, initial_size),
+            WorkItem::Resize {
+                hash,
+                size,
+                is_loading,
+            } => generate_size(&images, hash, size, is_loading),
+        }
+    }
+}
+
+fn load_track_pictures(
+    track_pictures: &DashMap<String, TrackPictureMap>,
+    images: &DashMap<ImageHash, ImageState>,
+    track_key: String,
+    path: PathBuf,
+    initial_size: u32,
+) {
+    let Some(pictures) = extract_pictures_from_file(&path) else {
+        track_pictures.remove(&track_key);
+        return;
+    };
+
+    let mut pic_map = TrackPictureMap::new();
+
+    for (pic_type, raw_data) in pictures {
+        let hash = ImageHash::compute(&raw_data);
+        pic_map.insert(pic_type, hash);
+
+        if images.contains_key(&hash) {
+            continue;
+        }
+
+        images.insert(hash, ImageState::Loading);
+
+        if let Ok(image) = image::load_from_memory(&raw_data) {
+            let colors = extract_colors(&image);
+            let rgba = create_rgba(&image, initial_size);
+
+            let mut sizes = BTreeMap::new();
+            sizes.insert(initial_size, rgba);
+
+            images.insert(
+                hash,
+                ImageState::Ready(CachedImage {
+                    original: Arc::new(image),
+                    sizes,
+                    colors,
+                    is_loading: Arc::new(AtomicBool::new(false)),
+                }),
+            );
+        } else {
+            images.remove(&hash);
+        }
+    }
+
+    track_pictures.insert(track_key, pic_map);
+}
+
+fn generate_size(
+    images: &DashMap<ImageHash, ImageState>,
+    hash: ImageHash,
+    size: u32,
+    is_loading: Arc<AtomicBool>,
+) {
+    let original = images.get(&hash).and_then(|entry| {
+        if let ImageState::Ready(cached) = entry.value() {
+            if cached.sizes.contains_key(&size) {
+                is_loading.store(false, Ordering::Release);
+                return None;
+            }
+            Some(Arc::clone(&cached.original))
+        } else {
+            None
+        }
+    });
+
+    if let Some(original) = original {
+        let rgba = create_rgba(&original, size);
+        if let Some(mut entry) = images.get_mut(&hash) {
+            if let ImageState::Ready(cached) = entry.value_mut() {
+                cached.sizes.insert(size, rgba);
+            }
+        }
+    }
+
+    is_loading.store(false, Ordering::Release);
+}
+
+fn extract_pictures_from_file(path: &Path) -> Option<Vec<(PictureType, Vec<u8>)>> {
+    let file = Probe::open(path).ok()?.read().ok()?;
+    let tag = file.primary_tag().or_else(|| file.first_tag())?;
+
+    let pictures: Vec<_> = tag
+        .pictures()
+        .iter()
+        .map(|pic| (pic.pic_type(), pic.data().to_vec()))
+        .collect();
+
+    (!pictures.is_empty()).then_some(pictures)
+}
+
+fn create_rgba(image: &DynamicImage, max_size: u32) -> RgbaImage {
+    let rgba = image
+        .resize(max_size, max_size, FilterType::Lanczos3)
+        .to_rgba8();
+    let (width, height) = rgba.dimensions();
+
+    RgbaImage {
+        width,
+        height,
+        data: rgba.into_raw().into(),
+    }
+}
+
 pub struct ArtCache {
-    cache: Arc<DashMap<String, CacheState>>,
-    work_queue: Sender<WorkItem>,
+    track_pictures: Arc<DashMap<String, TrackPictureMap>>,
+    images: Arc<DashMap<ImageHash, ImageState>>,
+    work_tx: Sender<WorkItem>,
     _worker: JoinHandle<()>,
 }
 
 impl ArtCache {
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::channel::<WorkItem>();
-        let cache = Arc::new(DashMap::new());
+        let (tx, rx) = mpsc::channel();
+        let track_pictures = Arc::new(DashMap::new());
+        let images = Arc::new(DashMap::new());
 
-        let worker_cache = Arc::clone(&cache);
+        let worker_track_pictures = Arc::clone(&track_pictures);
+        let worker_images = Arc::clone(&images);
+
         let handle = thread::spawn(move || {
-            Self::worker_loop(rx, worker_cache);
+            worker_loop(rx, worker_track_pictures, worker_images);
         });
 
         Self {
-            cache,
-            work_queue: tx,
+            track_pictures,
+            images,
+            work_tx: tx,
             _worker: handle,
         }
     }
 
-    fn worker_loop(rx: Receiver<WorkItem>, cache: Arc<DashMap<String, CacheState>>) {
-        while let Ok(work_item) = rx.recv() {
-            match work_item {
-                WorkItem::LoadInitial {
-                    cache_key,
-                    path,
-                    size,
-                } => {
-                    Self::load_image_sync(&cache, cache_key, path, size);
-                }
-                WorkItem::GenerateSize {
-                    cache_key,
-                    path,
-                    size,
-                    is_loading,
-                } => {
-                    Self::generate_size_sync(&cache, cache_key, path, size, is_loading);
-                }
-            }
-        }
-    }
+    pub fn get(
+        &self,
+        track: &Track,
+        size: u32,
+        pic_type: Option<PictureType>,
+    ) -> Option<(RgbaImage, Colors)> {
+        let track_key = track.path().to_string_lossy().into_owned();
 
-    pub fn get(&self, track: &Track, size: u32) -> Option<(RgbaImage, Colors)> {
-        let cache_key = Self::cache_key(track)?;
+        if let Some(pic_map) = self.track_pictures.get(&track_key) {
+            let hash = match pic_type {
+                Some(t) => pic_map.get(t).or_else(|| pic_map.get_any()),
+                None => pic_map
+                    .get(PictureType::CoverFront)
+                    .or_else(|| pic_map.get_any()),
+            }?;
 
-        if let Some(entry) = self.cache.get(&cache_key) {
-            match entry.value() {
-                CacheState::Ready(cached) => {
-                    if let Some(image) = cached.images.get(&size) {
-                        return Some((image.clone(), cached.colors));
-                    }
-
-                    let closest = cached
-                        .images
-                        .range(size..)
-                        .next()
-                        .or_else(|| cached.images.iter().next_back())
-                        .map(|(_, img)| img.clone());
-
-                    if let Some(image) = closest {
-                        if !cached.is_loading.swap(true, Ordering::AcqRel) {
-                            if self
-                                .work_queue
-                                .send(WorkItem::GenerateSize {
-                                    cache_key,
-                                    path: cached.path.clone(),
-                                    size,
-                                    is_loading: cached.is_loading.clone(),
-                                })
-                                .is_err()
-                            {
-                                eprintln!("ArtCache: worker thread disconnected");
-                            }
-                        }
-
-                        return Some((image, cached.colors));
-                    }
-                }
-                CacheState::Loading => return None,
-            }
+            return self.get_by_hash(hash, size);
         }
 
         if self
-            .cache
-            .insert(cache_key.clone(), CacheState::Loading)
+            .track_pictures
+            .insert(track_key.clone(), TrackPictureMap::new())
             .is_none()
         {
-            if self
-                .work_queue
-                .send(WorkItem::LoadInitial {
-                    cache_key,
-                    path: track.path().clone(),
-                    size,
-                })
-                .is_err()
-            {
-                eprintln!("ArtCache: worker thread disconnected");
-            }
+            let _ = self.work_tx.send(WorkItem::Load {
+                track_key,
+                path: track.path().clone(),
+                initial_size: size,
+            });
         }
 
         None
     }
 
-    fn cache_key(track: &Track) -> Option<String> {
-        let album = track.album()?;
-        let artist = track.album_artist().unwrap_or("Unknown");
-        Some(format!("{}|{}", album, artist))
-    }
+    fn get_by_hash(&self, hash: ImageHash, size: u32) -> Option<(RgbaImage, Colors)> {
+        let entry = self.images.get(&hash)?;
 
-    fn load_image_sync(
-        cache: &DashMap<String, CacheState>,
-        cache_key: String,
-        path: PathBuf,
-        initial_size: u32,
-    ) {
-        match Self::extract_and_decode(&path) {
-            Some(image) => {
-                let colors = extract_colors(&image);
-                let rgba_image = Self::create_rgba_image(&image, initial_size);
-
-                let mut images = BTreeMap::new();
-                images.insert(initial_size, rgba_image);
-
-                let cached = CachedImages {
-                    images,
-                    colors,
-                    path,
-                    is_loading: Arc::new(AtomicBool::new(false)),
-                };
-
-                cache.insert(cache_key, CacheState::Ready(cached));
-            }
-            None => {
-                cache.remove(&cache_key);
-            }
-        }
-    }
-
-    fn generate_size_sync(
-        cache: &DashMap<String, CacheState>,
-        cache_key: String,
-        path: PathBuf,
-        size: u32,
-        is_loading: Arc<AtomicBool>,
-    ) {
-        if let Some(image) = Self::extract_and_decode(&path) {
-            let rgba_image = Self::create_rgba_image(&image, size);
-
-            if let Some(mut entry) = cache.get_mut(&cache_key) {
-                if let CacheState::Ready(cached) = entry.value_mut() {
-                    cached.images.insert(size, rgba_image);
+        match entry.value() {
+            ImageState::Ready(cached) => {
+                if let Some(image) = cached.sizes.get(&size) {
+                    return Some((image.clone(), cached.colors));
                 }
+
+                let closest = cached
+                    .sizes
+                    .range(size..)
+                    .next()
+                    .or_else(|| cached.sizes.iter().next_back())
+                    .map(|(_, img)| img.clone())?;
+
+                if !cached.is_loading.swap(true, Ordering::AcqRel) {
+                    let _ = self.work_tx.send(WorkItem::Resize {
+                        hash,
+                        size,
+                        is_loading: cached.is_loading.clone(),
+                    });
+                }
+
+                Some((closest, cached.colors))
             }
-        }
-
-        is_loading.store(false, Ordering::Release);
-    }
-
-    fn create_rgba_image(image: &DynamicImage, max_size: u32) -> RgbaImage {
-        let (img_width, img_height) = image.dimensions();
-
-        let rgba = if img_width <= max_size && img_height <= max_size {
-            image.to_rgba8()
-        } else {
-            image
-                .resize(max_size, max_size, FilterType::Lanczos3)
-                .to_rgba8()
-        };
-
-        let (width, height) = rgba.dimensions();
-
-        RgbaImage {
-            width,
-            height,
-            data: Arc::new(rgba.into_raw()),
+            ImageState::Loading => None,
         }
     }
+}
 
-    fn extract_and_decode(path: &Path) -> Option<DynamicImage> {
-        let file = Probe::open(path).ok()?.read().ok()?;
-        let tag = file.primary_tag().or_else(|| file.first_tag())?;
-        let picture = tag.pictures().first()?;
-        image::load_from_memory(picture.data()).ok()
+impl Default for ArtCache {
+    fn default() -> Self {
+        Self::new()
     }
 }

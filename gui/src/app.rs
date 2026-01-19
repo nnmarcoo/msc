@@ -1,16 +1,17 @@
 use iced::keyboard::{self, Key, key};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
-use iced::widget::{Space, column, container};
+use iced::widget::{column, container, space};
 use iced::{Element, Event, Length, Subscription, Task, Theme};
 use msc_core::{Player, Track};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
 
-use crate::components::{bottom_bar, controls};
+use crate::components::bottom_bar;
 use crate::media_controls::MediaSession;
-use crate::pane::{Pane, PaneContent};
+use crate::pane::{Pane, PaneType};
+use crate::panes::ControlsMessage;
 use crate::window_handle;
 
 // caching system kinda sucks anbd should prob be in core
@@ -40,10 +41,10 @@ pub enum Message {
     Clicked(pane_grid::Pane),
     Dragged(pane_grid::DragEvent),
     Resized(pane_grid::ResizeEvent),
-    Controls(controls::Message),
+    Controls(ControlsMessage),
     LibraryPathSelected(Option<PathBuf>),
     SetLibrary,
-    PaneContentChanged(pane_grid::Pane, PaneContent),
+    PaneTypeChanged(pane_grid::Pane, PaneType),
     BottomBar(bottom_bar::Message),
     PlayTrack(i64),
     QueueLibrary,
@@ -63,22 +64,16 @@ impl Default for App {
             a: Box::new(pane_grid::Configuration::Split {
                 axis: pane_grid::Axis::Vertical,
                 ratio: 0.7,
-                a: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                    PaneContent::Library,
-                ))),
+                a: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Library))),
                 b: Box::new(pane_grid::Configuration::Split {
                     axis: pane_grid::Axis::Horizontal,
                     ratio: 0.5,
-                    a: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                        PaneContent::Artwork,
-                    ))),
-                    b: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                        PaneContent::Queue,
-                    ))),
+                    a: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Artwork))),
+                    b: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Queue))),
                 }),
             }),
             b: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                PaneContent::Controls,
+                PaneType::Controls,
             ))),
         };
 
@@ -166,7 +161,7 @@ impl App {
             }
             Message::Split(axis, pane) => {
                 if let Some((new_pane, _)) =
-                    self.panes.split(axis, pane, Pane::new(PaneContent::Empty))
+                    self.panes.split(axis, pane, Pane::new(PaneType::Empty))
                 {
                     self.focus = Some(new_pane);
                 }
@@ -193,6 +188,11 @@ impl App {
                 }
 
                 let _ = self.player.update();
+
+                // Update all panes
+                for (_, pane) in self.panes.iter_mut() {
+                    pane.update(&self.player);
+                }
 
                 if let Some(session) = &self.media_session {
                     for event in session.poll_events() {
@@ -269,61 +269,58 @@ impl App {
                     self.invalidate_library_cache();
                 }
             }
-            Message::Controls(msg) => {
-                use controls::Message as ControlsMessage;
-                match msg {
-                    ControlsMessage::PlayPause => {
-                        if self.player.is_playing() {
-                            self.player.pause();
-                        } else {
-                            let _ = self.player.play();
-                        }
-                    }
-                    ControlsMessage::Previous => {
-                        let _ = self.player.start_previous();
-                    }
-                    ControlsMessage::Next => {
-                        let _ = self.player.start_next();
-                    }
-                    ControlsMessage::VolumeChanged(vol) => {
-                        self.volume = vol;
-                        self.player.set_volume(vol);
-                    }
-                    ControlsMessage::ToggleMute => {
-                        if self.volume > 0.0 {
-                            self.previous_volume = self.volume;
-                            self.volume = 0.0;
-                        } else {
-                            self.volume = self.previous_volume;
-                        }
-                        self.player.set_volume(self.volume);
-                    }
-                    ControlsMessage::SeekChanged(pos) => {
-                        self.seeking_position = Some(pos);
-                    }
-                    ControlsMessage::SeekReleased => {
-                        if let Some(pos) = self.seeking_position {
-                            self.player.seek(pos as f64);
-                        }
+            Message::Controls(msg) => match msg {
+                ControlsMessage::PlayPause => {
+                    if self.player.is_playing() {
+                        self.player.pause();
+                    } else {
+                        let _ = self.player.play();
                     }
                 }
-            }
-            Message::PaneContentChanged(pane_id, new_content) => {
+                ControlsMessage::Previous => {
+                    let _ = self.player.start_previous();
+                }
+                ControlsMessage::Next => {
+                    let _ = self.player.start_next();
+                }
+                ControlsMessage::VolumeChanged(vol) => {
+                    self.volume = vol;
+                    self.player.set_volume(vol);
+                }
+                ControlsMessage::ToggleMute => {
+                    if self.volume > 0.0 {
+                        self.previous_volume = self.volume;
+                        self.volume = 0.0;
+                    } else {
+                        self.volume = self.previous_volume;
+                    }
+                    self.player.set_volume(self.volume);
+                }
+                ControlsMessage::SeekChanged(pos) => {
+                    self.seeking_position = Some(pos);
+                }
+                ControlsMessage::SeekReleased => {
+                    if let Some(pos) = self.seeking_position {
+                        self.player.seek(pos as f64);
+                    }
+                }
+                ControlsMessage::ShuffleQueue => {
+                    self.player.shuffle_queue();
+                }
+                ControlsMessage::CycleLoopMode => {
+                    self.player.cycle_loop_mode();
+                }
+            },
+            Message::PaneTypeChanged(pane_id, new_type) => {
                 if let Some(pane) = self.panes.get_mut(pane_id) {
-                    pane.set_content(new_content);
+                    pane.set_content(new_type);
                 }
             }
             Message::BottomBar(msg) => {
                 use bottom_bar::Message as BottomBarMessage;
                 match msg {
-                    BottomBarMessage::CycleLoopMode => {
-                        self.player.cycle_loop_mode();
-                    }
                     BottomBarMessage::ClearQueue => {
                         self.player.clear_queue();
-                    }
-                    BottomBarMessage::ShuffleQueue => {
-                        self.player.shuffle_queue();
                     }
                     BottomBarMessage::ToggleEditMode => {
                         if self.edit_mode {
@@ -345,8 +342,7 @@ impl App {
                         }
                     }
                     BottomBarMessage::AddPreset => {
-                        let new_preset =
-                            pane_grid::Configuration::Pane(Pane::new(PaneContent::Empty));
+                        let new_preset = pane_grid::Configuration::Pane(Pane::new(PaneType::Empty));
                         self.layout_presets.push(new_preset.clone());
                         self.current_preset = self.layout_presets.len() - 1;
                         self.panes = pane_grid::State::with_configuration(new_preset);
@@ -444,7 +440,7 @@ impl App {
 
     pub fn view(&self) -> Element<Message> {
         if self.is_minimized {
-            return Space::new(0, 0).into();
+            return space().into();
         }
 
         let total_panes = self.panes.len();

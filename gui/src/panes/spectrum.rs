@@ -5,23 +5,58 @@ use iced::{
         container,
     },
 };
-use msc_core::Player;
+use msc_core::{Player, Track};
+use std::cell::RefCell;
 
 use crate::app::Message;
+use crate::pane_view::PaneView;
 
-pub fn view<'a>(player: &Player) -> Element<'a, Message> {
-    let viz_data = player.vis_data();
-    let bins = viz_data.bins_smooth().to_vec();
+#[derive(Debug, Clone)]
+pub struct SpectrumPane;
 
-    container(
-        Canvas::new(Spectrum { bins })
-            .width(Length::Fill)
-            .height(Length::Fill),
-    )
-    .width(Length::Fill)
-    .height(Length::Fill)
-    .padding(10)
-    .into()
+impl SpectrumPane {
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl PaneView for SpectrumPane {
+    fn update(&mut self, _player: &Player) {
+        // No state to update
+    }
+
+    fn view<'a>(
+        &'a self,
+        player: &'a Player,
+        _volume: f32,
+        _hovered_track: &Option<i64>,
+        _seeking_position: Option<f32>,
+        _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
+        _cached_albums: &'a RefCell<
+            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
+        >,
+    ) -> Element<'a, Message> {
+        let viz_data = player.vis_data();
+        let bins = viz_data.bins_smooth().to_vec();
+
+        container(
+            Canvas::new(Spectrum { bins })
+                .width(Length::Fill)
+                .height(Length::Fill),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(10)
+        .into()
+    }
+
+    fn title(&self) -> &str {
+        "Spectrum"
+    }
+
+    fn clone_box(&self) -> Box<dyn PaneView> {
+        Box::new(self.clone())
+    }
 }
 
 struct Spectrum {

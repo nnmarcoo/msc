@@ -6,6 +6,8 @@ use std::{
 };
 use thiserror::Error;
 
+use lofty::picture::PictureType;
+
 use crate::{ArtCache, Colors, Config, ConfigError, Database, RgbaImage, Track};
 
 pub struct Library {
@@ -114,7 +116,16 @@ impl Library {
     }
 
     pub fn artwork(&self, track: &Track, size: u32) -> Option<(RgbaImage, Colors)> {
-        self.art.get(track, size)
+        self.art.get(track, size, None)
+    }
+
+    pub fn artwork_with_type(
+        &self,
+        track: &Track,
+        size: u32,
+        pic_type: PictureType,
+    ) -> Option<(RgbaImage, Colors)> {
+        self.art.get(track, size, Some(pic_type))
     }
 }
 

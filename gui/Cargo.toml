@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-iced = { version = "0.13.1", features = ["tokio", "image", "advanced", "lazy", "svg"] }
+iced = { version = "0.14.0", features = ["tokio", "image", "advanced", "lazy", "svg"] }
 msc-core = { path = "../core" }
 image = "0.25.9"
 rfd = "0.16.0"
-iced_aw = "0.12.0"
+iced_aw = "0.13.0"
 souvlaki = "0.8.3"
 
 [target.'cfg(windows)'.dependencies]
