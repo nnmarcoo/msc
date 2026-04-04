@@ -1,10 +1,11 @@
 use iced::font::Weight;
 use iced::widget::{column, container, mouse_area, rule, scrollable, text};
 use iced::{Element, Font, Length, Theme};
-use msc_core::{Player, Track};
+use msc_core::{Album, Player, Track};
 use std::cell::RefCell;
 
 use crate::app::Message;
+use crate::art_cache::ArtCache;
 use crate::pane_view::PaneView;
 
 const MAX_DISPLAY: usize = 100;
@@ -19,9 +20,7 @@ impl QueuePane {
 }
 
 impl PaneView for QueuePane {
-    fn update(&mut self, _player: &Player) {
-        // No state to update
-    }
+    fn update(&mut self, _player: &Player, _art: &mut ArtCache) {}
 
     fn view<'a>(
         &'a self,
@@ -30,23 +29,21 @@ impl PaneView for QueuePane {
         hovered_track: &Option<i64>,
         _seeking_position: Option<f32>,
         _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<
-            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
-        >,
+        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
+        _art: &'a ArtCache,
     ) -> Element<'a, Message> {
         let queue = player.queue();
-        let library = player.library();
         let current_id = queue.current_id();
 
         let mut track_list = column![].spacing(0);
 
         if let Some(current_id) = current_id {
-            if let Ok(Some(track)) = library.query_track_from_id(current_id) {
+            if let Ok(Some(track)) = player.query_track_from_id(current_id) {
                 let is_hovered = hovered_track.as_ref() == Some(&current_id);
 
                 let track_inner = container(
                     column![
-                        text(track.title_or_default().to_string())
+                        text(track.title().unwrap_or("-").to_string())
                             .size(15)
                             .font(Font {
                                 weight: Weight::Bold,
@@ -55,7 +52,7 @@ impl PaneView for QueuePane {
                             .style(|theme: &Theme| text::Style {
                                 color: Some(theme.extended_palette().background.base.text),
                             }),
-                        text(track.track_artist_or_default().to_string())
+                        text(track.track_artist().unwrap_or("-").to_string())
                             .size(13)
                             .style(|theme: &Theme| text::Style {
                                 color: Some(theme.extended_palette().background.base.text),
@@ -93,31 +90,24 @@ impl PaneView for QueuePane {
             if idx >= MAX_DISPLAY {
                 track_list = track_list.push(
                     container(
-                        text(format!(
-                            "... and {} more tracks",
-                            total_upcoming - MAX_DISPLAY
-                        ))
-                        .size(12)
-                        .style(|theme: &Theme| text::Style {
-                            color: Some(theme.extended_palette().background.base.text),
-                        }),
+                        text(format!("... and {} more tracks", total_upcoming - MAX_DISPLAY))
+                            .size(12)
+                            .style(|theme: &Theme| text::Style {
+                                color: Some(theme.extended_palette().background.base.text),
+                            }),
                     )
                     .padding(8)
-                    .width(Length::Fill)
-                    .style(|theme: &Theme| container::Style {
-                        text_color: Some(theme.extended_palette().background.base.text),
-                        ..Default::default()
-                    }),
+                    .width(Length::Fill),
                 );
                 break;
             }
 
-            if let Ok(Some(track)) = library.query_track_from_id(*track_id) {
+            if let Ok(Some(track)) = player.query_track_from_id(*track_id) {
                 let is_hovered = hovered_track.as_ref() == Some(track_id);
 
                 let track_inner = container(
                     column![
-                        text(track.title_or_default().to_string())
+                        text(track.title().unwrap_or("-").to_string())
                             .size(15)
                             .font(Font {
                                 weight: Weight::Bold,
@@ -126,7 +116,7 @@ impl PaneView for QueuePane {
                             .style(|theme: &Theme| text::Style {
                                 color: Some(theme.extended_palette().background.base.text),
                             }),
-                        text(track.track_artist_or_default().to_string())
+                        text(track.track_artist().unwrap_or("-").to_string())
                             .size(13)
                             .style(|theme: &Theme| text::Style {
                                 color: Some(theme.extended_palette().background.base.text),

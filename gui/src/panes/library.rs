@@ -1,10 +1,11 @@
 use iced::alignment::Horizontal;
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text};
 use iced::{Element, Length, Theme};
-use msc_core::{Player, Track};
+use msc_core::{Album, Player, Track};
 use std::cell::RefCell;
 
 use crate::app::Message;
+use crate::art_cache::ArtCache;
 use crate::components::context_menu::{MenuElement, context_menu};
 use crate::formatters;
 use crate::pane_view::PaneView;
@@ -19,9 +20,7 @@ impl LibraryPane {
 }
 
 impl PaneView for LibraryPane {
-    fn update(&mut self, _player: &Player) {
-        // No state to update
-    }
+    fn update(&mut self, _player: &Player, _art: &mut ArtCache) {}
 
     fn view<'a>(
         &'a self,
@@ -30,21 +29,19 @@ impl PaneView for LibraryPane {
         hovered_track: &Option<i64>,
         _seeking_position: Option<f32>,
         cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<
-            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
-        >,
+        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
+        _art: &'a ArtCache,
     ) -> Element<'a, Message> {
         let cached_tracks = cached_tracks.borrow().clone().unwrap_or_default();
-        let tracks: Vec<_> = cached_tracks.iter().collect();
 
-        if tracks.is_empty() {
+        if cached_tracks.is_empty() {
             return container(
                 column![
-                    text("No library")
-                        .size(18)
-                        .style(|theme: &Theme| text::Style {
+                    text("No library").size(18).style(|theme: &Theme| {
+                        text::Style {
                             color: Some(theme.extended_palette().background.base.text),
-                        }),
+                        }
+                    }),
                     button(text("Set directory").size(14))
                         .on_press(Message::SetLibrary)
                         .padding(10),
@@ -57,10 +54,6 @@ impl PaneView for LibraryPane {
             .height(Length::Fill)
             .center_x(Length::Fill)
             .center_y(Length::Fill)
-            .style(|theme: &Theme| container::Style {
-                text_color: Some(theme.extended_palette().background.base.text),
-                ..Default::default()
-            })
             .into();
         }
 
@@ -78,13 +71,9 @@ impl PaneView for LibraryPane {
                     color: Some(theme.extended_palette().background.strong.text),
                 }))
                 .width(Length::FillPortion(2)),
-                container(
-                    text("Duration")
-                        .size(12)
-                        .style(|theme: &Theme| text::Style {
-                            color: Some(theme.extended_palette().background.strong.text),
-                        })
-                )
+                container(text("Duration").size(12).style(|theme: &Theme| text::Style {
+                    color: Some(theme.extended_palette().background.strong.text),
+                }))
                 .width(Length::Fixed(80.0)),
             ]
             .spacing(10),
@@ -99,18 +88,22 @@ impl PaneView for LibraryPane {
 
         let mut track_list = column![].spacing(0);
 
-        for track in tracks.iter() {
+        for track in cached_tracks.iter() {
             if let Some(track_id) = track.id() {
                 let duration_text = formatters::format_duration(track.duration());
                 let is_hovered = hovered_track.as_ref() == Some(&track_id);
 
                 let track_inner = container(
                     row![
-                        container(text(track.title_or_default().to_string()).size(12))
-                            .width(Length::FillPortion(3)),
-                        container(text(track.track_artist_or_default().to_string()).size(12))
-                            .width(Length::FillPortion(2)),
-                        container(text(track.album_or_default().to_string()).size(12))
+                        container(
+                            text(track.title().unwrap_or("-").to_string()).size(12)
+                        )
+                        .width(Length::FillPortion(3)),
+                        container(
+                            text(track.track_artist().unwrap_or("-").to_string()).size(12)
+                        )
+                        .width(Length::FillPortion(2)),
+                        container(text(track.album().unwrap_or("-").to_string()).size(12))
                             .width(Length::FillPortion(2)),
                         container(text(duration_text).size(12)).width(Length::Fixed(80.0)),
                     ]
@@ -134,7 +127,6 @@ impl PaneView for LibraryPane {
                 let track_content =
                     mouse_area(track_inner).on_move(move |_| Message::TrackHovered(track_id));
 
-                // add dropdown to make new playlist or add to existing
                 let track_row = context_menu(
                     track_content,
                     vec![

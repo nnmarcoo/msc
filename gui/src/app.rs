@@ -3,18 +3,17 @@ use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container, space};
 use iced::{Element, Event, Length, Subscription, Task, Theme};
-use msc_core::{Player, Track};
+use msc_core::{Album, Player, Track};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
 
+use crate::art_cache::ArtCache;
 use crate::components::bottom_bar;
 use crate::media_controls::MediaSession;
 use crate::pane::{Pane, PaneType};
 use crate::panes::ControlsMessage;
 use crate::window_handle;
-
-// caching system kinda sucks anbd should prob be in core
 
 pub struct App {
     panes: pane_grid::State<Pane>,
@@ -29,7 +28,8 @@ pub struct App {
     hovered_track: Option<i64>,
     media_session: Option<MediaSession>,
     cached_tracks: RefCell<Option<Vec<Track>>>,
-    cached_albums: RefCell<Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>>,
+    cached_albums: RefCell<Option<Vec<Album>>>,
+    art_cache: ArtCache,
     is_minimized: bool,
 }
 
@@ -94,26 +94,32 @@ impl Default for App {
             media_session: None,
             cached_tracks: RefCell::new(None),
             cached_albums: RefCell::new(None),
+            art_cache: ArtCache::new(),
             is_minimized: false,
         }
     }
 }
 
 impl App {
-    fn invalidate_library_cache(&self) {
+    fn invalidate_library_cache(&mut self) {
         *self.cached_tracks.borrow_mut() = None;
         *self.cached_albums.borrow_mut() = None;
+        self.art_cache.invalidate();
+        for (_, pane) in self.panes.iter_mut() {
+            pane.invalidate_cache();
+        }
     }
 
     fn ensure_cached_tracks(&self) {
         let mut cache = self.cached_tracks.borrow_mut();
         if cache.is_none() {
-            let mut tracks = self.player.library().query_all_tracks().unwrap_or_default();
+            let mut tracks = self.player.query_all_tracks().unwrap_or_default();
             tracks.sort_by(|a, b| {
-                a.track_artist_or_default()
-                    .cmp(b.track_artist_or_default())
-                    .then_with(|| a.album_or_default().cmp(b.album_or_default()))
-                    .then_with(|| a.title_or_default().cmp(b.title_or_default()))
+                a.track_artist()
+                    .unwrap_or("-")
+                    .cmp(b.track_artist().unwrap_or("-"))
+                    .then_with(|| a.album().unwrap_or("-").cmp(b.album().unwrap_or("-")))
+                    .then_with(|| a.title().unwrap_or("-").cmp(b.title().unwrap_or("-")))
             });
             *cache = Some(tracks);
         }
@@ -122,8 +128,7 @@ impl App {
     fn ensure_cached_albums(&self) {
         let mut cache = self.cached_albums.borrow_mut();
         if cache.is_none() {
-            let albums = self.player.library().query_all_albums().unwrap_or_default();
-            *cache = Some(albums);
+            *cache = Some(self.player.query_all_albums().unwrap_or_default());
         }
     }
 
@@ -147,8 +152,7 @@ impl App {
                 b: Box::new(Self::layout_to_configuration(panes, *b)),
             },
             pane_grid::Node::Pane(pane_id) => {
-                let pane = panes.get(pane_id).unwrap();
-                pane_grid::Configuration::Pane(pane.clone())
+                pane_grid::Configuration::Pane(panes.get(pane_id).unwrap().clone())
             }
         }
     }
@@ -189,9 +193,10 @@ impl App {
 
                 let _ = self.player.update();
 
-                // Update all panes
+                self.art_cache.poll();
+
                 for (_, pane) in self.panes.iter_mut() {
-                    pane.update(&self.player);
+                    pane.update(&self.player, &mut self.art_cache);
                 }
 
                 if let Some(session) = &self.media_session {
@@ -223,8 +228,7 @@ impl App {
 
                 if !self.is_minimized {
                     if let Some(seeking_pos) = self.seeking_position {
-                        let current_pos = self.player.position() as f32;
-                        if (current_pos - seeking_pos).abs() < 0.1 {
+                        if (self.player.position() as f32 - seeking_pos).abs() < 0.1 {
                             self.seeking_position = None;
                         }
                     }
@@ -238,12 +242,12 @@ impl App {
                     }
 
                     if let Some(track) = self.player.clone_current_track() {
-                        let title = track.title().unwrap_or("Unknown Title");
-                        let artist = track.track_artist().unwrap_or("Unknown Artist");
-                        let album = track.album().unwrap_or("Unknown Album");
-                        let duration = Some(track.duration() as f64);
-
-                        session.set_metadata(title, artist, album, duration);
+                        session.set_metadata(
+                            track.title().unwrap_or("Unknown Title"),
+                            track.track_artist().unwrap_or("Unknown Artist"),
+                            track.album().unwrap_or("Unknown Album"),
+                            Some(track.duration() as f64),
+                        );
                     }
                 }
             }
@@ -333,7 +337,6 @@ impl App {
                             if self.edit_mode {
                                 self.save_current_layout();
                             }
-
                             self.current_preset = index;
                             self.panes = pane_grid::State::with_configuration(
                                 self.layout_presets[index].clone(),
@@ -342,7 +345,8 @@ impl App {
                         }
                     }
                     BottomBarMessage::AddPreset => {
-                        let new_preset = pane_grid::Configuration::Pane(Pane::new(PaneType::Empty));
+                        let new_preset =
+                            pane_grid::Configuration::Pane(Pane::new(PaneType::Empty));
                         self.layout_presets.push(new_preset.clone());
                         self.current_preset = self.layout_presets.len() - 1;
                         self.panes = pane_grid::State::with_configuration(new_preset);
@@ -351,38 +355,34 @@ impl App {
                     BottomBarMessage::RemovePreset => {
                         if self.layout_presets.len() > 1 {
                             self.layout_presets.remove(self.current_preset);
-
                             self.current_preset =
                                 self.current_preset.min(self.layout_presets.len() - 1);
-
                             self.panes = pane_grid::State::with_configuration(
                                 self.layout_presets[self.current_preset].clone(),
                             );
-
                             self.focus = None;
                         }
                     }
                 }
             }
             Message::PlayTrack(track_id) => {
-                if let Ok(Some(_track)) = self.player.library().query_track_from_id(track_id) {
+                if self.player.query_track_from_id(track_id).ok().flatten().is_some() {
                     self.player.queue_front(track_id);
                     let _ = self.player.start_next();
                 }
             }
             Message::QueueBack(track_id) => {
-                if let Ok(Some(_track)) = self.player.library().query_track_from_id(track_id) {
+                if self.player.query_track_from_id(track_id).ok().flatten().is_some() {
                     self.player.queue_back(track_id);
                 }
             }
             Message::QueueFront(track_id) => {
-                if let Ok(Some(_track)) = self.player.library().query_track_from_id(track_id) {
+                if self.player.query_track_from_id(track_id).ok().flatten().is_some() {
                     self.player.queue_front(track_id);
                 }
             }
-            // this should prob move the current queue into history or something idk
             Message::PlayAlbum(album_name, _artist) => {
-                if let Ok(tracks) = self.player.library().query_tracks_by_album(&album_name) {
+                if let Ok(tracks) = self.player.query_tracks_by_album(&album_name) {
                     self.player.clear_queue();
                     for track in tracks {
                         if let Some(id) = track.id() {
@@ -399,11 +399,15 @@ impl App {
                 self.hovered_track = None;
             }
             Message::Event(event) => match event {
-                Event::Window(window_event) => {
-                    if let iced::window::Event::Resized(size) = window_event {
+                Event::Window(window_event) => match window_event {
+                    iced::window::Event::Resized(size) => {
                         self.is_minimized = size.width == 0.0 && size.height == 0.0;
                     }
-                }
+                    iced::window::Event::CloseRequested => {
+                        std::process::exit(0);
+                    }
+                    _ => {}
+                },
                 Event::Keyboard(keyboard::Event::KeyPressed {
                     key, modifiers: _, ..
                 }) => match key {
@@ -455,6 +459,7 @@ impl App {
         let seeking_position = self.seeking_position;
         let cached_tracks = &self.cached_tracks;
         let cached_albums = &self.cached_albums;
+        let art_cache = &self.art_cache;
 
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
             pane.view(
@@ -467,6 +472,7 @@ impl App {
                 seeking_position,
                 cached_tracks,
                 cached_albums,
+                art_cache,
             )
         })
         .width(Length::Fill)

@@ -1,3 +1,4 @@
+mod album;
 mod audio_analyzer;
 mod backend;
 mod config;
@@ -8,14 +9,15 @@ mod player;
 mod queue;
 mod track;
 
+pub use album::Album;
 pub use audio_analyzer::VisData;
-pub(crate) use backend::Backend;
 pub use config::{Config, ConfigError};
-pub(crate) use db::Database;
 pub use library::{Library, LibraryError};
-pub(crate) use media::ArtCache;
-pub use media::{Colors, RgbaImage};
+pub use media::extract_artwork_bytes;
 pub use player::{Player, PlayerError};
 pub use queue::LoopMode;
-pub(crate) use queue::Queue;
 pub use track::Track;
+
+pub(crate) use backend::Backend;
+pub(crate) use db::Database;
+pub(crate) use queue::Queue;

@@ -6,12 +6,15 @@ use iced::{
 };
 
 mod app;
+mod art_cache;
 mod components;
 mod formatters;
+mod image_processing;
 mod media_controls;
 mod pane;
 mod pane_view;
 mod panes;
+mod styles;
 mod widgets;
 mod window_handle;
 
@@ -23,6 +26,7 @@ pub fn main() -> iced::Result {
         .window(Settings {
             min_size: Some(Size::new(300., 0.)),
             icon: from_file_data(include_bytes!("../../assets/logo.png"), None).ok(),
+            exit_on_close_request: false,
             ..Default::default()
         })
         .centered()

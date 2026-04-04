@@ -14,6 +14,14 @@ use kira::{
 
 use crate::audio_analyzer::{AudioAnalyzerBuilder, VisData};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum BackendState {
+    Idle,
+    Playing,
+    Paused,
+    Finished,
+}
+
 pub struct Backend {
     manager: AudioManager,
     sound: Option<StreamingSoundHandle<FromFileError>>,
@@ -33,7 +41,7 @@ impl Backend {
         Ok(Backend {
             manager: AudioManager::<DefaultBackend>::new(settings)?,
             sound: None,
-            volume: 0.1,
+            volume: 1.0,
             visualization_data,
         })
     }
@@ -43,7 +51,7 @@ impl Backend {
 
         let sound_data = StreamingSoundData::from_file(path)
             .map_err(PlaybackError::LoadError)?
-            .volume(self.volume);
+            .volume(self.volume_db());
 
         let handle = self
             .manager
@@ -88,38 +96,44 @@ impl Backend {
     }
 
     pub fn set_volume(&mut self, volume: f32) {
-        self.volume = 28. * volume.log10();
+        self.volume = volume.clamp(0.0, 1.0);
+        let db = self.volume_db();
         if let Some(sound) = &mut self.sound {
-            sound.set_volume(self.volume, Tween::default());
+            sound.set_volume(db, Tween::default());
+        }
+    }
+
+    /// Convert 0-1 linear slider to dB. Kira's volume parameter is in dB.
+    fn volume_db(&self) -> f32 {
+        if self.volume <= 0.0 {
+            -60.0
+        } else {
+            28.0 * self.volume.log10()
+        }
+    }
+
+    pub(crate) fn state(&self) -> BackendState {
+        match &self.sound {
+            None => BackendState::Idle,
+            Some(s) => match s.state() {
+                PlaybackState::Playing => BackendState::Playing,
+                PlaybackState::Paused => BackendState::Paused,
+                PlaybackState::Stopped => BackendState::Finished,
+                _ => BackendState::Idle,
+            },
         }
     }
 
     pub fn is_playing(&self) -> bool {
-        if let Some(sound) = &self.sound {
-            sound.state() == PlaybackState::Playing
-        } else {
-            false
-        }
-    }
-
-    pub fn is_stopped(&self) -> bool {
-        if let Some(sound) = &self.sound {
-            sound.state() == PlaybackState::Stopped
-        } else {
-            true
-        }
+        self.state() == BackendState::Playing
     }
 
     pub fn position(&self) -> f64 {
         if let Some(sound) = &self.sound {
             sound.position()
         } else {
-            0.
+            0.0
         }
-    }
-
-    pub fn has_sound(&self) -> bool {
-        self.sound.is_some()
     }
 
     pub fn vis_data(&self) -> VisData {

@@ -5,129 +5,73 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use super::Database;
 
+fn now() -> i64 {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap()
+        .as_secs() as i64
+}
+
+fn row_to_track(row: &Row) -> SqliteResult<Track> {
+    Ok(Track {
+        id: Some(row.get("id")?),
+        path: PathBuf::from(row.get::<_, String>("path")?),
+        missing: row.get::<_, i64>("missing")? != 0,
+        title: row.get("title")?,
+        track_artist: row.get("track_artist")?,
+        album: row.get("album")?,
+        album_artist: row.get("album_artist")?,
+        genre: row.get("genre")?,
+        year: row.get("year")?,
+        track_number: row.get("track_number")?,
+        disc_number: row.get("disc_number")?,
+        comment: row.get("comment")?,
+        duration: row.get("duration")?,
+        bit_rate: row.get("bit_rate")?,
+        sample_rate: row.get("sample_rate")?,
+        bit_depth: row.get("bit_depth")?,
+        channels: row.get("channels")?,
+    })
+}
+
 impl Database {
-    fn now() -> i64 {
-        SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_secs() as i64
-    }
-
-    fn row_to_track(row: &Row) -> SqliteResult<Track> {
-        Ok(Track::from_db(
-            Some(row.get(0)?),
-            PathBuf::from(row.get::<_, String>(1)?),
-            row.get::<_, i64>(16)? != 0,
-            row.get(2)?,
-            row.get(3)?,
-            row.get(4)?,
-            row.get(5)?,
-            row.get(6)?,
-            row.get(7)?,
-            row.get(8)?,
-            row.get(9)?,
-            row.get(10)?,
-            row.get(11)?,
-            row.get(12)?,
-            row.get(13)?,
-            row.get(14)?,
-            row.get(15)?,
-        ))
-    }
-
-    pub fn insert_track(&self, track: &Track) -> SqliteResult<i64> {
-        let now = Self::now();
-
-        self.conn.execute(
-            "INSERT INTO tracks (
-                path, title, track_artist, album, album_artist, genre,
-                year, track_number, disc_number, comment,
-                duration, bit_rate, sample_rate, bit_depth, channels,
-                created_at, updated_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16)",
-            params![
-                track.path().to_str(),
-                track.title(),
-                track.track_artist(),
-                track.album(),
-                track.album_artist(),
-                track.genre(),
-                track.year(),
-                track.track_number(),
-                track.disc_number(),
-                track.comment(),
-                track.duration(),
-                track.bit_rate(),
-                track.sample_rate(),
-                track.bit_depth(),
-                track.channels(),
-                now,
-            ],
-        )?;
-
-        Ok(self.conn.last_insert_rowid())
-    }
-
-    pub fn upsert_track(&self, track: &Track) -> SqliteResult<i64> {
-        let now = Self::now();
-
-        let updated = self.conn.execute(
-            "UPDATE tracks SET
-                title = ?1, track_artist = ?2, album = ?3, album_artist = ?4,
-                genre = ?5, year = ?6, track_number = ?7, disc_number = ?8,
-                comment = ?9, duration = ?10, bit_rate = ?11, sample_rate = ?12,
-                bit_depth = ?13, channels = ?14, updated_at = ?15
-             WHERE path = ?16",
-            params![
-                track.title(),
-                track.track_artist(),
-                track.album(),
-                track.album_artist(),
-                track.genre(),
-                track.year(),
-                track.track_number(),
-                track.disc_number(),
-                track.comment(),
-                track.duration(),
-                track.bit_rate(),
-                track.sample_rate(),
-                track.bit_depth(),
-                track.channels(),
-                now,
-                track.path().to_str(),
-            ],
-        )?;
-
-        if updated == 0 {
-            self.insert_track(track)
-        } else {
-            self.conn.query_row(
-                "SELECT id FROM tracks WHERE path = ?1",
-                params![track.path().to_str()],
-                |row| row.get(0),
-            )
-        }
-    }
-
     pub fn batch_upsert_tracks(&self, tracks: &[Track]) -> SqliteResult<()> {
         if tracks.is_empty() {
             return Ok(());
         }
 
-        let now = Self::now();
+        let ts = now();
 
-        self.conn.execute_batch("BEGIN TRANSACTION")?;
-
-        let result = (|| {
+        self.conn.execute_batch("BEGIN")?;
+        let result: SqliteResult<()> = (|| {
             for track in tracks {
-                let updated = self.conn.execute(
-                    "UPDATE tracks SET
-                        title = ?1, track_artist = ?2, album = ?3, album_artist = ?4,
-                        genre = ?5, year = ?6, track_number = ?7, disc_number = ?8,
-                        comment = ?9, duration = ?10, bit_rate = ?11, sample_rate = ?12,
-                        bit_depth = ?13, channels = ?14, updated_at = ?15, missing = 0
-                     WHERE path = ?16",
+                self.conn.execute(
+                    "INSERT INTO tracks (
+                        path, title, track_artist, album, album_artist, genre,
+                        year, track_number, disc_number, comment,
+                        duration, bit_rate, sample_rate, bit_depth, channels,
+                        created_at, updated_at, missing
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
+                              ?11, ?12, ?13, ?14, ?15, ?16, ?16, 0)
+                    ON CONFLICT(path) DO UPDATE SET
+                        title        = excluded.title,
+                        track_artist = excluded.track_artist,
+                        album        = excluded.album,
+                        album_artist = excluded.album_artist,
+                        genre        = excluded.genre,
+                        year         = excluded.year,
+                        track_number = excluded.track_number,
+                        disc_number  = excluded.disc_number,
+                        comment      = excluded.comment,
+                        duration     = excluded.duration,
+                        bit_rate     = excluded.bit_rate,
+                        sample_rate  = excluded.sample_rate,
+                        bit_depth    = excluded.bit_depth,
+                        channels     = excluded.channels,
+                        updated_at   = excluded.updated_at,
+                        missing      = 0",
                     params![
+                        track.path().to_str(),
                         track.title(),
                         track.track_artist(),
                         track.album(),
@@ -142,39 +86,9 @@ impl Database {
                         track.sample_rate(),
                         track.bit_depth(),
                         track.channels(),
-                        now,
-                        track.path().to_str(),
+                        ts,
                     ],
                 )?;
-
-                if updated == 0 {
-                    self.conn.execute(
-                        "INSERT INTO tracks (
-                            path, title, track_artist, album, album_artist, genre,
-                            year, track_number, disc_number, comment,
-                            duration, bit_rate, sample_rate, bit_depth, channels,
-                            created_at, updated_at, missing
-                        ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?16, 0)",
-                        params![
-                            track.path().to_str(),
-                            track.title(),
-                            track.track_artist(),
-                            track.album(),
-                            track.album_artist(),
-                            track.genre(),
-                            track.year(),
-                            track.track_number(),
-                            track.disc_number(),
-                            track.comment(),
-                            track.duration(),
-                            track.bit_rate(),
-                            track.sample_rate(),
-                            track.bit_depth(),
-                            track.channels(),
-                            now,
-                        ],
-                    )?;
-                }
             }
             Ok(())
         })();
@@ -184,7 +98,6 @@ impl Database {
         } else {
             self.conn.execute_batch("ROLLBACK")?;
         }
-
         result
     }
 
@@ -196,7 +109,7 @@ impl Database {
                         duration, bit_rate, sample_rate, bit_depth, channels, missing
                  FROM tracks WHERE id = ?1",
                 params![id],
-                Self::row_to_track,
+                row_to_track,
             )
             .optional()
     }
@@ -209,7 +122,7 @@ impl Database {
                         duration, bit_rate, sample_rate, bit_depth, channels, missing
                  FROM tracks WHERE path = ?1",
                 params![path],
-                Self::row_to_track,
+                row_to_track,
             )
             .optional()
     }
@@ -222,12 +135,8 @@ impl Database {
              FROM tracks
              ORDER BY album, disc_number, track_number",
         )?;
-
-        let tracks = stmt
-            .query_map([], Self::row_to_track)?
-            .collect::<SqliteResult<Vec<_>>>()?;
-
-        Ok(tracks)
+        stmt.query_map([], row_to_track)?
+            .collect::<SqliteResult<Vec<_>>>()
     }
 
     pub fn get_n_tracks(&self, limit: i64) -> SqliteResult<Vec<Track>> {
@@ -239,12 +148,8 @@ impl Database {
              ORDER BY album, disc_number, track_number
              LIMIT ?1",
         )?;
-
-        let tracks = stmt
-            .query_map(params![limit], Self::row_to_track)?
-            .collect::<SqliteResult<Vec<_>>>()?;
-
-        Ok(tracks)
+        stmt.query_map(params![limit], row_to_track)?
+            .collect::<SqliteResult<Vec<_>>>()
     }
 
     pub fn get_tracks_by_album(&self, album_name: &str) -> SqliteResult<Vec<Track>> {
@@ -256,12 +161,8 @@ impl Database {
              WHERE album = ?1
              ORDER BY disc_number, track_number",
         )?;
-
-        let tracks = stmt
-            .query_map(params![album_name], Self::row_to_track)?
-            .collect::<SqliteResult<Vec<_>>>()?;
-
-        Ok(tracks)
+        stmt.query_map(params![album_name], row_to_track)?
+            .collect::<SqliteResult<Vec<_>>>()
     }
 
     pub fn get_tracks_by_artist(&self, artist_name: &str) -> SqliteResult<Vec<Track>> {
@@ -273,57 +174,8 @@ impl Database {
              WHERE track_artist = ?1 OR album_artist = ?1
              ORDER BY album, disc_number, track_number",
         )?;
-
-        let tracks = stmt
-            .query_map(params![artist_name], Self::row_to_track)?
-            .collect::<SqliteResult<Vec<_>>>()?;
-
-        Ok(tracks)
-    }
-
-    pub fn update_track(&self, id: i64, track: &Track) -> SqliteResult<()> {
-        let now = Self::now();
-
-        self.conn.execute(
-            "UPDATE tracks SET
-                title = ?1, track_artist = ?2, album = ?3, album_artist = ?4,
-                genre = ?5, year = ?6, track_number = ?7, disc_number = ?8,
-                comment = ?9, duration = ?10, bit_rate = ?11, sample_rate = ?12,
-                bit_depth = ?13, channels = ?14, updated_at = ?15
-             WHERE id = ?16",
-            params![
-                track.title(),
-                track.track_artist(),
-                track.album(),
-                track.album_artist(),
-                track.genre(),
-                track.year(),
-                track.track_number(),
-                track.disc_number(),
-                track.comment(),
-                track.duration(),
-                track.bit_rate(),
-                track.sample_rate(),
-                track.bit_depth(),
-                track.channels(),
-                now,
-                id,
-            ],
-        )?;
-
-        Ok(())
-    }
-
-    pub fn delete_track(&self, id: i64) -> SqliteResult<()> {
-        self.conn
-            .execute("DELETE FROM tracks WHERE id = ?1", params![id])?;
-        Ok(())
-    }
-
-    pub fn delete_track_by_path(&self, path: &str) -> SqliteResult<()> {
-        self.conn
-            .execute("DELETE FROM tracks WHERE path = ?1", params![path])?;
-        Ok(())
+        stmt.query_map(params![artist_name], row_to_track)?
+            .collect::<SqliteResult<Vec<_>>>()
     }
 
     pub fn count_tracks(&self) -> SqliteResult<i64> {
@@ -331,25 +183,8 @@ impl Database {
             .query_row("SELECT COUNT(*) FROM tracks", [], |row| row.get(0))
     }
 
-    pub fn track_exists(&self, path: &str) -> SqliteResult<bool> {
-        let count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM tracks WHERE path = ?1",
-            params![path],
-            |row| row.get(0),
-        )?;
-        Ok(count > 0)
-    }
-
     pub fn mark_all_missing(&self) -> SqliteResult<()> {
         self.conn.execute("UPDATE tracks SET missing = 1", [])?;
-        Ok(())
-    }
-
-    pub fn mark_not_missing(&self, path: &str) -> SqliteResult<()> {
-        self.conn.execute(
-            "UPDATE tracks SET missing = 0 WHERE path = ?1",
-            params![path],
-        )?;
         Ok(())
     }
 }

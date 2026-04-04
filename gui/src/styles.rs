@@ -1,0 +1,11 @@
+use iced::widget::svg;
+use iced::Theme;
+
+pub fn svg_style(theme: &Theme, status: svg::Status) -> svg::Style {
+    let base = theme.extended_palette().background.base.text;
+    let color = match status {
+        svg::Status::Hovered => base,
+        svg::Status::Idle => base.scale_alpha(0.7),
+    };
+    svg::Style { color: Some(color) }
+}

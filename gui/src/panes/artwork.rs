@@ -1,35 +1,56 @@
-use iced::{Element, Length};
-use msc_core::{Player, Track};
-use std::cell::RefCell;
+use iced::widget::svg::Handle as SvgHandle;
+use iced::widget::{Image, container, responsive, svg};
+use iced::{Color, ContentFit, Element, Length, Theme};
+use msc_core::{Album, Player, Track};
+use std::cell::{Cell, RefCell};
 
 use crate::app::Message;
+use crate::art_cache::ArtCache;
 use crate::pane_view::PaneView;
-use crate::widgets::ArtworkImage;
+use crate::styles::svg_style;
+
+const DEBOUNCE_TICKS: u32 = 3;
 
 #[derive(Debug, Clone)]
 pub struct ArtworkPane {
-    artwork: ArtworkImage,
-    requested_size: RefCell<u32>,
+    current_track_id: Option<i64>,
+    display_size: Cell<(u32, u32)>,
+    stable_size: (u32, u32),
+    stable_ticks: u32,
 }
 
 impl ArtworkPane {
     pub fn new() -> Self {
         Self {
-            artwork: ArtworkImage::new(512),
-            requested_size: RefCell::new(512),
+            current_track_id: None,
+            display_size: Cell::new((0, 0)),
+            stable_size: (0, 0),
+            stable_ticks: 0,
         }
     }
 }
 
 impl PaneView for ArtworkPane {
-    fn update(&mut self, player: &Player) {
-        let requested = *self.requested_size.borrow();
-        if requested > 0 && requested != self.artwork.requested_size {
-            self.artwork = ArtworkImage::new(requested);
+    fn update(&mut self, player: &Player, art: &mut ArtCache) {
+        if let Some(track) = player.clone_current_track() {
+            if let Some(id) = track.id() {
+                self.current_track_id = Some(id);
+                let (w, h) = self.display_size.get();
+                if w > 0 && h > 0 {
+                    if (w, h) == self.stable_size {
+                        self.stable_ticks = self.stable_ticks.saturating_add(1);
+                    } else {
+                        self.stable_size = (w, h);
+                        self.stable_ticks = 0;
+                    }
+                    if self.stable_ticks >= DEBOUNCE_TICKS {
+                        art.get_or_queue(id, track.path(), w, h);
+                    }
+                }
+            }
+        } else {
+            self.current_track_id = None;
         }
-
-        self.artwork
-            .update(player, player.clone_current_track().as_ref());
     }
 
     fn view<'a>(
@@ -39,17 +60,53 @@ impl PaneView for ArtworkPane {
         _hovered_track: &Option<i64>,
         _seeking_position: Option<f32>,
         _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<
-            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
-        >,
+        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
+        art: &'a ArtCache,
     ) -> Element<'a, Message> {
-        let requested_size = &self.requested_size;
+        let (w, h) = self.display_size.get();
+        let entry = self.current_track_id.and_then(|id| {
+            art.get(id, w, h).or_else(|| art.get_any(id))
+        });
 
-        iced::widget::responsive(move |size| {
-            *requested_size.borrow_mut() =
-                (size.width.max(size.height).ceil() as u32).clamp(64, 2048);
+        responsive(move |size| {
+            self.display_size.set((size.width as u32, size.height as u32));
 
-            self.artwork.view_with_background()
+            if let Some(entry) = entry {
+                let [r, g, b] = entry.colors.background;
+
+                container(
+                    container(
+                        Image::new(entry.handle.clone())
+                            .width(Length::Fill)
+                            .height(Length::Fill)
+                            .content_fit(ContentFit::Contain),
+                    )
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill)
+                    .padding(10),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(move |_theme: &Theme| iced::widget::container::Style {
+                    background: Some(Color::from_rgb8(r, g, b).into()),
+                    ..Default::default()
+                })
+                .into()
+            } else {
+                container(
+                    svg(SvgHandle::from_memory(include_bytes!(
+                        "../../../assets/icons/disk.svg"
+                    )))
+                    .style(svg_style),
+                )
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .center_x(Length::Fill)
+                .center_y(Length::Fill)
+                .into()
+            }
         })
         .into()
     }

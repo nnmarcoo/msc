@@ -5,10 +5,11 @@ use iced::{
         container,
     },
 };
-use msc_core::{Player, Track};
+use msc_core::{Album, Player, Track};
 use std::cell::RefCell;
 
 use crate::app::Message;
+use crate::art_cache::ArtCache;
 use crate::pane_view::PaneView;
 
 #[derive(Debug, Clone)]
@@ -21,9 +22,7 @@ impl SpectrumPane {
 }
 
 impl PaneView for SpectrumPane {
-    fn update(&mut self, _player: &Player) {
-        // No state to update
-    }
+    fn update(&mut self, _player: &Player, _art: &mut ArtCache) {}
 
     fn view<'a>(
         &'a self,
@@ -32,9 +31,8 @@ impl PaneView for SpectrumPane {
         _hovered_track: &Option<i64>,
         _seeking_position: Option<f32>,
         _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<
-            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
-        >,
+        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
+        _art: &'a ArtCache,
     ) -> Element<'a, Message> {
         let viz_data = player.vis_data();
         let bins = viz_data.bins().to_vec();

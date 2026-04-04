@@ -6,7 +6,6 @@ use std::sync::Arc;
 
 const FFT_SIZE: usize = 2048;
 const NUM_BINS: usize = 32;
-const SAMPLE_RATE: f32 = 44100.0;
 
 const MIN_FREQ: f32 = 60.0;
 const MAX_FREQ: f32 = 16000.0;
@@ -69,6 +68,7 @@ struct AudioAnalyzer {
     window: [f32; FFT_SIZE],
     bin_map: [(usize, usize); NUM_BINS],
     agc_peak: f32,
+    sample_rate: f32,
 }
 
 impl AudioAnalyzer {
@@ -85,7 +85,9 @@ impl AudioAnalyzer {
         let fft = planner.plan_fft_forward(FFT_SIZE);
         let scratch_len = fft.get_inplace_scratch_len();
 
-        let bin_map = Self::compute_bin_map();
+        // Default to 44100; will be corrected on first process() call.
+        let sample_rate = 44100.0;
+        let bin_map = Self::compute_bin_map(sample_rate);
 
         Self {
             shared_data,
@@ -103,12 +105,13 @@ impl AudioAnalyzer {
             window,
             bin_map,
             agc_peak: -60.0,
+            sample_rate,
         }
     }
 
-    fn compute_bin_map() -> [(usize, usize); NUM_BINS] {
+    fn compute_bin_map(sample_rate: f32) -> [(usize, usize); NUM_BINS] {
         let mut map = [(0usize, 0usize); NUM_BINS];
-        let freq_per_bin = SAMPLE_RATE / FFT_SIZE as f32;
+        let freq_per_bin = sample_rate / FFT_SIZE as f32;
         let log_min = MIN_FREQ.ln();
         let log_max = MAX_FREQ.ln();
 
@@ -199,7 +202,16 @@ impl AudioAnalyzer {
 }
 
 impl Effect for AudioAnalyzer {
-    fn process(&mut self, input: &mut [Frame], _dt: f64, _info: &Info) {
+    fn process(&mut self, input: &mut [Frame], dt: f64, _info: &Info) {
+        // dt = seconds per sample, so sample_rate = 1/dt.
+        if dt > 0.0 {
+            let sr = (1.0 / dt) as f32;
+            if (sr - self.sample_rate).abs() > 1.0 {
+                self.sample_rate = sr;
+                self.bin_map = Self::compute_bin_map(sr);
+            }
+        }
+
         for frame in input.iter() {
             let left = frame.left.abs();
             let right = frame.right.abs();

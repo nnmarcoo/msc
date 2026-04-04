@@ -4,8 +4,9 @@ use thiserror::Error;
 use kira::backend::cpal;
 
 use crate::{
-    Backend, Colors, Config, ConfigError, Library, LibraryError, Queue, RgbaImage, Track, VisData,
-    backend::PlaybackError, queue::LoopMode,
+    Album, Config, ConfigError, Library, LibraryError, Queue, Track, VisData,
+    backend::{BackendState, Backend, PlaybackError},
+    queue::LoopMode,
 };
 
 pub struct Player {
@@ -18,14 +19,14 @@ impl Player {
     pub fn new() -> Result<Self, PlayerError> {
         Config::init()?;
 
-        let player = Player {
+        Ok(Player {
             backend: Backend::new()?,
             library: Library::new()?,
             queue: Queue::new(),
-        };
-
-        Ok(player)
+        })
     }
+
+    // ── Library ──────────────────────────────────────────────────────────────
 
     pub fn populate_library(&mut self, root: &Path) -> Result<(), LibraryError> {
         self.library.populate(root)
@@ -35,11 +36,45 @@ impl Player {
         self.library.reload()
     }
 
+    pub fn query_all_tracks(&self) -> Result<Vec<Track>, LibraryError> {
+        self.library.query_all_tracks()
+    }
+
+    pub fn query_n_tracks(&self, limit: i64) -> Result<Vec<Track>, LibraryError> {
+        self.library.query_n_tracks(limit)
+    }
+
+    pub fn query_tracks_by_album(&self, album_name: &str) -> Result<Vec<Track>, LibraryError> {
+        self.library.query_tracks_by_album(album_name)
+    }
+
+    pub fn query_tracks_by_artist(&self, artist_name: &str) -> Result<Vec<Track>, LibraryError> {
+        self.library.query_tracks_by_artist(artist_name)
+    }
+
+    pub fn query_all_albums(&self) -> Result<Vec<Album>, LibraryError> {
+        self.library.query_all_albums()
+    }
+
+    pub fn query_track_from_id(&self, id: i64) -> Result<Option<Track>, LibraryError> {
+        self.library.query_track_from_id(id)
+    }
+
+    pub fn query_track_from_path(&self, path: &str) -> Result<Option<Track>, LibraryError> {
+        self.library.query_track_from_path(path)
+    }
+
+    pub fn query_track_count(&self) -> Result<i64, LibraryError> {
+        self.library.query_track_count()
+    }
+
+    // ── Playback ─────────────────────────────────────────────────────────────
+
     pub fn play(&mut self) -> Result<(), PlaybackError> {
-        if self.backend.has_sound() {
-            self.backend.play();
-        } else {
-            self.start_current()?
+        match self.backend.state() {
+            BackendState::Paused => self.backend.play(),
+            BackendState::Idle | BackendState::Finished => self.start_current()?,
+            BackendState::Playing => {}
         }
         Ok(())
     }
@@ -51,6 +86,32 @@ impl Player {
     pub fn seek(&mut self, pos: f64) {
         self.backend.seek(pos);
     }
+
+    pub fn set_volume(&mut self, vol: f32) {
+        self.backend.set_volume(vol);
+    }
+
+    pub fn is_playing(&self) -> bool {
+        self.backend.is_playing()
+    }
+
+    pub fn position(&self) -> f64 {
+        self.backend.position()
+    }
+
+    pub fn vis_data(&self) -> VisData {
+        self.backend.vis_data()
+    }
+
+    /// Called each tick to advance to next track when the current one finishes.
+    pub fn update(&mut self) -> Result<(), PlaybackError> {
+        if self.backend.state() == BackendState::Finished {
+            self.start_next()?;
+        }
+        Ok(())
+    }
+
+    // ── Queue ─────────────────────────────────────────────────────────────────
 
     pub fn shuffle_queue(&mut self) {
         self.queue.shuffle();
@@ -76,16 +137,15 @@ impl Player {
     pub fn queue_library(&mut self) -> Result<(), LibraryError> {
         let mut tracks = self.library.query_all_tracks()?;
 
-        // Sort tracks by artist, then album, then title
         tracks.sort_by(|a, b| {
-            a.track_artist_or_default()
-                .cmp(&b.track_artist_or_default())
-                .then_with(|| a.album_or_default().cmp(&b.album_or_default()))
-                .then_with(|| a.title_or_default().cmp(&b.title_or_default()))
+            a.track_artist()
+                .unwrap_or("-")
+                .cmp(b.track_artist().unwrap_or("-"))
+                .then_with(|| a.album().unwrap_or("-").cmp(b.album().unwrap_or("-")))
+                .then_with(|| a.title().unwrap_or("-").cmp(b.title().unwrap_or("-")))
         });
 
-        self.queue
-            .add_many(tracks.into_iter().filter_map(|t| t.id()));
+        self.queue.add_many(tracks.into_iter().filter_map(|t| t.id()));
         Ok(())
     }
 
@@ -101,13 +161,8 @@ impl Player {
         self.queue.loop_mode()
     }
 
-    fn play_track(&mut self, track_id: Option<i64>) -> Result<(), PlaybackError> {
-        if let Some(track_id) = track_id {
-            if let Ok(Some(track)) = self.library.query_track_from_id(track_id) {
-                self.backend.load_and_play(track.path())?;
-            }
-        }
-        Ok(())
+    pub fn queue(&self) -> &Queue {
+        &self.queue
     }
 
     pub fn start_next(&mut self) -> Result<(), PlaybackError> {
@@ -125,45 +180,18 @@ impl Player {
         self.play_track(track_id)
     }
 
-    pub fn update(&mut self) -> Result<(), PlaybackError> {
-        // is the 2nd check necessary
-        if self.backend.is_stopped() && self.backend.has_sound() {
-            self.start_next()?;
-        }
-        Ok(())
-    }
-
-    pub fn set_volume(&mut self, vol: f32) {
-        self.backend.set_volume(vol);
-    }
-
-    pub fn is_playing(&self) -> bool {
-        self.backend.is_playing()
-    }
-
-    pub fn position(&self) -> f64 {
-        self.backend.position()
-    }
-
     pub fn clone_current_track(&self) -> Option<Track> {
         let track_id = self.queue.current_id()?;
         self.library.query_track_from_id(track_id).ok()?
     }
 
-    pub fn artwork(&self, track: &Track, size: u32) -> Option<(RgbaImage, Colors)> {
-        self.library.artwork(track, size)
-    }
-
-    pub fn library(&self) -> &Library {
-        &self.library
-    }
-
-    pub fn queue(&self) -> &Queue {
-        &self.queue
-    }
-
-    pub fn vis_data(&self) -> VisData {
-        self.backend.vis_data()
+    fn play_track(&mut self, track_id: Option<i64>) -> Result<(), PlaybackError> {
+        if let Some(id) = track_id {
+            if let Ok(Some(track)) = self.library.query_track_from_id(id) {
+                self.backend.load_and_play(track.path())?;
+            }
+        }
+        Ok(())
     }
 }
 

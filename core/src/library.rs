@@ -1,18 +1,12 @@
 use rayon::prelude::*;
-use std::{
-    fs::{create_dir_all, read_dir},
-    path::Path,
-    sync::Arc,
-};
+use std::{fs::create_dir_all, path::Path};
 use thiserror::Error;
+use walkdir::WalkDir;
 
-use lofty::picture::PictureType;
-
-use crate::{ArtCache, Colors, Config, ConfigError, Database, RgbaImage, Track};
+use crate::{Album, Config, ConfigError, Database, Track};
 
 pub struct Library {
     db: Database,
-    art: Arc<ArtCache>,
 }
 
 impl Library {
@@ -23,10 +17,8 @@ impl Library {
             create_dir_all(parent)?;
         }
 
-        let db = Database::new(&db_path)?;
         Ok(Library {
-            db,
-            art: Arc::new(ArtCache::new()),
+            db: Database::new(&db_path)?,
         })
     }
 
@@ -39,32 +31,29 @@ impl Library {
         if let Some(root) = Config::root() {
             self.db.mark_all_missing()?;
             Self::scan_directory(&self.db, &root)?;
-
             Ok(())
         } else {
             Err(LibraryError::RootNotSet)
         }
     }
 
-    fn scan_directory(db: &Database, dir: &Path) -> Result<(), LibraryError> {
-        let mut audio_files = Vec::new();
-        let mut subdirs = Vec::new();
+    fn scan_directory(db: &Database, root: &Path) -> Result<(), LibraryError> {
+        const AUDIO_EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "ogg", "m4a", "aac"];
 
-        if let Ok(entries) = read_dir(dir) {
-            for entry in entries.flatten() {
-                let path = entry.path();
-                if path.is_file() {
-                    if let Some(ext) = path.extension().and_then(|e| e.to_str()) {
-                        let ext = ext.to_lowercase();
-                        if ["mp3", "flac", "wav", "ogg", "m4a", "aac"].contains(&ext.as_str()) {
-                            audio_files.push(path);
-                        }
-                    }
-                } else if path.is_dir() {
-                    subdirs.push(path);
-                }
-            }
-        }
+        let audio_files: Vec<_> = WalkDir::new(root)
+            .follow_links(true)
+            .into_iter()
+            .flatten()
+            .filter(|e| {
+                e.file_type().is_file()
+                    && e.path()
+                        .extension()
+                        .and_then(|ext| ext.to_str())
+                        .map(|ext| AUDIO_EXTENSIONS.contains(&ext.to_lowercase().as_str()))
+                        .unwrap_or(false)
+            })
+            .map(|e| e.into_path())
+            .collect();
 
         let tracks: Vec<Track> = audio_files
             .par_iter()
@@ -73,10 +62,6 @@ impl Library {
 
         db.batch_upsert_tracks(&tracks)?;
         db.batch_upsert_albums_from_tracks(&tracks)?;
-
-        for subdir in subdirs {
-            Self::scan_directory(db, &subdir)?;
-        }
 
         Ok(())
     }
@@ -105,27 +90,12 @@ impl Library {
         Ok(self.db.count_tracks()?)
     }
 
-    pub fn query_all_albums(
-        &self,
-    ) -> Result<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>, LibraryError> {
+    pub fn query_all_albums(&self) -> Result<Vec<Album>, LibraryError> {
         Ok(self.db.get_all_albums()?)
     }
 
     pub fn query_track_from_path(&self, path: &str) -> Result<Option<Track>, LibraryError> {
         Ok(self.db.get_track_by_path(path)?)
-    }
-
-    pub fn artwork(&self, track: &Track, size: u32) -> Option<(RgbaImage, Colors)> {
-        self.art.get(track, size, None)
-    }
-
-    pub fn artwork_with_type(
-        &self,
-        track: &Track,
-        size: u32,
-        pic_type: PictureType,
-    ) -> Option<(RgbaImage, Colors)> {
-        self.art.get(track, size, Some(pic_type))
     }
 }
 

@@ -2,16 +2,16 @@ use iced::alignment::Vertical;
 use iced::widget::svg::Handle;
 use iced::widget::{button, container, pane_grid, pick_list, responsive, row, svg, text};
 use iced::{Border, Element, Length, Theme};
-use msc_core::{Player, Track};
+use msc_core::{Album, Player, Track};
 use std::cell::RefCell;
 use std::fmt::{self, Display};
 
 use crate::app::Message;
+use crate::art_cache::ArtCache;
 use crate::pane_view::PaneView;
 use crate::panes::*;
+use crate::styles::svg_style;
 use crate::widgets::square_button::square_button;
-
-// in edit mode the panes should be changed with a right click menu instead of the drop down!!!
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaneType {
@@ -98,13 +98,16 @@ impl Pane {
         self.content = pane_type.create();
     }
 
-    pub fn update(&mut self, player: &Player) {
-        self.content.update(player);
+    pub fn update(&mut self, player: &Player, art: &mut ArtCache) {
+        self.content.update(player, art);
+    }
+
+    pub fn invalidate_cache(&mut self) {
+        self.content.invalidate_cache();
     }
 
     pub fn get_type(&self) -> PaneType {
-        let title = self.content.title();
-        match title {
+        match self.content.title() {
             "Controls" => PaneType::Controls,
             "Queue" => PaneType::Queue,
             "Library" => PaneType::Library,
@@ -118,6 +121,7 @@ impl Pane {
             _ => PaneType::Empty,
         }
     }
+
     pub fn view<'a>(
         &'a self,
         pane: pane_grid::Pane,
@@ -128,9 +132,8 @@ impl Pane {
         hovered_track: &Option<i64>,
         seeking_position: Option<f32>,
         cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        cached_albums: &'a RefCell<
-            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
-        >,
+        cached_albums: &'a RefCell<Option<Vec<Album>>>,
+        art: &'a ArtCache,
     ) -> pane_grid::Content<'a, Message> {
         if edit_mode {
             let current_type = self.get_type();
@@ -146,7 +149,8 @@ impl Pane {
             let horizontal_split: Element<'_, Message> = square_button(
                 svg(Handle::from_memory(include_bytes!(
                     "../../assets/icons/horizontal.svg"
-                ))),
+                )))
+                .style(svg_style),
                 20,
             )
             .style(button::primary)
@@ -156,7 +160,8 @@ impl Pane {
             let vertical_split: Element<'_, Message> = square_button(
                 svg(Handle::from_memory(include_bytes!(
                     "../../assets/icons/vertical.svg"
-                ))),
+                )))
+                .style(svg_style),
                 20,
             )
             .style(button::primary)
@@ -168,9 +173,10 @@ impl Pane {
                 .align_y(Vertical::Center);
 
             if total_panes > 1 {
-                let close_btn: Element<'_, Message> = button(svg(Handle::from_memory(
-                    include_bytes!("../../assets/icons/x.svg"),
-                )))
+                let close_btn: Element<'_, Message> = button(
+                    svg(Handle::from_memory(include_bytes!("../../assets/icons/x.svg")))
+                        .style(svg_style),
+                )
                 .width(Length::Fixed(20.0))
                 .height(Length::Fixed(20.0))
                 .padding(0)
@@ -227,6 +233,7 @@ impl Pane {
                 seeking_position,
                 cached_tracks,
                 cached_albums,
+                art,
             );
 
             pane_grid::Content::new(

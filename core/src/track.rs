@@ -10,26 +10,26 @@ use lofty::{
 
 #[derive(Clone)]
 pub struct Track {
-    id: Option<i64>,
+    pub(crate) id: Option<i64>,
 
-    path: PathBuf,
-    missing: bool,
+    pub(crate) path: PathBuf,
+    pub(crate) missing: bool,
 
-    title: Option<String>,
-    track_artist: Option<String>,
-    album: Option<String>,
-    album_artist: Option<String>,
-    genre: Option<String>,
-    year: Option<u32>,
-    track_number: Option<u32>,
-    disc_number: Option<u32>,
-    comment: Option<String>,
+    pub(crate) title: Option<String>,
+    pub(crate) track_artist: Option<String>,
+    pub(crate) album: Option<String>,
+    pub(crate) album_artist: Option<String>,
+    pub(crate) genre: Option<String>,
+    pub(crate) year: Option<u32>,
+    pub(crate) track_number: Option<u32>,
+    pub(crate) disc_number: Option<u32>,
+    pub(crate) comment: Option<String>,
 
-    duration: f32,
-    bit_rate: Option<u32>,
-    sample_rate: Option<u32>,
-    bit_depth: Option<u8>,
-    channels: Option<u8>,
+    pub(crate) duration: f32,
+    pub(crate) bit_rate: Option<u32>,
+    pub(crate) sample_rate: Option<u32>,
+    pub(crate) bit_depth: Option<u8>,
+    pub(crate) channels: Option<u8>,
 }
 
 impl Track {
@@ -94,7 +94,7 @@ impl Track {
         self.id
     }
 
-    pub fn path(&self) -> &PathBuf {
+    pub fn path(&self) -> &Path {
         &self.path
     }
 
@@ -156,67 +156,6 @@ impl Track {
 
     pub fn channels(&self) -> Option<u8> {
         self.channels
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    pub(crate) fn from_db(
-        id: Option<i64>,
-        path: PathBuf,
-        missing: bool,
-        title: Option<String>,
-        track_artist: Option<String>,
-        album: Option<String>,
-        album_artist: Option<String>,
-        genre: Option<String>,
-        year: Option<u32>,
-        track_number: Option<u32>,
-        disc_number: Option<u32>,
-        comment: Option<String>,
-        duration: f32,
-        bit_rate: Option<u32>,
-        sample_rate: Option<u32>,
-        bit_depth: Option<u8>,
-        channels: Option<u8>,
-    ) -> Self {
-        Track {
-            id,
-            path,
-            missing,
-            title,
-            track_artist,
-            album,
-            album_artist,
-            genre,
-            year,
-            track_number,
-            disc_number,
-            comment,
-            duration,
-            bit_rate,
-            sample_rate,
-            bit_depth,
-            channels,
-        }
-    }
-
-    pub fn title_or_default(&self) -> &str {
-        self.title.as_deref().unwrap_or("-")
-    }
-
-    pub fn track_artist_or_default(&self) -> &str {
-        self.track_artist.as_deref().unwrap_or("-")
-    }
-
-    pub fn album_or_default(&self) -> &str {
-        self.album.as_deref().unwrap_or("-")
-    }
-
-    pub fn album_artist_or_default(&self) -> &str {
-        self.album_artist.as_deref().unwrap_or("-")
-    }
-
-    pub fn genre_or_default(&self) -> &str {
-        self.genre.as_deref().unwrap_or("-")
     }
 }
 

@@ -3,12 +3,14 @@ use iced::font::Weight;
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{column, container, responsive, row, svg, text, tooltip};
 use iced::{Element, Font, Length, Theme};
-use msc_core::{Player, Track};
+use msc_core::{Album, Player, Track};
 use std::cell::RefCell;
 
 use crate::app::Message;
+use crate::art_cache::ArtCache;
 use crate::formatters::format_duration;
 use crate::pane_view::PaneView;
+use crate::styles::svg_style;
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::hover_slider::hover_slider;
 
@@ -22,9 +24,7 @@ impl ControlsPane {
 }
 
 impl PaneView for ControlsPane {
-    fn update(&mut self, _player: &Player) {
-        // No state to update
-    }
+    fn update(&mut self, _player: &Player, _art: &mut ArtCache) {}
 
     fn view<'a>(
         &'a self,
@@ -33,9 +33,8 @@ impl PaneView for ControlsPane {
         _hovered_track: &Option<i64>,
         seeking_position: Option<f32>,
         _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<
-            Option<Vec<(i64, String, Option<String>, Option<u32>, Option<String>)>>,
-        >,
+        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
+        _art: &'a ArtCache,
     ) -> Element<'a, Message> {
         let is_playing = player.is_playing();
         let current_track = player.clone_current_track();
@@ -44,8 +43,8 @@ impl PaneView for ControlsPane {
 
         let (title, artist, duration) = if let Some(track) = current_track {
             (
-                track.title_or_default().to_string(),
-                track.track_artist_or_default().to_string(),
+                track.title().unwrap_or("-").to_string(),
+                track.track_artist().unwrap_or("-").to_string(),
                 track.duration(),
             )
         } else {
@@ -58,7 +57,8 @@ impl PaneView for ControlsPane {
                     "../../../assets/icons/previous.svg"
                 )))
                 .width(22)
-                .height(22),
+                .height(22)
+                .style(svg_style),
             )
             .width(22)
             .height(22)
@@ -81,7 +81,8 @@ impl PaneView for ControlsPane {
             canvas_button(
                 svg(SvgHandle::from_memory(play_pause_icon))
                     .width(28)
-                    .height(28),
+                    .height(28)
+                    .style(svg_style),
             )
             .width(28)
             .height(28)
@@ -100,7 +101,8 @@ impl PaneView for ControlsPane {
                     "../../../assets/icons/next.svg"
                 )))
                 .width(22)
-                .height(22),
+                .height(22)
+                .style(svg_style),
             )
             .width(22)
             .height(22)
@@ -123,7 +125,8 @@ impl PaneView for ControlsPane {
             canvas_button(
                 svg(SvgHandle::from_memory(vol_icon_bytes))
                     .width(22)
-                    .height(22),
+                    .height(22)
+                    .style(svg_style),
             )
             .width(22)
             .height(22)
@@ -148,7 +151,8 @@ impl PaneView for ControlsPane {
                     "../../../assets/icons/shuffle.svg"
                 )))
                 .width(22)
-                .height(22),
+                .height(22)
+                .style(svg_style),
             )
             .width(22)
             .height(22)
@@ -167,7 +171,8 @@ impl PaneView for ControlsPane {
                     "../../../assets/icons/cycle.svg"
                 )))
                 .width(22)
-                .height(22),
+                .height(22)
+                .style(svg_style),
             )
             .width(22)
             .height(22)

@@ -3,6 +3,7 @@ use iced::widget::svg::Handle;
 use iced::widget::{container, row, space, svg, text, tooltip};
 use iced::{Background, Element, Length, Theme};
 
+use crate::styles::svg_style;
 use crate::widgets::canvas_button::canvas_button;
 
 #[derive(Debug, Clone)]
@@ -39,9 +40,12 @@ pub fn view(
     if edit_mode {
         if preset_count < 10 {
             preset_buttons = preset_buttons.push(
-                canvas_button(svg(Handle::from_memory(include_bytes!(
-                    "../../../assets/icons/plus.svg"
-                ))))
+                canvas_button(
+                    svg(Handle::from_memory(include_bytes!(
+                        "../../../assets/icons/plus.svg"
+                    )))
+                    .style(svg_style),
+                )
                 .width(20)
                 .height(20)
                 .on_press(Message::AddPreset),
@@ -49,9 +53,12 @@ pub fn view(
         }
         if preset_count > 1 {
             preset_buttons = preset_buttons.push(
-                canvas_button(svg(Handle::from_memory(include_bytes!(
-                    "../../../assets/icons/minus.svg"
-                ))))
+                canvas_button(
+                    svg(Handle::from_memory(include_bytes!(
+                        "../../../assets/icons/minus.svg"
+                    )))
+                    .style(svg_style),
+                )
                 .width(20)
                 .height(20)
                 .on_press(Message::RemovePreset),
@@ -65,9 +72,12 @@ pub fn view(
                 preset_buttons,
                 space().width(Length::Fill),
                 tooltip(
-                    canvas_button(svg(Handle::from_memory(include_bytes!(
-                        "../../../assets/icons/checkmark.svg"
-                    ))))
+                    canvas_button(
+                        svg(Handle::from_memory(include_bytes!(
+                            "../../../assets/icons/checkmark.svg"
+                        )))
+                        .style(svg_style),
+                    )
                     .width(20)
                     .height(20)
                     .on_press(Message::ToggleEditMode),
@@ -95,9 +105,12 @@ pub fn view(
                 .height(20)
                 .on_press(Message::ClearQueue),
                 tooltip(
-                    canvas_button(svg(Handle::from_memory(include_bytes!(
-                        "../../../assets/icons/gear.svg"
-                    ))))
+                    canvas_button(
+                        svg(Handle::from_memory(include_bytes!(
+                            "../../../assets/icons/gear.svg"
+                        )))
+                        .style(svg_style),
+                    )
                     .width(20)
                     .height(20)
                     .on_press(Message::ToggleEditMode),

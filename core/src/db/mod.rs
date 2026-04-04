@@ -12,6 +12,10 @@ pub struct Database {
 impl Database {
     pub fn new(path: &Path) -> SqliteResult<Self> {
         let conn = Connection::open(path)?;
+        conn.execute_batch(
+            "PRAGMA journal_mode=WAL;
+             PRAGMA synchronous=NORMAL;",
+        )?;
         schema::create_tables(&conn)?;
         Ok(Database { conn })
     }
