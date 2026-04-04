@@ -3,7 +3,7 @@ use iced::widget::svg::Handle;
 use iced::widget::{column, container, row, space, svg, text, tooltip};
 use iced::{Element, Length, Theme};
 
-use crate::styles::{BAR_HEIGHT, PAD, bar_style, svg_style};
+use crate::styles::{BAR_HEIGHT, PAD, TOOLTIP_DELAY, bar_style, svg_style};
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::menu::{menu_item, menu_separator, styled_menu};
 use crate::widgets::menu_button::MenuButton;
@@ -85,6 +85,9 @@ pub fn view(
                 .style(container::rounded_box),
             tooltip::Position::Top,
         )
+        .gap(8)
+        .delay(TOOLTIP_DELAY)
+        .snap_within_viewport(true)
         .into()
     } else {
         row![

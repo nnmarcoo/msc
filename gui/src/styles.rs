@@ -4,8 +4,10 @@ use iced::{
 };
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Duration;
 
 pub const PAD: f32 = 5.0;
+pub const TOOLTIP_DELAY: Duration = Duration::from_millis(400);
 pub const BUTTON_SIZE: f32 = 20.0;
 pub const BAR_HEIGHT: f32 = 40.0;
 

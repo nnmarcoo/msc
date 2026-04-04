@@ -10,7 +10,7 @@ use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::formatters::format_duration;
 use crate::pane_view::PaneView;
-use crate::styles::svg_style;
+use crate::styles::{TOOLTIP_DELAY, svg_style};
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::hover_slider::hover_slider;
 
@@ -63,12 +63,13 @@ impl PaneView for ControlsPane {
             .width(22)
             .height(22)
             .on_press(Message::Controls(ControlsMessage::Previous)),
-            container(text("Previous track").size(12))
+            container(text("Previous Track").size(12))
                 .padding(6)
                 .style(container::rounded_box),
             tooltip::Position::Top,
         )
         .gap(8)
+        .delay(TOOLTIP_DELAY)
         .snap_within_viewport(true);
 
         let play_pause_icon: &[u8] = if is_playing {
@@ -93,6 +94,7 @@ impl PaneView for ControlsPane {
             tooltip::Position::Top,
         )
         .gap(8)
+        .delay(TOOLTIP_DELAY)
         .snap_within_viewport(true);
 
         let next_button = tooltip(
@@ -107,12 +109,13 @@ impl PaneView for ControlsPane {
             .width(22)
             .height(22)
             .on_press(Message::Controls(ControlsMessage::Next)),
-            container(text("Next track").size(12))
+            container(text("Next Track").size(12))
                 .padding(6)
                 .style(container::rounded_box),
             tooltip::Position::Top,
         )
         .gap(8)
+        .delay(TOOLTIP_DELAY)
         .snap_within_viewport(true);
 
         let vol_icon_bytes: &[u8] = if volume > 0. {
@@ -137,6 +140,7 @@ impl PaneView for ControlsPane {
             tooltip::Position::Top,
         )
         .gap(8)
+        .delay(TOOLTIP_DELAY)
         .snap_within_viewport(true);
 
         let volume_slider = hover_slider(0.0..=1.0, volume, |v| {
@@ -157,12 +161,13 @@ impl PaneView for ControlsPane {
             .width(22)
             .height(22)
             .on_press(Message::Controls(ControlsMessage::ShuffleQueue)),
-            container(text("Shuffle queue").size(12))
+            container(text("Shuffle Queue").size(12))
                 .padding(6)
                 .style(container::rounded_box),
             tooltip::Position::Top,
         )
         .gap(8)
+        .delay(TOOLTIP_DELAY)
         .snap_within_viewport(true);
 
         let cycle_button = tooltip(
@@ -177,12 +182,13 @@ impl PaneView for ControlsPane {
             .width(22)
             .height(22)
             .on_press(Message::Controls(ControlsMessage::CycleLoopMode)),
-            container(text("Cycle loop mode").size(12))
+            container(text("Cycle Loop Mode").size(12))
                 .padding(6)
                 .style(container::rounded_box),
             tooltip::Position::Top,
         )
         .gap(8)
+        .delay(TOOLTIP_DELAY)
         .snap_within_viewport(true);
 
         let time_text = format!(

@@ -6,7 +6,7 @@ use iced::widget::{button, column, container, row, rule, scrollable, svg, text, 
 use iced::{Element, Length, Theme};
 
 use crate::config::Config;
-use crate::styles::{PAD, bar_style, svg_style};
+use crate::styles::{PAD, TOOLTIP_DELAY, bar_style, svg_style};
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::theme_picker::ThemePicker;
 
@@ -60,12 +60,13 @@ pub fn view<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, PreferenceMes
                 button(text("Reset").size(12))
                     .on_press(PreferenceMessage::Reset)
                     .padding([4.0, 8.0]),
-                container(text("Reset all settings to defaults").size(12))
+                container(text("Reset All Settings To Defaults").size(12))
                     .padding(6)
                     .style(container::rounded_box),
                 Position::Top,
             )
             .gap(8)
+            .delay(TOOLTIP_DELAY)
             .snap_within_viewport(true),
             iced::widget::Space::new().width(Length::Fill),
             tooltip(
@@ -86,6 +87,7 @@ pub fn view<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, PreferenceMes
                 Position::Top,
             )
             .gap(8)
+            .delay(TOOLTIP_DELAY)
             .snap_within_viewport(true),
             tooltip(
                 canvas_button(
@@ -105,6 +107,7 @@ pub fn view<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, PreferenceMes
                 Position::Top,
             )
             .gap(8)
+            .delay(TOOLTIP_DELAY)
             .snap_within_viewport(true),
         ]
         .align_y(Vertical::Center)
