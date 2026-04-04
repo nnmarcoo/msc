@@ -1,5 +1,5 @@
-use iced::widget::svg;
 use iced::Theme;
+use iced::widget::svg;
 
 pub fn svg_style(theme: &Theme, status: svg::Status) -> svg::Style {
     let base = theme.extended_palette().background.base.text;

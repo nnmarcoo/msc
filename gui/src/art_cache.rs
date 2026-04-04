@@ -40,7 +40,11 @@ fn worker_loop(rx: Receiver<WorkItem>, tx: Sender<ArtResult>) {
         };
 
         let colors = extract_colors(&img);
-        let img = img.resize(item.width, item.height, image::imageops::FilterType::Lanczos3);
+        let img = img.resize(
+            item.width,
+            item.height,
+            image::imageops::FilterType::Lanczos3,
+        );
 
         let rgba = img.into_rgba8();
         let (w, h) = (rgba.width(), rgba.height());

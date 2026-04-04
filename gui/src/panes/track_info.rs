@@ -61,8 +61,9 @@ impl PaneView for TrackInfoPane {
             text("").size(13)
         };
 
-        let duration_text =
-            text(formatters::format_duration(track.duration())).size(13).style(secondary_style);
+        let duration_text = text(formatters::format_duration(track.duration()))
+            .size(13)
+            .style(secondary_style);
 
         let quality_parts: Vec<_> = [
             formatters::format_sample_rate(track.sample_rate()),
@@ -74,7 +75,9 @@ impl PaneView for TrackInfoPane {
         .collect();
 
         let quality_text = if !quality_parts.is_empty() {
-            text(quality_parts.join(" • ")).size(13).style(secondary_style)
+            text(quality_parts.join(" • "))
+                .size(13)
+                .style(secondary_style)
         } else {
             text("").size(13)
         };

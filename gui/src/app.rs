@@ -345,8 +345,7 @@ impl App {
                         }
                     }
                     BottomBarMessage::AddPreset => {
-                        let new_preset =
-                            pane_grid::Configuration::Pane(Pane::new(PaneType::Empty));
+                        let new_preset = pane_grid::Configuration::Pane(Pane::new(PaneType::Empty));
                         self.layout_presets.push(new_preset.clone());
                         self.current_preset = self.layout_presets.len() - 1;
                         self.panes = pane_grid::State::with_configuration(new_preset);
@@ -366,18 +365,36 @@ impl App {
                 }
             }
             Message::PlayTrack(track_id) => {
-                if self.player.query_track_from_id(track_id).ok().flatten().is_some() {
+                if self
+                    .player
+                    .query_track_from_id(track_id)
+                    .ok()
+                    .flatten()
+                    .is_some()
+                {
                     self.player.queue_front(track_id);
                     let _ = self.player.start_next();
                 }
             }
             Message::QueueBack(track_id) => {
-                if self.player.query_track_from_id(track_id).ok().flatten().is_some() {
+                if self
+                    .player
+                    .query_track_from_id(track_id)
+                    .ok()
+                    .flatten()
+                    .is_some()
+                {
                     self.player.queue_back(track_id);
                 }
             }
             Message::QueueFront(track_id) => {
-                if self.player.query_track_from_id(track_id).ok().flatten().is_some() {
+                if self
+                    .player
+                    .query_track_from_id(track_id)
+                    .ok()
+                    .flatten()
+                    .is_some()
+                {
                     self.player.queue_front(track_id);
                 }
             }

@@ -88,11 +88,13 @@ impl PaneView for CollectionsPane {
         let albums = cached_albums.borrow().clone().unwrap_or_default();
 
         if albums.is_empty() {
-            return container(text("No albums").size(18).style(|theme: &Theme| {
-                text::Style {
-                    color: Some(theme.extended_palette().background.base.text),
-                }
-            }))
+            return container(
+                text("No albums")
+                    .size(18)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    }),
+            )
             .padding(20)
             .width(Length::Fill)
             .height(Length::Fill)
@@ -129,10 +131,9 @@ impl PaneView for CollectionsPane {
                 for album in chunk {
                     let track_id = art_keys.get(&album.id).map(|(tid, _)| *tid);
 
-                    let artwork_el: Element<'_, Message> = match track_id.and_then(|id| {
-                        art.get(id, thumb_px, thumb_px)
-                            .or_else(|| art.get_any(id))
-                    }) {
+                    let artwork_el: Element<'_, Message> = match track_id
+                        .and_then(|id| art.get(id, thumb_px, thumb_px).or_else(|| art.get_any(id)))
+                    {
                         Some(entry) => image(entry.handle.clone())
                             .width(Length::Fixed(card_size))
                             .height(Length::Fixed(card_size))

@@ -64,12 +64,13 @@ impl PaneView for ArtworkPane {
         art: &'a ArtCache,
     ) -> Element<'a, Message> {
         let (w, h) = self.display_size.get();
-        let entry = self.current_track_id.and_then(|id| {
-            art.get(id, w, h).or_else(|| art.get_any(id))
-        });
+        let entry = self
+            .current_track_id
+            .and_then(|id| art.get(id, w, h).or_else(|| art.get_any(id)));
 
         responsive(move |size| {
-            self.display_size.set((size.width as u32, size.height as u32));
+            self.display_size
+                .set((size.width as u32, size.height as u32));
 
             if let Some(entry) = entry {
                 let [r, g, b] = entry.colors.background;

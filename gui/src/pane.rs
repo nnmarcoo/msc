@@ -174,8 +174,10 @@ impl Pane {
 
             if total_panes > 1 {
                 let close_btn: Element<'_, Message> = button(
-                    svg(Handle::from_memory(include_bytes!("../../assets/icons/x.svg")))
-                        .style(svg_style),
+                    svg(Handle::from_memory(include_bytes!(
+                        "../../assets/icons/x.svg"
+                    )))
+                    .style(svg_style),
                 )
                 .width(Length::Fixed(20.0))
                 .height(Length::Fixed(20.0))

@@ -5,7 +5,7 @@ use kira::backend::cpal;
 
 use crate::{
     Album, Config, ConfigError, Library, LibraryError, Queue, Track, VisData,
-    backend::{BackendState, Backend, PlaybackError},
+    backend::{Backend, BackendState, PlaybackError},
     queue::LoopMode,
 };
 
@@ -145,7 +145,8 @@ impl Player {
                 .then_with(|| a.title().unwrap_or("-").cmp(b.title().unwrap_or("-")))
         });
 
-        self.queue.add_many(tracks.into_iter().filter_map(|t| t.id()));
+        self.queue
+            .add_many(tracks.into_iter().filter_map(|t| t.id()));
         Ok(())
     }
 

@@ -90,11 +90,14 @@ impl PaneView for QueuePane {
             if idx >= MAX_DISPLAY {
                 track_list = track_list.push(
                     container(
-                        text(format!("... and {} more tracks", total_upcoming - MAX_DISPLAY))
-                            .size(12)
-                            .style(|theme: &Theme| text::Style {
-                                color: Some(theme.extended_palette().background.base.text),
-                            }),
+                        text(format!(
+                            "... and {} more tracks",
+                            total_upcoming - MAX_DISPLAY
+                        ))
+                        .size(12)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.extended_palette().background.base.text),
+                        }),
                     )
                     .padding(8)
                     .width(Length::Fill),

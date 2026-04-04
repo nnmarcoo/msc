@@ -71,9 +71,13 @@ impl PaneView for LibraryPane {
                     color: Some(theme.extended_palette().background.strong.text),
                 }))
                 .width(Length::FillPortion(2)),
-                container(text("Duration").size(12).style(|theme: &Theme| text::Style {
-                    color: Some(theme.extended_palette().background.strong.text),
-                }))
+                container(
+                    text("Duration")
+                        .size(12)
+                        .style(|theme: &Theme| text::Style {
+                            color: Some(theme.extended_palette().background.strong.text),
+                        })
+                )
                 .width(Length::Fixed(80.0)),
             ]
             .spacing(10),
@@ -95,14 +99,10 @@ impl PaneView for LibraryPane {
 
                 let track_inner = container(
                     row![
-                        container(
-                            text(track.title().unwrap_or("-").to_string()).size(12)
-                        )
-                        .width(Length::FillPortion(3)),
-                        container(
-                            text(track.track_artist().unwrap_or("-").to_string()).size(12)
-                        )
-                        .width(Length::FillPortion(2)),
+                        container(text(track.title().unwrap_or("-").to_string()).size(12))
+                            .width(Length::FillPortion(3)),
+                        container(text(track.track_artist().unwrap_or("-").to_string()).size(12))
+                            .width(Length::FillPortion(2)),
                         container(text(track.album().unwrap_or("-").to_string()).size(12))
                             .width(Length::FillPortion(2)),
                         container(text(duration_text).size(12)).width(Length::Fixed(80.0)),
