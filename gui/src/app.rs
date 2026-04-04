@@ -51,6 +51,9 @@ pub enum Message {
     SetLibrary,
     PaneTypeChanged(pane_grid::Pane, PaneType),
     BottomBar(bottom_bar::Message),
+    ClearQueue,
+    RemoveFromQueue(usize),
+    MoveToQueueFront(usize),
     PlayTrack(i64),
     QueueLibrary,
     QueueBack(i64),
@@ -382,9 +385,6 @@ impl App {
             Message::BottomBar(msg) => {
                 use bottom_bar::Message as BottomBarMessage;
                 match msg {
-                    BottomBarMessage::ClearQueue => {
-                        self.player.clear_queue();
-                    }
                     BottomBarMessage::OpenPreferences => {
                         self.editing_config = Some(self.config.clone());
                     }
@@ -425,6 +425,15 @@ impl App {
                         }
                     }
                 }
+            }
+            Message::ClearQueue => {
+                self.player.clear_queue();
+            }
+            Message::RemoveFromQueue(index) => {
+                self.player.remove_from_queue(index);
+            }
+            Message::MoveToQueueFront(index) => {
+                self.player.move_to_queue_front(index);
             }
             Message::PlayTrack(track_id) => {
                 if self

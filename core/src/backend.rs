@@ -64,7 +64,8 @@ impl Backend {
 
     pub fn play(&mut self) {
         if let Some(sound) = &mut self.sound {
-            if sound.state() == PlaybackState::Paused {
+            let state = sound.state();
+            if state == PlaybackState::Paused || state == PlaybackState::Pausing {
                 sound.resume(Tween::default());
             }
         }
@@ -103,7 +104,6 @@ impl Backend {
         }
     }
 
-    /// Convert 0-1 linear slider to dB. Kira's volume parameter is in dB.
     fn volume_db(&self) -> f32 {
         if self.volume <= 0.0 {
             -60.0
@@ -117,7 +117,7 @@ impl Backend {
             None => BackendState::Idle,
             Some(s) => match s.state() {
                 PlaybackState::Playing => BackendState::Playing,
-                PlaybackState::Paused => BackendState::Paused,
+                PlaybackState::Paused | PlaybackState::Pausing => BackendState::Paused,
                 PlaybackState::Stopped => BackendState::Finished,
                 _ => BackendState::Idle,
             },

@@ -117,6 +117,14 @@ impl Player {
         self.queue.shuffle();
     }
 
+    pub fn remove_from_queue(&mut self, index: usize) {
+        self.queue.remove_index(index);
+    }
+
+    pub fn move_to_queue_front(&mut self, index: usize) {
+        self.queue.move_front(index);
+    }
+
     pub fn clear_queue(&mut self) {
         self.queue.clear();
         self.backend.stop();

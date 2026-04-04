@@ -1,7 +1,7 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::svg::Handle;
 use iced::widget::{column, container, row, space, svg, text, tooltip};
-use iced::{Element, Length, Theme};
+use iced::{Element, Length};
 
 use crate::styles::{BAR_HEIGHT, PAD, TOOLTIP_DELAY, bar_style, svg_style};
 use crate::widgets::canvas_button::canvas_button;
@@ -10,7 +10,6 @@ use crate::widgets::menu_button::MenuButton;
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    ClearQueue,
     ToggleEditMode,
     OpenPreferences,
     SwitchPreset(usize),
@@ -90,23 +89,14 @@ pub fn view(
         .snap_within_viewport(true)
         .into()
     } else {
-        row![
-            canvas_button(
-                text("clear")
-                    .align_x(Horizontal::Center)
-                    .align_y(Vertical::Center),
-            )
-            .height(20)
-            .on_press(Message::ClearQueue),
-            MenuButton::new(
-                include_bytes!("../../../assets/icons/kebab.svg"),
-                styled_menu(column![
-                    menu_item("Edit Layout", Message::ToggleEditMode),
-                    menu_separator(),
-                    menu_item("Preferences", Message::OpenPreferences),
-                ]),
-            ),
-        ]
+        row![MenuButton::new(
+            include_bytes!("../../../assets/icons/kebab.svg"),
+            styled_menu(column![
+                menu_item("Edit Layout", Message::ToggleEditMode),
+                menu_separator(),
+                menu_item("Preferences", Message::OpenPreferences),
+            ]),
+        ),]
         .spacing(2)
         .align_y(Vertical::Center)
         .into()

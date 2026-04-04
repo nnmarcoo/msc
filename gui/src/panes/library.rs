@@ -138,7 +138,6 @@ impl PaneView for LibraryPane {
                         MenuElement::Separator,
                         MenuElement::button("Queue library", Message::QueueLibrary),
                     ],
-                    Length::Fixed(130.),
                 );
 
                 track_list = track_list.push(track_row);

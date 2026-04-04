@@ -6,7 +6,9 @@ use std::cell::RefCell;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
+use crate::components::context_menu::{MenuElement, context_menu};
 use crate::pane_view::PaneView;
+use crate::panes::ControlsMessage;
 
 const MAX_DISPLAY: usize = 100;
 
@@ -78,7 +80,17 @@ impl PaneView for QueuePane {
                 let track_content =
                     mouse_area(track_inner).on_move(move |_| Message::TrackHovered(current_id));
 
-                track_list = track_list.push(track_content);
+                track_list = track_list.push(context_menu(
+                    track_content,
+                    vec![
+                        MenuElement::button(
+                            "Shuffle Queue",
+                            Message::Controls(ControlsMessage::ShuffleQueue),
+                        ),
+                        MenuElement::Separator,
+                        MenuElement::button("Clear Queue", Message::ClearQueue),
+                    ],
+                ));
                 track_list = track_list.push(container(rule::horizontal(1)).padding([4, 0]));
             }
         }
@@ -145,7 +157,23 @@ impl PaneView for QueuePane {
                 let track_content =
                     mouse_area(track_inner).on_move(move |_| Message::TrackHovered(*track_id));
 
-                track_list = track_list.push(track_content);
+                let mut items = vec![];
+                if idx > 0 {
+                    items.push(MenuElement::button(
+                        "Move to Top",
+                        Message::MoveToQueueFront(idx),
+                    ));
+                }
+                items.push(MenuElement::button("Remove", Message::RemoveFromQueue(idx)));
+                items.push(MenuElement::Separator);
+                items.push(MenuElement::button(
+                    "Shuffle Queue",
+                    Message::Controls(ControlsMessage::ShuffleQueue),
+                ));
+                items.push(MenuElement::Separator);
+                items.push(MenuElement::button("Clear Queue", Message::ClearQueue));
+
+                track_list = track_list.push(context_menu(track_content, items));
             }
         }
 
