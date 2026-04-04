@@ -6,6 +6,8 @@ use iced::advanced::{Clipboard, Shell};
 use iced::event::Event;
 use iced::{Border, Color, Element, Length, Rectangle, Shadow, Size, Theme};
 
+use crate::styles::radius;
+
 pub struct CanvasButton<'a, Message> {
     content: Element<'a, Message>,
     on_press: Option<Message>,
@@ -115,7 +117,7 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
                 renderer::Quad {
                     bounds,
                     border: Border {
-                        radius: 0.0.into(),
+                        radius: radius().into(),
                         width: 0.0,
                         color: Color::TRANSPARENT,
                     },

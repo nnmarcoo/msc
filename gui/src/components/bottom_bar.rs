@@ -1,15 +1,18 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::svg::Handle;
-use iced::widget::{container, row, space, svg, text, tooltip};
-use iced::{Background, Element, Length, Theme};
+use iced::widget::{column, container, row, space, svg, text, tooltip};
+use iced::{Element, Length, Theme};
 
-use crate::styles::svg_style;
+use crate::styles::{BAR_HEIGHT, PAD, bar_style, svg_style};
 use crate::widgets::canvas_button::canvas_button;
+use crate::widgets::menu::{menu_item, menu_separator, styled_menu};
+use crate::widgets::menu_button::MenuButton;
 
 #[derive(Debug, Clone)]
 pub enum Message {
     ClearQueue,
     ToggleEditMode,
+    OpenPreferences,
     SwitchPreset(usize),
     AddPreset,
     RemovePreset,
@@ -20,20 +23,20 @@ pub fn view(
     _current_preset: usize,
     edit_mode: bool,
 ) -> Element<'static, Message> {
-    let mut preset_buttons = row![].spacing(5).align_y(Vertical::Center);
+    let mut preset_buttons = row![].spacing(2).align_y(Vertical::Center);
 
     if preset_count > 1 || edit_mode {
         for index in 0..preset_count {
-            let btn = canvas_button(
-                text((index + 1).to_string())
-                    .align_x(Horizontal::Center)
-                    .align_y(Vertical::Center),
-            )
-            .width(20)
-            .height(20)
-            .on_press(Message::SwitchPreset(index));
-
-            preset_buttons = preset_buttons.push(btn);
+            preset_buttons = preset_buttons.push(
+                canvas_button(
+                    text((index + 1).to_string())
+                        .align_x(Horizontal::Center)
+                        .align_y(Vertical::Center),
+                )
+                .width(20)
+                .height(20)
+                .on_press(Message::SwitchPreset(index)),
+            );
         }
     }
 
@@ -66,80 +69,54 @@ pub fn view(
         }
     }
 
-    let bottom_bar = if edit_mode {
-        container(
-            row![
-                preset_buttons,
-                space().width(Length::Fill),
-                tooltip(
-                    canvas_button(
-                        svg(Handle::from_memory(include_bytes!(
-                            "../../../assets/icons/checkmark.svg"
-                        )))
-                        .style(svg_style),
-                    )
-                    .width(20)
-                    .height(20)
-                    .on_press(Message::ToggleEditMode),
-                    container(text("Done").size(12))
-                        .padding(6)
-                        .style(container::rounded_box),
-                    tooltip::Position::Top
-                )
-            ]
-            .spacing(5)
-            .align_y(Vertical::Center),
+    let right_side: Element<'static, Message> = if edit_mode {
+        tooltip(
+            canvas_button(
+                svg(Handle::from_memory(include_bytes!(
+                    "../../../assets/icons/checkmark.svg"
+                )))
+                .style(svg_style),
+            )
+            .width(20)
+            .height(20)
+            .on_press(Message::ToggleEditMode),
+            container(text("Done").size(12))
+                .padding(6)
+                .style(container::rounded_box),
+            tooltip::Position::Top,
         )
-        .width(Length::Fill)
-        .style(bar_style)
+        .into()
     } else {
-        container(
-            row![
-                preset_buttons,
-                space().width(Length::Fill),
-                canvas_button(
-                    text("clear")
-                        .align_x(Horizontal::Center)
-                        .align_y(Vertical::Center)
-                )
-                .height(20)
-                .on_press(Message::ClearQueue),
-                tooltip(
-                    canvas_button(
-                        svg(Handle::from_memory(include_bytes!(
-                            "../../../assets/icons/gear.svg"
-                        )))
-                        .style(svg_style),
-                    )
-                    .width(20)
-                    .height(20)
-                    .on_press(Message::ToggleEditMode),
-                    container(text("Edit layout").size(12))
-                        .padding(6)
-                        .style(container::rounded_box),
-                    tooltip::Position::Top,
-                )
-                .gap(8)
-                .snap_within_viewport(true),
-            ]
-            .spacing(5),
-        )
-        .width(Length::Fill)
-        .style(bar_style)
+        row![
+            canvas_button(
+                text("clear")
+                    .align_x(Horizontal::Center)
+                    .align_y(Vertical::Center),
+            )
+            .height(20)
+            .on_press(Message::ClearQueue),
+            MenuButton::new(
+                include_bytes!("../../../assets/icons/kebab.svg"),
+                styled_menu(column![
+                    menu_item("Edit Layout", Message::ToggleEditMode),
+                    menu_separator(),
+                    menu_item("Preferences", Message::OpenPreferences),
+                ]),
+            ),
+        ]
+        .spacing(2)
+        .align_y(Vertical::Center)
+        .into()
     };
 
-    bottom_bar.into()
-}
-
-fn bar_style(theme: &Theme) -> container::Style {
-    let palette = theme.extended_palette();
-    let mut color = palette.background.base.color;
-    color.r = (color.r + 0.02).min(1.0);
-    color.g = (color.g + 0.02).min(1.0);
-    color.b = (color.b + 0.02).min(1.0);
-    container::Style {
-        text_color: Some(palette.background.base.text),
-        background: Some(Background::Color(color)),
-        ..Default::default()
-    }
+    container(
+        row![preset_buttons, space().width(Length::Fill), right_side,]
+            .height(Length::Fixed(BAR_HEIGHT))
+            .width(Length::Fill)
+            .align_y(Vertical::Center)
+            .spacing(PAD),
+    )
+    .padding([0.0, PAD])
+    .style(bar_style)
+    .into()
 }

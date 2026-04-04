@@ -9,10 +9,13 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::art_cache::ArtCache;
-use crate::components::bottom_bar;
+use crate::components::preferences::PreferenceMessage;
+use crate::components::{bottom_bar, preferences};
+use crate::config::Config;
 use crate::media_controls::MediaSession;
 use crate::pane::{Pane, PaneType};
 use crate::panes::ControlsMessage;
+use crate::styles::set_radius;
 use crate::window_handle;
 
 pub struct App {
@@ -31,6 +34,8 @@ pub struct App {
     cached_albums: RefCell<Option<Vec<Album>>>,
     art_cache: ArtCache,
     is_minimized: bool,
+    config: Config,
+    editing_config: Option<Config>,
 }
 
 #[derive(Debug, Clone)]
@@ -53,11 +58,16 @@ pub enum Message {
     PlayAlbum(String, Option<String>),
     TrackHovered(i64),
     TrackUnhovered,
+    OpenPreferences,
+    Preference(preferences::PreferenceMessage),
     Event(Event),
 }
 
 impl Default for App {
     fn default() -> Self {
+        let config = Config::load();
+        set_radius(config.rounded);
+
         let pane_config = pane_grid::Configuration::Split {
             axis: pane_grid::Axis::Horizontal,
             ratio: 0.9,
@@ -96,11 +106,17 @@ impl Default for App {
             cached_albums: RefCell::new(None),
             art_cache: ArtCache::new(),
             is_minimized: false,
+            config,
+            editing_config: None,
         }
     }
 }
 
 impl App {
+    pub fn theme(&self) -> Theme {
+        self.config.theme.clone()
+    }
+
     fn invalidate_library_cache(&mut self) {
         *self.cached_tracks.borrow_mut() = None;
         *self.cached_albums.borrow_mut() = None;
@@ -320,11 +336,57 @@ impl App {
                     pane.set_content(new_type);
                 }
             }
+            Message::OpenPreferences => {
+                self.editing_config = Some(self.config.clone());
+            }
+            Message::Preference(msg) => match msg {
+                PreferenceMessage::SetTheme(t) => {
+                    if let Some(c) = &mut self.editing_config {
+                        c.theme = t;
+                    }
+                }
+                PreferenceMessage::SetRounded(v) => {
+                    if let Some(c) = &mut self.editing_config {
+                        c.rounded = v;
+                    }
+                }
+                PreferenceMessage::Save => {
+                    if let Some(c) = self.editing_config.take() {
+                        set_radius(c.rounded);
+                        c.save();
+                        self.config = c;
+                    }
+                }
+                PreferenceMessage::Cancel => {
+                    self.editing_config = None;
+                    set_radius(self.config.rounded);
+                }
+                PreferenceMessage::Reset => {
+                    let defaults = Config::default();
+                    set_radius(defaults.rounded);
+                    self.editing_config = Some(defaults);
+                }
+                PreferenceMessage::SetLibrary => {
+                    return Task::perform(
+                        async {
+                            rfd::AsyncFileDialog::new()
+                                .set_title("Select Music Library Folder")
+                                .pick_folder()
+                                .await
+                                .map(|handle| handle.path().to_path_buf())
+                        },
+                        Message::LibraryPathSelected,
+                    );
+                }
+            },
             Message::BottomBar(msg) => {
                 use bottom_bar::Message as BottomBarMessage;
                 match msg {
                     BottomBarMessage::ClearQueue => {
                         self.player.clear_queue();
+                    }
+                    BottomBarMessage::OpenPreferences => {
+                        self.editing_config = Some(self.config.clone());
                     }
                     BottomBarMessage::ToggleEditMode => {
                         if self.edit_mode {
@@ -519,6 +581,10 @@ impl App {
                 .width(Length::Fill)
                 .height(Length::Fill)
         };
+
+        if let Some(pending) = &self.editing_config {
+            return preferences::view(pending, &self.config.theme).map(Message::Preference);
+        }
 
         column![
             pane_grid_container,

@@ -1,13 +1,14 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use iced::{
-    Size, Theme,
+    Size,
     window::{Settings, icon::from_file_data},
 };
 
 mod app;
 mod art_cache;
 mod components;
+mod config;
 mod formatters;
 mod image_processing;
 mod media_controls;
@@ -31,6 +32,6 @@ pub fn main() -> iced::Result {
         })
         .centered()
         .subscription(App::subscription)
-        .theme(|_: &App| Theme::KanagawaDragon)
+        .theme(|app: &App| app.theme())
         .run()
 }
