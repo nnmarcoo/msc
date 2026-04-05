@@ -25,11 +25,10 @@ pub enum PaneType {
     VUMeters,
     TrackInfo,
     Empty,
-    Settings,
 }
 
 impl PaneType {
-    pub const ALL: [PaneType; 11] = [
+    pub const ALL: [PaneType; 10] = [
         PaneType::Controls,
         PaneType::Queue,
         PaneType::Library,
@@ -40,7 +39,6 @@ impl PaneType {
         PaneType::VUMeters,
         PaneType::TrackInfo,
         PaneType::Empty,
-        PaneType::Settings,
     ];
 
     pub fn title(&self) -> &str {
@@ -55,7 +53,6 @@ impl PaneType {
             PaneType::VUMeters => "VU Meters",
             PaneType::TrackInfo => "Track Info",
             PaneType::Empty => "Empty",
-            PaneType::Settings => "Settings",
         }
     }
 
@@ -71,7 +68,6 @@ impl PaneType {
             PaneType::VUMeters => Box::new(VUMetersPane::new()),
             PaneType::TrackInfo => Box::new(TrackInfoPane::new()),
             PaneType::Empty => Box::new(EmptyPane::new()),
-            PaneType::Settings => Box::new(SettingsPane::new()),
         }
     }
 }
@@ -117,7 +113,6 @@ impl Pane {
             "Spectrum" => PaneType::Spectrum,
             "VU Meters" => PaneType::VUMeters,
             "Track Info" => PaneType::TrackInfo,
-            "Settings" => PaneType::Settings,
             _ => PaneType::Empty,
         }
     }
