@@ -1,14 +1,13 @@
 use iced::alignment::Horizontal;
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text};
 use iced::{Element, Length, Theme};
-use msc_core::{Album, Player, Track};
-use std::cell::RefCell;
+use msc_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::components::context_menu::{MenuElement, context_menu};
 use crate::formatters;
-use crate::pane_view::PaneView;
+use crate::pane_view::{PaneView, ViewContext};
 
 #[derive(Debug, Clone)]
 pub struct LibraryPane;
@@ -22,17 +21,9 @@ impl LibraryPane {
 impl PaneView for LibraryPane {
     fn update(&mut self, _player: &Player, _art: &mut ArtCache) {}
 
-    fn view<'a>(
-        &'a self,
-        _player: &'a Player,
-        _volume: f32,
-        hovered_track: &Option<i64>,
-        _seeking_position: Option<f32>,
-        cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
-        _art: &'a ArtCache,
-    ) -> Element<'a, Message> {
-        let cached_tracks = cached_tracks.borrow().clone().unwrap_or_default();
+    fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
+        let hovered_track = ctx.hovered_track;
+        let cached_tracks = ctx.cached_tracks.borrow().clone().unwrap_or_default();
 
         if cached_tracks.is_empty() {
             return container(
@@ -158,10 +149,6 @@ impl PaneView for LibraryPane {
         )
         .on_exit(Message::TrackUnhovered)
         .into()
-    }
-
-    fn title(&self) -> &str {
-        "Library"
     }
 
     fn clone_box(&self) -> Box<dyn PaneView> {

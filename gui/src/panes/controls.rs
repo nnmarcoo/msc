@@ -3,13 +3,12 @@ use iced::font::Weight;
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{column, container, responsive, row, svg, text, tooltip};
 use iced::{Element, Font, Length, Theme};
-use msc_core::{Album, Player, Track};
-use std::cell::RefCell;
+use msc_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::formatters::format_duration;
-use crate::pane_view::PaneView;
+use crate::pane_view::{PaneView, ViewContext};
 use crate::styles::{TOOLTIP_DELAY, svg_style};
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::hover_slider::hover_slider;
@@ -26,16 +25,11 @@ impl ControlsPane {
 impl PaneView for ControlsPane {
     fn update(&mut self, _player: &Player, _art: &mut ArtCache) {}
 
-    fn view<'a>(
-        &'a self,
-        player: &'a Player,
-        volume: f32,
-        _hovered_track: &Option<i64>,
-        seeking_position: Option<f32>,
-        _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
-        _art: &'a ArtCache,
-    ) -> Element<'a, Message> {
+    fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
+        let player = ctx.player;
+        let volume = ctx.volume;
+        let seeking_position = ctx.seeking_position;
+
         let is_playing = player.is_playing();
         let current_track = player.clone_current_track();
         let actual_position = player.position() as f32;
@@ -272,10 +266,6 @@ impl PaneView for ControlsPane {
             .height(Length::Fixed(80.0))
             .center_y(Length::Fill)
             .into()
-    }
-
-    fn title(&self) -> &str {
-        "Controls"
     }
 
     fn clone_box(&self) -> Box<dyn PaneView> {

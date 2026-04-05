@@ -1,11 +1,10 @@
 use iced::widget::{column, text};
 use iced::{Element, Theme};
-use msc_core::{Album, Player, Track};
-use std::cell::RefCell;
+use msc_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
-use crate::pane_view::PaneView;
+use crate::pane_view::{PaneView, ViewContext};
 
 #[derive(Debug, Clone)]
 pub struct TimelinePane;
@@ -19,16 +18,7 @@ impl TimelinePane {
 impl PaneView for TimelinePane {
     fn update(&mut self, _player: &Player, _art: &mut ArtCache) {}
 
-    fn view<'a>(
-        &'a self,
-        _player: &'a Player,
-        _volume: f32,
-        _hovered_track: &Option<i64>,
-        _seeking_position: Option<f32>,
-        _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
-        _art: &'a ArtCache,
-    ) -> Element<'a, Message> {
+    fn view<'a>(&'a self, _ctx: ViewContext<'a>) -> Element<'a, Message> {
         column![
             text("Timeline / Seek Bar")
                 .size(16)
@@ -44,10 +34,6 @@ impl PaneView for TimelinePane {
         .spacing(10)
         .padding(20)
         .into()
-    }
-
-    fn title(&self) -> &str {
-        "Timeline"
     }
 
     fn clone_box(&self) -> Box<dyn PaneView> {

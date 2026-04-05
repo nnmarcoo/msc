@@ -1,12 +1,12 @@
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{Image, container, responsive, svg};
 use iced::{Color, ContentFit, Element, Length, Theme};
-use msc_core::{Album, Player, Track};
-use std::cell::{Cell, RefCell};
+use msc_core::Player;
+use std::cell::Cell;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
-use crate::pane_view::PaneView;
+use crate::pane_view::{PaneView, ViewContext};
 use crate::styles::svg_style;
 
 const DEBOUNCE_TICKS: u32 = 3;
@@ -53,16 +53,8 @@ impl PaneView for ArtworkPane {
         }
     }
 
-    fn view<'a>(
-        &'a self,
-        _player: &'a Player,
-        _volume: f32,
-        _hovered_track: &Option<i64>,
-        _seeking_position: Option<f32>,
-        _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
-        art: &'a ArtCache,
-    ) -> Element<'a, Message> {
+    fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
+        let art = ctx.art;
         let (w, h) = self.display_size.get();
         let entry = self
             .current_track_id
@@ -110,10 +102,6 @@ impl PaneView for ArtworkPane {
             }
         })
         .into()
-    }
-
-    fn title(&self) -> &str {
-        "Artwork"
     }
 
     fn clone_box(&self) -> Box<dyn PaneView> {

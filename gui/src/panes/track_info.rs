@@ -1,13 +1,12 @@
 use iced::font::Weight;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Font, Length, Theme};
-use msc_core::{Album, Player, Track};
-use std::cell::RefCell;
+use msc_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::formatters;
-use crate::pane_view::PaneView;
+use crate::pane_view::{PaneView, ViewContext};
 
 #[derive(Debug, Clone)]
 pub struct TrackInfoPane;
@@ -21,17 +20,8 @@ impl TrackInfoPane {
 impl PaneView for TrackInfoPane {
     fn update(&mut self, _player: &Player, _art: &mut ArtCache) {}
 
-    fn view<'a>(
-        &'a self,
-        player: &'a Player,
-        _volume: f32,
-        _hovered_track: &Option<i64>,
-        _seeking_position: Option<f32>,
-        _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
-        _art: &'a ArtCache,
-    ) -> Element<'a, Message> {
-        let Some(track) = player.clone_current_track() else {
+    fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
+        let Some(track) = ctx.player.clone_current_track() else {
             return container(text(""))
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -105,10 +95,6 @@ impl PaneView for TrackInfoPane {
             .center_x(Length::Fill)
             .center_y(Length::Fill)
             .into()
-    }
-
-    fn title(&self) -> &str {
-        "Track Info"
     }
 
     fn clone_box(&self) -> Box<dyn PaneView> {

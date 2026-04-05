@@ -1,14 +1,14 @@
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{button, column, container, image, responsive, row, scrollable, svg, text};
 use iced::{Element, Length, Theme};
-use msc_core::{Album, Player, Track};
-use std::cell::{Cell, RefCell};
+use msc_core::Player;
+use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::PathBuf;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
-use crate::pane_view::PaneView;
+use crate::pane_view::{PaneView, ViewContext};
 use crate::styles::svg_style;
 
 type AlbumArtKeys = HashMap<i64, (i64, PathBuf)>;
@@ -75,17 +75,9 @@ impl PaneView for CollectionsPane {
         self.initialized = false;
     }
 
-    fn view<'a>(
-        &'a self,
-        _player: &'a Player,
-        _volume: f32,
-        _hovered_track: &Option<i64>,
-        _seeking_position: Option<f32>,
-        _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        cached_albums: &'a RefCell<Option<Vec<Album>>>,
-        art: &'a ArtCache,
-    ) -> Element<'a, Message> {
-        let albums = cached_albums.borrow().clone().unwrap_or_default();
+    fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
+        let art = ctx.art;
+        let albums = ctx.cached_albums.borrow().clone().unwrap_or_default();
 
         if albums.is_empty() {
             return container(
@@ -164,10 +156,6 @@ impl PaneView for CollectionsPane {
             .into()
         })
         .into()
-    }
-
-    fn title(&self) -> &str {
-        "Collections"
     }
 
     fn clone_box(&self) -> Box<dyn PaneView> {

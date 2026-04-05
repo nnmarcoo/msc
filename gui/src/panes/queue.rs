@@ -1,13 +1,12 @@
 use iced::font::Weight;
 use iced::widget::{column, container, mouse_area, rule, scrollable, text};
 use iced::{Element, Font, Length, Theme};
-use msc_core::{Album, Player, Track};
-use std::cell::RefCell;
+use msc_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::components::context_menu::{MenuElement, context_menu};
-use crate::pane_view::PaneView;
+use crate::pane_view::{PaneView, ViewContext};
 use crate::panes::ControlsMessage;
 
 const MAX_DISPLAY: usize = 100;
@@ -24,16 +23,10 @@ impl QueuePane {
 impl PaneView for QueuePane {
     fn update(&mut self, _player: &Player, _art: &mut ArtCache) {}
 
-    fn view<'a>(
-        &'a self,
-        player: &'a Player,
-        _volume: f32,
-        hovered_track: &Option<i64>,
-        _seeking_position: Option<f32>,
-        _cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        _cached_albums: &'a RefCell<Option<Vec<Album>>>,
-        _art: &'a ArtCache,
-    ) -> Element<'a, Message> {
+    fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
+        let player = ctx.player;
+        let hovered_track = ctx.hovered_track;
+
         let queue = player.queue();
         let current_id = queue.current_id();
 
@@ -177,6 +170,21 @@ impl PaneView for QueuePane {
             }
         }
 
+        if current_id.is_none() && upcoming.is_empty() {
+            return container(
+                text("Queue is empty")
+                    .size(14)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.strong.text),
+                    }),
+            )
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into();
+        }
+
         mouse_area(scrollable(track_list).height(Length::Fill).direction(
             scrollable::Direction::Vertical(
                 scrollable::Scrollbar::new().width(0).scroller_width(0),
@@ -184,10 +192,6 @@ impl PaneView for QueuePane {
         ))
         .on_exit(Message::TrackUnhovered)
         .into()
-    }
-
-    fn title(&self) -> &str {
-        "Queue"
     }
 
     fn clone_box(&self) -> Box<dyn PaneView> {

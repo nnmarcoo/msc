@@ -8,7 +8,7 @@ use std::fmt::{self, Display};
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
-use crate::pane_view::PaneView;
+use crate::pane_view::{PaneView, ViewContext};
 use crate::panes::*;
 use crate::styles::svg_style;
 use crate::widgets::square_button::square_button;
@@ -80,6 +80,7 @@ impl Display for PaneType {
 
 #[derive(Debug, Clone)]
 pub struct Pane {
+    pub pane_type: PaneType,
     pub content: Box<dyn PaneView>,
 }
 
@@ -87,10 +88,12 @@ impl Pane {
     pub fn new(pane_type: PaneType) -> Self {
         Self {
             content: pane_type.create(),
+            pane_type,
         }
     }
 
     pub fn set_content(&mut self, pane_type: PaneType) {
+        self.pane_type = pane_type;
         self.content = pane_type.create();
     }
 
@@ -103,18 +106,7 @@ impl Pane {
     }
 
     pub fn get_type(&self) -> PaneType {
-        match self.content.title() {
-            "Controls" => PaneType::Controls,
-            "Queue" => PaneType::Queue,
-            "Library" => PaneType::Library,
-            "Collections" => PaneType::Collections,
-            "Artwork" => PaneType::Artwork,
-            "Timeline" => PaneType::Timeline,
-            "Spectrum" => PaneType::Spectrum,
-            "VU Meters" => PaneType::VUMeters,
-            "Track Info" => PaneType::TrackInfo,
-            _ => PaneType::Empty,
-        }
+        self.pane_type
     }
 
     pub fn view<'a>(
@@ -124,7 +116,7 @@ impl Pane {
         edit_mode: bool,
         player: &'a Player,
         volume: f32,
-        hovered_track: &Option<i64>,
+        hovered_track: &'a Option<i64>,
         seeking_position: Option<f32>,
         cached_tracks: &'a RefCell<Option<Vec<Track>>>,
         cached_albums: &'a RefCell<Option<Vec<Album>>>,
@@ -223,7 +215,7 @@ impl Pane {
 
             pane_grid::Content::new(edit_content).title_bar(title_bar)
         } else {
-            let content = self.content.view(
+            let ctx = ViewContext {
                 player,
                 volume,
                 hovered_track,
@@ -231,7 +223,9 @@ impl Pane {
                 cached_tracks,
                 cached_albums,
                 art,
-            );
+            };
+
+            let content = self.content.view(ctx);
 
             pane_grid::Content::new(
                 container(content)

@@ -6,21 +6,20 @@ use std::fmt;
 use crate::app::Message;
 use crate::art_cache::ArtCache;
 
+pub struct ViewContext<'a> {
+    pub player: &'a Player,
+    pub volume: f32,
+    pub hovered_track: &'a Option<i64>,
+    pub seeking_position: Option<f32>,
+    pub cached_tracks: &'a RefCell<Option<Vec<Track>>>,
+    pub cached_albums: &'a RefCell<Option<Vec<Album>>>,
+    pub art: &'a ArtCache,
+}
+
 pub trait PaneView: fmt::Debug {
     fn update(&mut self, player: &Player, art: &mut ArtCache);
 
-    fn view<'a>(
-        &'a self,
-        player: &'a Player,
-        volume: f32,
-        hovered_track: &Option<i64>,
-        seeking_position: Option<f32>,
-        cached_tracks: &'a RefCell<Option<Vec<Track>>>,
-        cached_albums: &'a RefCell<Option<Vec<Album>>>,
-        art: &'a ArtCache,
-    ) -> Element<'a, Message>;
-
-    fn title(&self) -> &str;
+    fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message>;
 
     /// Called when the library is rescanned so panes can drop stale state.
     fn invalidate_cache(&mut self) {}
