@@ -1,5 +1,5 @@
 mod artwork;
-mod collections;
+pub mod collections;
 pub mod controls;
 mod empty;
 mod library;
@@ -10,7 +10,7 @@ mod track_info;
 mod vu_meters;
 
 pub use artwork::ArtworkPane;
-pub use collections::CollectionsPane;
+pub use collections::{CollectionsMessage, CollectionsPane};
 pub use controls::{ControlsMessage, ControlsPane};
 pub use empty::EmptyPane;
 pub use library::LibraryPane;

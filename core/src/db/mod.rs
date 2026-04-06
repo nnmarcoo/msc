@@ -1,4 +1,5 @@
 mod albums;
+mod playlists;
 mod schema;
 mod tracks;
 

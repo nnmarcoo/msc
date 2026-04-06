@@ -3,7 +3,7 @@ use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container, space};
 use iced::{Element, Event, Length, Subscription, Task, Theme};
-use msc_core::{Album, Player, Track};
+use msc_core::{Album, Player, Playlist, Track};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -14,7 +14,7 @@ use crate::components::{bottom_bar, preferences};
 use crate::config::Config;
 use crate::media_controls::MediaSession;
 use crate::pane::{Pane, PaneType};
-use crate::panes::ControlsMessage;
+use crate::panes::{CollectionsMessage, ControlsMessage};
 use crate::styles::set_radius;
 use crate::window_handle;
 
@@ -32,6 +32,9 @@ pub struct App {
     media_session: Option<MediaSession>,
     cached_tracks: RefCell<Option<Vec<Track>>>,
     cached_albums: RefCell<Option<Vec<Album>>>,
+    cached_playlists: RefCell<Option<Vec<Playlist>>>,
+    creating_playlist: bool,
+    new_playlist_name: String,
     art_cache: ArtCache,
     is_minimized: bool,
     config: Config,
@@ -47,6 +50,7 @@ pub enum Message {
     Dragged(pane_grid::DragEvent),
     Resized(pane_grid::ResizeEvent),
     Controls(ControlsMessage),
+    Collections(CollectionsMessage),
     LibraryPathSelected(Option<PathBuf>),
     SetLibrary,
     PaneTypeChanged(pane_grid::Pane, PaneType),
@@ -59,6 +63,7 @@ pub enum Message {
     QueueBack(i64),
     QueueFront(i64),
     PlayAlbum(String, Option<String>),
+    AddTrackToPlaylist(i64, i64),
     TrackHovered(i64),
     TrackUnhovered,
     OpenPreferences,
@@ -107,6 +112,9 @@ impl Default for App {
             media_session: None,
             cached_tracks: RefCell::new(None),
             cached_albums: RefCell::new(None),
+            cached_playlists: RefCell::new(None),
+            creating_playlist: false,
+            new_playlist_name: String::new(),
             art_cache: ArtCache::new(),
             is_minimized: false,
             config,
@@ -123,9 +131,21 @@ impl App {
     fn invalidate_library_cache(&mut self) {
         *self.cached_tracks.borrow_mut() = None;
         *self.cached_albums.borrow_mut() = None;
+        *self.cached_playlists.borrow_mut() = None;
         self.art_cache.invalidate();
         for (_, pane) in self.panes.iter_mut() {
             pane.invalidate_cache();
+        }
+    }
+
+    fn invalidate_playlist_cache(&mut self) {
+        *self.cached_playlists.borrow_mut() = None;
+    }
+
+    fn ensure_cached_playlists(&self) {
+        let mut cache = self.cached_playlists.borrow_mut();
+        if cache.is_none() {
+            *cache = Some(self.player.get_all_playlists().unwrap_or_default());
         }
     }
 
@@ -469,6 +489,47 @@ impl App {
                     self.player.queue_front(track_id);
                 }
             }
+            Message::Collections(msg) => match msg {
+                CollectionsMessage::ToggleNewPlaylistInput => {
+                    self.creating_playlist = !self.creating_playlist;
+                    self.new_playlist_name = String::new();
+                }
+                CollectionsMessage::NameChanged(name) => {
+                    self.new_playlist_name = name;
+                }
+                CollectionsMessage::Confirm => {
+                    let name = self.new_playlist_name.trim().to_string();
+                    if !name.is_empty() {
+                        let _ = self.player.create_playlist(&name);
+                        self.invalidate_playlist_cache();
+                    }
+                    self.creating_playlist = false;
+                    self.new_playlist_name = String::new();
+                }
+                CollectionsMessage::Cancel => {
+                    self.creating_playlist = false;
+                    self.new_playlist_name = String::new();
+                }
+                CollectionsMessage::DeletePlaylist(id) => {
+                    let _ = self.player.delete_playlist(id);
+                    self.invalidate_playlist_cache();
+                }
+                CollectionsMessage::PlayPlaylist(id) => {
+                    if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
+                        self.player.clear_queue();
+                        for track in tracks {
+                            if let Some(tid) = track.id() {
+                                self.player.queue_back(tid);
+                            }
+                        }
+                        let _ = self.player.play();
+                    }
+                }
+            },
+            Message::AddTrackToPlaylist(track_id, playlist_id) => {
+                let _ = self.player.add_track_to_playlist(playlist_id, track_id);
+                self.invalidate_playlist_cache();
+            }
             Message::PlayAlbum(album_name, _artist) => {
                 if let Ok(tracks) = self.player.query_tracks_by_album(&album_name) {
                     self.player.clear_queue();
@@ -540,6 +601,7 @@ impl App {
 
         self.ensure_cached_tracks();
         self.ensure_cached_albums();
+        self.ensure_cached_playlists();
 
         let player = &self.player;
         let volume = self.volume;
@@ -547,6 +609,9 @@ impl App {
         let seeking_position = self.seeking_position;
         let cached_tracks = &self.cached_tracks;
         let cached_albums = &self.cached_albums;
+        let cached_playlists = &self.cached_playlists;
+        let creating_playlist = self.creating_playlist;
+        let new_playlist_name = self.new_playlist_name.as_str();
         let art_cache = &self.art_cache;
 
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
@@ -560,12 +625,15 @@ impl App {
                 seeking_position,
                 cached_tracks,
                 cached_albums,
+                cached_playlists,
+                creating_playlist,
+                new_playlist_name,
                 art_cache,
             )
         })
         .width(Length::Fill)
         .height(Length::Fill)
-        .spacing(if edit_mode { 4 } else { 0 });
+        .spacing(if edit_mode { 6 } else { 0 });
 
         if edit_mode {
             pane_grid = pane_grid
@@ -581,7 +649,7 @@ impl App {
                 .style(|theme: &Theme| {
                     let palette = theme.extended_palette();
                     container::Style {
-                        background: Some(palette.background.weak.color.into()),
+                        background: Some(palette.background.strong.color.into()),
                         ..Default::default()
                     }
                 })

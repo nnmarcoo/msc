@@ -154,6 +154,21 @@ pub fn menu_item<'a, Message: Clone + 'static>(
     .into()
 }
 
+pub fn menu_label<'a, Message: 'a + Clone>(label: impl Into<String>) -> Element<'a, Message> {
+    container(
+        text(label.into())
+            .size(11)
+            .style(|theme: &Theme| iced::widget::text::Style {
+                color: Some(theme.extended_palette().background.strong.text),
+            }),
+    )
+    .width(Length::Fill)
+    .height(Length::Fixed(ITEM_HEIGHT))
+    .padding([0, ITEM_PADDING_H as u16])
+    .center_y(Length::Fill)
+    .into()
+}
+
 pub fn menu_separator<'a, Message: 'a + Clone>() -> Element<'a, Message> {
     container(text(""))
         .width(Length::Fill)

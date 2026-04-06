@@ -2,10 +2,11 @@ use iced::Element;
 use iced::widget::column;
 use iced_aw::ContextMenu;
 
-use crate::widgets::menu::{menu_item, menu_separator, styled_menu};
+use crate::widgets::menu::{menu_item, menu_label, menu_separator, styled_menu};
 
 pub enum MenuElement<Message> {
     Button { label: String, message: Message },
+    Label(String),
     Separator,
 }
 
@@ -15,6 +16,10 @@ impl<Message: Clone> MenuElement<Message> {
             label: label.into(),
             message,
         }
+    }
+
+    pub fn label(label: impl Into<String>) -> Self {
+        Self::Label(label.into())
     }
 }
 
@@ -28,6 +33,7 @@ pub fn context_menu<'a, Message: 'a + Clone + 'static>(
                 MenuElement::Button { label, message } => {
                     menu_item(label.as_str(), message.clone())
                 }
+                MenuElement::Label(label) => menu_label(label.as_str()),
                 MenuElement::Separator => menu_separator(),
             };
             col.push(element)
