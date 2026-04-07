@@ -14,12 +14,12 @@ pub struct ViewContext<'a> {
     pub cached_tracks: &'a RefCell<Option<Vec<Track>>>,
     pub cached_albums: &'a RefCell<Option<Vec<Album>>>,
     pub cached_playlists: &'a RefCell<Option<Vec<Playlist>>>,
-    pub creating_playlist: bool,
-    pub new_playlist_name: &'a str,
     pub art: &'a ArtCache,
 }
 
 pub trait PaneView: fmt::Debug {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+
     fn update(&mut self, player: &Player, art: &mut ArtCache);
 
     fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message>;

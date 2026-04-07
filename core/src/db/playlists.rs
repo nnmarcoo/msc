@@ -59,39 +59,53 @@ impl Database {
     }
 
     pub fn add_track_to_playlist(&self, playlist_id: i64, track_id: i64) -> SqliteResult<()> {
-        let position: i64 = self.conn.query_row(
-            "SELECT COALESCE(MAX(position) + 1, 0) FROM playlist_tracks WHERE playlist_id = ?1",
-            params![playlist_id],
-            |row| row.get(0),
-        )?;
-        self.conn.execute(
-            "INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position)
-             VALUES (?1, ?2, ?3)",
-            params![playlist_id, track_id, position],
-        )?;
         let ts = now();
-        self.conn.execute(
-            "UPDATE playlists SET updated_at = ?1 WHERE id = ?2",
-            params![ts, playlist_id],
-        )?;
-        Ok(())
+        self.conn.execute_batch("BEGIN")?;
+        let result: SqliteResult<()> = (|| {
+            let position: i64 = self.conn.query_row(
+                "SELECT COALESCE(MAX(position) + 1, 0) FROM playlist_tracks WHERE playlist_id = ?1",
+                params![playlist_id],
+                |row| row.get(0),
+            )?;
+            self.conn.execute(
+                "INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position)
+                 VALUES (?1, ?2, ?3)",
+                params![playlist_id, track_id, position],
+            )?;
+            self.conn.execute(
+                "UPDATE playlists SET updated_at = ?1 WHERE id = ?2",
+                params![ts, playlist_id],
+            )?;
+            Ok(())
+        })();
+        if result.is_ok() {
+            self.conn.execute_batch("COMMIT")?;
+        } else {
+            self.conn.execute_batch("ROLLBACK")?;
+        }
+        result
     }
 
-    pub fn remove_track_from_playlist(
-        &self,
-        playlist_id: i64,
-        track_id: i64,
-    ) -> SqliteResult<()> {
-        self.conn.execute(
-            "DELETE FROM playlist_tracks WHERE playlist_id = ?1 AND track_id = ?2",
-            params![playlist_id, track_id],
-        )?;
+    pub fn remove_track_from_playlist(&self, playlist_id: i64, track_id: i64) -> SqliteResult<()> {
         let ts = now();
-        self.conn.execute(
-            "UPDATE playlists SET updated_at = ?1 WHERE id = ?2",
-            params![ts, playlist_id],
-        )?;
-        Ok(())
+        self.conn.execute_batch("BEGIN")?;
+        let result: SqliteResult<()> = (|| {
+            self.conn.execute(
+                "DELETE FROM playlist_tracks WHERE playlist_id = ?1 AND track_id = ?2",
+                params![playlist_id, track_id],
+            )?;
+            self.conn.execute(
+                "UPDATE playlists SET updated_at = ?1 WHERE id = ?2",
+                params![ts, playlist_id],
+            )?;
+            Ok(())
+        })();
+        if result.is_ok() {
+            self.conn.execute_batch("COMMIT")?;
+        } else {
+            self.conn.execute_batch("ROLLBACK")?;
+        }
+        result
     }
 
     pub fn get_tracks_in_playlist(&self, playlist_id: i64) -> SqliteResult<Vec<Track>> {

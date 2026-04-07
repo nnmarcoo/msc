@@ -118,8 +118,6 @@ impl Pane {
         cached_tracks: &'a RefCell<Option<Vec<Track>>>,
         cached_albums: &'a RefCell<Option<Vec<Album>>>,
         cached_playlists: &'a RefCell<Option<Vec<Playlist>>>,
-        creating_playlist: bool,
-        new_playlist_name: &'a str,
         art: &'a ArtCache,
     ) -> pane_grid::Content<'a, Message> {
         if edit_mode {
@@ -146,26 +144,23 @@ impl Pane {
                 items.push(MenuElement::button("Close", Message::Close(pane)));
             }
 
-            let body = context_menu(
-                container(
-                    text(current_type.title())
-                        .size(16)
-                        .style(|theme: &Theme| text::Style {
+            let body =
+                context_menu(
+                    container(text(current_type.title()).size(16).style(|theme: &Theme| {
+                        text::Style {
                             color: Some(theme.extended_palette().background.base.text),
-                        }),
-                )
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .center_x(Length::Fill)
-                .center_y(Length::Fill)
-                .style(|theme: &Theme| container::Style {
-                    background: Some(
-                        theme.extended_palette().background.base.color.into(),
-                    ),
-                    ..Default::default()
-                }),
-                items,
-            );
+                        }
+                    }))
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .center_x(Length::Fill)
+                    .center_y(Length::Fill)
+                    .style(|theme: &Theme| container::Style {
+                        background: Some(theme.extended_palette().background.base.color.into()),
+                        ..Default::default()
+                    }),
+                    items,
+                );
 
             let title_bar = pane_grid::TitleBar::new(Space::new().height(0))
                 .padding([9, 0])
@@ -187,8 +182,6 @@ impl Pane {
                 cached_tracks,
                 cached_albums,
                 cached_playlists,
-                creating_playlist,
-                new_playlist_name,
                 art,
             };
 

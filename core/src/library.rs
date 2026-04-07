@@ -98,8 +98,6 @@ impl Library {
         Ok(self.db.get_track_by_path(path)?)
     }
 
-    // ── Playlists ────────────────────────────────────────────────────────────
-
     pub fn create_playlist(&self, name: &str) -> Result<i64, LibraryError> {
         Ok(self.db.create_playlist(name)?)
     }
@@ -132,10 +130,7 @@ impl Library {
         Ok(self.db.remove_track_from_playlist(playlist_id, track_id)?)
     }
 
-    pub fn get_tracks_in_playlist(
-        &self,
-        playlist_id: i64,
-    ) -> Result<Vec<Track>, LibraryError> {
+    pub fn get_tracks_in_playlist(&self, playlist_id: i64) -> Result<Vec<Track>, LibraryError> {
         Ok(self.db.get_tracks_in_playlist(playlist_id)?)
     }
 }

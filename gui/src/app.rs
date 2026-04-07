@@ -14,6 +14,7 @@ use crate::components::{bottom_bar, preferences};
 use crate::config::Config;
 use crate::media_controls::MediaSession;
 use crate::pane::{Pane, PaneType};
+use crate::panes::collections::CollectionsPane;
 use crate::panes::{CollectionsMessage, ControlsMessage};
 use crate::styles::set_radius;
 use crate::window_handle;
@@ -33,8 +34,6 @@ pub struct App {
     cached_tracks: RefCell<Option<Vec<Track>>>,
     cached_albums: RefCell<Option<Vec<Album>>>,
     cached_playlists: RefCell<Option<Vec<Playlist>>>,
-    creating_playlist: bool,
-    new_playlist_name: String,
     art_cache: ArtCache,
     is_minimized: bool,
     config: Config,
@@ -113,8 +112,6 @@ impl Default for App {
             cached_tracks: RefCell::new(None),
             cached_albums: RefCell::new(None),
             cached_playlists: RefCell::new(None),
-            creating_playlist: false,
-            new_playlist_name: String::new(),
             art_cache: ArtCache::new(),
             is_minimized: false,
             config,
@@ -489,43 +486,51 @@ impl App {
                     self.player.queue_front(track_id);
                 }
             }
-            Message::Collections(msg) => match msg {
-                CollectionsMessage::ToggleNewPlaylistInput => {
-                    self.creating_playlist = !self.creating_playlist;
-                    self.new_playlist_name = String::new();
+            Message::Collections(msg) => {
+                for (_, pane) in self.panes.iter_mut() {
+                    if let Some(cp) = pane.content.as_any_mut().downcast_mut::<CollectionsPane>() {
+                        match &msg {
+                            CollectionsMessage::ToggleNewPlaylistInput => {
+                                cp.creating_playlist = !cp.creating_playlist;
+                                cp.new_playlist_name.clear();
+                            }
+                            CollectionsMessage::NameChanged(name) => {
+                                cp.new_playlist_name = name.clone();
+                            }
+                            CollectionsMessage::Cancel | CollectionsMessage::Confirm(_) => {
+                                cp.creating_playlist = false;
+                                cp.new_playlist_name.clear();
+                            }
+                            _ => {}
+                        }
+                    }
                 }
-                CollectionsMessage::NameChanged(name) => {
-                    self.new_playlist_name = name;
-                }
-                CollectionsMessage::Confirm => {
-                    let name = self.new_playlist_name.trim().to_string();
-                    if !name.is_empty() {
-                        let _ = self.player.create_playlist(&name);
+
+                match msg {
+                    CollectionsMessage::Confirm(name) => {
+                        if !name.is_empty() {
+                            let _ = self.player.create_playlist(&name);
+                            self.invalidate_playlist_cache();
+                        }
+                    }
+                    CollectionsMessage::DeletePlaylist(id) => {
+                        let _ = self.player.delete_playlist(id);
                         self.invalidate_playlist_cache();
                     }
-                    self.creating_playlist = false;
-                    self.new_playlist_name = String::new();
-                }
-                CollectionsMessage::Cancel => {
-                    self.creating_playlist = false;
-                    self.new_playlist_name = String::new();
-                }
-                CollectionsMessage::DeletePlaylist(id) => {
-                    let _ = self.player.delete_playlist(id);
-                    self.invalidate_playlist_cache();
-                }
-                CollectionsMessage::PlayPlaylist(id) => {
-                    if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
-                        self.player.clear_queue();
-                        for track in tracks {
-                            if let Some(tid) = track.id() {
-                                self.player.queue_back(tid);
+                    CollectionsMessage::PlayPlaylist(id) => {
+                        if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
+                            self.player.clear_queue();
+                            for track in tracks {
+                                if let Some(tid) = track.id() {
+                                    self.player.queue_back(tid);
+                                }
                             }
+                            let _ = self.player.play();
                         }
-                        let _ = self.player.play();
                     }
+                    _ => {}
                 }
-            },
+            }
             Message::AddTrackToPlaylist(track_id, playlist_id) => {
                 let _ = self.player.add_track_to_playlist(playlist_id, track_id);
                 self.invalidate_playlist_cache();
@@ -610,8 +615,6 @@ impl App {
         let cached_tracks = &self.cached_tracks;
         let cached_albums = &self.cached_albums;
         let cached_playlists = &self.cached_playlists;
-        let creating_playlist = self.creating_playlist;
-        let new_playlist_name = self.new_playlist_name.as_str();
         let art_cache = &self.art_cache;
 
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
@@ -626,8 +629,6 @@ impl App {
                 cached_tracks,
                 cached_albums,
                 cached_playlists,
-                creating_playlist,
-                new_playlist_name,
                 art_cache,
             )
         })

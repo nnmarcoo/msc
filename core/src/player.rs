@@ -68,8 +68,6 @@ impl Player {
         self.library.query_track_count()
     }
 
-    // ── Playlists ────────────────────────────────────────────────────────────
-
     pub fn create_playlist(&self, name: &str) -> Result<i64, LibraryError> {
         self.library.create_playlist(name)
     }
@@ -99,7 +97,8 @@ impl Player {
         playlist_id: i64,
         track_id: i64,
     ) -> Result<(), LibraryError> {
-        self.library.remove_track_from_playlist(playlist_id, track_id)
+        self.library
+            .remove_track_from_playlist(playlist_id, track_id)
     }
 
     pub fn get_tracks_in_playlist(&self, playlist_id: i64) -> Result<Vec<Track>, LibraryError> {

@@ -21,7 +21,7 @@ const DEBOUNCE_TICKS: u32 = 3;
 pub enum CollectionsMessage {
     ToggleNewPlaylistInput,
     NameChanged(String),
-    Confirm,
+    Confirm(String),
     Cancel,
     DeletePlaylist(i64),
     PlayPlaylist(i64),
@@ -34,6 +34,8 @@ pub struct CollectionsPane {
     thumbnail_size: Cell<u32>,
     stable_size: u32,
     stable_ticks: u32,
+    pub(crate) creating_playlist: bool,
+    pub(crate) new_playlist_name: String,
 }
 
 impl CollectionsPane {
@@ -44,6 +46,8 @@ impl CollectionsPane {
             thumbnail_size: Cell::new(0),
             stable_size: 0,
             stable_ticks: 0,
+            creating_playlist: false,
+            new_playlist_name: String::new(),
         }
     }
 }
@@ -91,8 +95,8 @@ impl PaneView for CollectionsPane {
         let art = ctx.art;
         let albums = ctx.cached_albums.borrow().clone().unwrap_or_default();
         let playlists = ctx.cached_playlists.borrow().clone().unwrap_or_default();
-        let creating_playlist = ctx.creating_playlist;
-        let new_playlist_name = ctx.new_playlist_name;
+        let creating_playlist = self.creating_playlist;
+        let new_playlist_name = self.new_playlist_name.as_str();
 
         let art_keys = &self.album_art_keys;
 
@@ -116,7 +120,6 @@ impl PaneView for CollectionsPane {
 
             let mut content = column![].spacing(GAP * 2.0).padding(EDGE_PADDING);
 
-            // ── Albums section ───────────────────────────────────────────────
             if !albums.is_empty() {
                 let mut albums_section = column![section_header("Albums")].spacing(GAP);
 
@@ -127,8 +130,7 @@ impl PaneView for CollectionsPane {
                         let track_id = art_keys.get(&album.id).map(|(tid, _)| *tid);
 
                         let artwork_el: Element<'_, Message> = match track_id.and_then(|id| {
-                            art.get(id, thumb_px, thumb_px)
-                                .or_else(|| art.get_any(id))
+                            art.get(id, thumb_px, thumb_px).or_else(|| art.get_any(id))
                         }) {
                             Some(entry) => image(entry.handle.clone())
                                 .width(Length::Fixed(card_size))
@@ -153,7 +155,6 @@ impl PaneView for CollectionsPane {
                 content = content.push(albums_section);
             }
 
-            // ── Playlists section ────────────────────────────────────────────
             let playlists_header = row![
                 section_header("Playlists"),
                 iced::widget::Space::new().width(Length::Fill),
@@ -172,11 +173,15 @@ impl PaneView for CollectionsPane {
                 let input_row = row![
                     text_input("Playlist name…", new_playlist_name)
                         .on_input(|s| Message::Collections(CollectionsMessage::NameChanged(s)))
-                        .on_submit(Message::Collections(CollectionsMessage::Confirm))
+                        .on_submit(Message::Collections(CollectionsMessage::Confirm(
+                            new_playlist_name.trim().to_string(),
+                        )))
                         .padding(6),
                     button(text("Add").size(13))
                         .padding([6, 12])
-                        .on_press(Message::Collections(CollectionsMessage::Confirm)),
+                        .on_press(Message::Collections(CollectionsMessage::Confirm(
+                            new_playlist_name.trim().to_string(),
+                        ))),
                 ]
                 .spacing(6)
                 .align_y(iced::Alignment::Center);
@@ -185,13 +190,12 @@ impl PaneView for CollectionsPane {
             }
 
             if playlists.is_empty() && !creating_playlist {
-                playlists_section = playlists_section.push(
-                    text("No playlists")
-                        .size(13)
-                        .style(|theme: &Theme| text::Style {
+                playlists_section =
+                    playlists_section.push(text("No playlists").size(13).style(|theme: &Theme| {
+                        text::Style {
                             color: Some(theme.extended_palette().background.strong.text),
-                        }),
-                );
+                        }
+                    }));
             }
 
             for playlist in &playlists {
@@ -209,9 +213,7 @@ impl PaneView for CollectionsPane {
                             iced::widget::Space::new().width(Length::Fill),
                             text(track_label).size(11).style(|theme: &Theme| {
                                 text::Style {
-                                    color: Some(
-                                        theme.extended_palette().background.strong.text,
-                                    ),
+                                    color: Some(theme.extended_palette().background.strong.text),
                                 }
                             }),
                         ]
@@ -223,7 +225,9 @@ impl PaneView for CollectionsPane {
                     .on_press(Message::Collections(CollectionsMessage::PlayPlaylist(pid))),
                     button(text("✕").size(12))
                         .padding([6, 8])
-                        .on_press(Message::Collections(CollectionsMessage::DeletePlaylist(pid))),
+                        .on_press(Message::Collections(CollectionsMessage::DeletePlaylist(
+                            pid
+                        ))),
                 ]
                 .spacing(4)
                 .align_y(iced::Alignment::Center);
@@ -234,13 +238,11 @@ impl PaneView for CollectionsPane {
             content = content.push(playlists_section);
 
             if albums.is_empty() && playlists.is_empty() && !creating_playlist {
-                return container(
-                    text("No albums or playlists")
-                        .size(18)
-                        .style(|theme: &Theme| text::Style {
-                            color: Some(theme.extended_palette().background.base.text),
-                        }),
-                )
+                return container(text("No albums or playlists").size(18).style(
+                    |theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    },
+                ))
                 .padding(20)
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -259,6 +261,10 @@ impl PaneView for CollectionsPane {
             .into()
         })
         .into()
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 
     fn clone_box(&self) -> Box<dyn PaneView> {
