@@ -45,11 +45,7 @@ impl Database {
         .collect::<SqliteResult<Vec<_>>>()
     }
 
-    pub fn set_playlist_cover(
-        &self,
-        playlist_id: i64,
-        track_id: Option<i64>,
-    ) -> SqliteResult<()> {
+    pub fn set_playlist_cover(&self, playlist_id: i64, track_id: Option<i64>) -> SqliteResult<()> {
         let ts = now();
         self.conn.execute(
             "UPDATE playlists SET cover_track_id = ?1, updated_at = ?2 WHERE id = ?3",

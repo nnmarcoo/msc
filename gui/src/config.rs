@@ -27,10 +27,33 @@ pub const ALL_THEMES: &[Theme] = &[
     Theme::Ferra,
 ];
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LayoutAxis {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum LayoutNode {
+    Pane {
+        pane_type: String,
+    },
+    Split {
+        axis: LayoutAxis,
+        ratio: f32,
+        a: Box<LayoutNode>,
+        b: Box<LayoutNode>,
+    },
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub theme: Theme,
     pub rounded: bool,
+    pub layouts: Vec<LayoutNode>,
+    pub current_layout: usize,
 }
 
 impl Default for Config {
@@ -38,6 +61,8 @@ impl Default for Config {
         Self {
             theme: Theme::KanagawaDragon,
             rounded: true,
+            layouts: vec![],
+            current_layout: 0,
         }
     }
 }
@@ -47,6 +72,10 @@ struct ConfigFile {
     theme: String,
     #[serde(default = "default_true")]
     rounded: bool,
+    #[serde(default)]
+    layouts: Vec<LayoutNode>,
+    #[serde(default)]
+    current_layout: usize,
 }
 
 fn default_true() -> bool {
@@ -58,6 +87,8 @@ impl From<&Config> for ConfigFile {
         Self {
             theme: c.theme.to_string(),
             rounded: c.rounded,
+            layouts: c.layouts.clone(),
+            current_layout: c.current_layout,
         }
     }
 }
@@ -67,6 +98,8 @@ impl From<ConfigFile> for Config {
         Self {
             theme: theme_from_str(&f.theme),
             rounded: f.rounded,
+            layouts: f.layouts,
+            current_layout: f.current_layout,
         }
     }
 }

@@ -53,6 +53,14 @@ impl PaneType {
         }
     }
 
+    pub fn from_title(s: &str) -> Self {
+        Self::ALL
+            .iter()
+            .find(|t| t.title() == s)
+            .copied()
+            .unwrap_or(PaneType::Empty)
+    }
+
     pub fn create(&self) -> Box<dyn PaneView> {
         match self {
             PaneType::Controls => Box::new(ControlsPane::new()),

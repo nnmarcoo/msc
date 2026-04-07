@@ -11,7 +11,7 @@ use std::time::Duration;
 use crate::art_cache::ArtCache;
 use crate::components::preferences::PreferenceMessage;
 use crate::components::{bottom_bar, preferences};
-use crate::config::Config;
+use crate::config::{Config, LayoutAxis, LayoutNode};
 use crate::media_controls::MediaSession;
 use crate::pane::{Pane, PaneType};
 use crate::panes::collections::CollectionsPane;
@@ -75,26 +75,19 @@ impl Default for App {
         let config = Config::load();
         set_radius(config.rounded);
 
-        let pane_config = pane_grid::Configuration::Split {
-            axis: pane_grid::Axis::Horizontal,
-            ratio: 0.9,
-            a: Box::new(pane_grid::Configuration::Split {
-                axis: pane_grid::Axis::Vertical,
-                ratio: 0.7,
-                a: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Library))),
-                b: Box::new(pane_grid::Configuration::Split {
-                    axis: pane_grid::Axis::Horizontal,
-                    ratio: 0.5,
-                    a: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Artwork))),
-                    b: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Queue))),
-                }),
-            }),
-            b: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                PaneType::Controls,
-            ))),
+        let default_layout = pane_grid::Configuration::Pane(Pane::new(PaneType::Library));
+
+        let layout_presets: Vec<pane_grid::Configuration<Pane>> = if config.layouts.is_empty() {
+            vec![default_layout]
+        } else {
+            config.layouts.iter().map(node_to_pane_config).collect()
         };
 
-        let panes = pane_grid::State::with_configuration(pane_config.clone());
+        let current_preset = config
+            .current_layout
+            .min(layout_presets.len().saturating_sub(1));
+
+        let panes = pane_grid::State::with_configuration(layout_presets[current_preset].clone());
         let player = Player::new().expect("Failed to initialize player");
 
         Self {
@@ -105,8 +98,8 @@ impl Default for App {
             volume: 0.5,
             previous_volume: 0.5,
             seeking_position: None,
-            layout_presets: vec![pane_config],
-            current_preset: 0,
+            layout_presets,
+            current_preset,
             hovered_track: None,
             media_session: None,
             cached_tracks: RefCell::new(None),
@@ -175,9 +168,18 @@ impl App {
     }
 
     fn save_current_layout(&mut self) {
-        let config = self.panes.layout().clone();
-        self.layout_presets[self.current_preset] =
-            Self::layout_to_configuration(&self.panes, config);
+        let node = self.panes.layout().clone();
+        self.layout_presets[self.current_preset] = Self::layout_to_configuration(&self.panes, node);
+    }
+
+    fn persist_layouts(&mut self) {
+        self.config.layouts = self
+            .layout_presets
+            .iter()
+            .map(pane_config_to_node)
+            .collect();
+        self.config.current_layout = self.current_preset;
+        self.config.save();
     }
 
     fn layout_to_configuration(
@@ -377,7 +379,9 @@ impl App {
                     }
                 }
                 PreferenceMessage::Save => {
-                    if let Some(c) = self.editing_config.take() {
+                    if let Some(mut c) = self.editing_config.take() {
+                        c.layouts = self.config.layouts.clone();
+                        c.current_layout = self.config.current_layout;
                         set_radius(c.rounded);
                         c.save();
                         self.config = c;
@@ -414,6 +418,7 @@ impl App {
                     BottomBarMessage::ToggleEditMode => {
                         if self.edit_mode {
                             self.save_current_layout();
+                            self.persist_layouts();
                         }
                         self.edit_mode = !self.edit_mode;
                     }
@@ -427,6 +432,7 @@ impl App {
                                 self.layout_presets[index].clone(),
                             );
                             self.focus = None;
+                            self.persist_layouts();
                         }
                     }
                     BottomBarMessage::AddPreset => {
@@ -435,6 +441,7 @@ impl App {
                         self.current_preset = self.layout_presets.len() - 1;
                         self.panes = pane_grid::State::with_configuration(new_preset);
                         self.focus = None;
+                        self.persist_layouts();
                     }
                     BottomBarMessage::RemovePreset => {
                         if self.layout_presets.len() > 1 {
@@ -445,6 +452,7 @@ impl App {
                                 self.layout_presets[self.current_preset].clone(),
                             );
                             self.focus = None;
+                            self.persist_layouts();
                         }
                     }
                 }
@@ -590,6 +598,7 @@ impl App {
                                     self.layout_presets[index].clone(),
                                 );
                                 self.focus = None;
+                                self.persist_layouts();
                             }
                         }
                     }
@@ -693,5 +702,39 @@ impl App {
             every(tick_duration).map(|_| Message::Tick),
             iced::event::listen().map(Message::Event),
         ])
+    }
+}
+
+fn pane_config_to_node(config: &pane_grid::Configuration<Pane>) -> LayoutNode {
+    match config {
+        pane_grid::Configuration::Pane(pane) => LayoutNode::Pane {
+            pane_type: pane.pane_type.title().to_string(),
+        },
+        pane_grid::Configuration::Split { axis, ratio, a, b } => LayoutNode::Split {
+            axis: match axis {
+                pane_grid::Axis::Horizontal => LayoutAxis::Horizontal,
+                pane_grid::Axis::Vertical => LayoutAxis::Vertical,
+            },
+            ratio: *ratio,
+            a: Box::new(pane_config_to_node(a)),
+            b: Box::new(pane_config_to_node(b)),
+        },
+    }
+}
+
+fn node_to_pane_config(node: &LayoutNode) -> pane_grid::Configuration<Pane> {
+    match node {
+        LayoutNode::Pane { pane_type } => {
+            pane_grid::Configuration::Pane(Pane::new(PaneType::from_title(pane_type)))
+        }
+        LayoutNode::Split { axis, ratio, a, b } => pane_grid::Configuration::Split {
+            axis: match axis {
+                LayoutAxis::Horizontal => pane_grid::Axis::Horizontal,
+                LayoutAxis::Vertical => pane_grid::Axis::Vertical,
+            },
+            ratio: *ratio,
+            a: Box::new(node_to_pane_config(a)),
+            b: Box::new(node_to_pane_config(b)),
+        },
     }
 }

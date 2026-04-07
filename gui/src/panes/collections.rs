@@ -144,13 +144,11 @@ impl PaneView for CollectionsPane {
             self.thumbnail_size.set(thumb_px);
 
             if albums.is_empty() && playlists.is_empty() && !creating_playlist {
-                return container(
-                    text("No albums or playlists")
-                        .size(18)
-                        .style(|theme: &Theme| text::Style {
-                            color: Some(theme.extended_palette().background.base.text),
-                        }),
-                )
+                return container(text("No albums or playlists").size(18).style(
+                    |theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.base.text),
+                    },
+                ))
                 .padding(20)
                 .width(Length::Fill)
                 .height(Length::Fill)
@@ -230,11 +228,9 @@ impl PaneView for CollectionsPane {
                         let pid = playlist.id;
 
                         playlist_row = playlist_row.push(context_menu(
-                            button(artwork_el)
-                                .padding(0)
-                                .on_press(Message::Collections(
-                                    CollectionsMessage::PlayPlaylist(pid),
-                                )),
+                            button(artwork_el).padding(0).on_press(Message::Collections(
+                                CollectionsMessage::PlayPlaylist(pid),
+                            )),
                             vec![
                                 MenuElement::button(
                                     "Play",
@@ -252,13 +248,12 @@ impl PaneView for CollectionsPane {
                     playlists_section = playlists_section.push(playlist_row);
                 }
             } else if !creating_playlist {
-                playlists_section = playlists_section.push(
-                    text("No playlists")
-                        .size(13)
-                        .style(|theme: &Theme| text::Style {
+                playlists_section =
+                    playlists_section.push(text("No playlists").size(13).style(|theme: &Theme| {
+                        text::Style {
                             color: Some(theme.extended_palette().background.strong.text),
-                        }),
-                );
+                        }
+                    }));
             }
 
             content = content.push(playlists_section);
