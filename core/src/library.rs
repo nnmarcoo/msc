@@ -133,6 +133,14 @@ impl Library {
     pub fn get_tracks_in_playlist(&self, playlist_id: i64) -> Result<Vec<Track>, LibraryError> {
         Ok(self.db.get_tracks_in_playlist(playlist_id)?)
     }
+
+    pub fn set_playlist_cover(
+        &self,
+        playlist_id: i64,
+        track_id: Option<i64>,
+    ) -> Result<(), LibraryError> {
+        Ok(self.db.set_playlist_cover(playlist_id, track_id)?)
+    }
 }
 
 #[derive(Debug, Error)]

@@ -105,6 +105,14 @@ impl Player {
         self.library.get_tracks_in_playlist(playlist_id)
     }
 
+    pub fn set_playlist_cover(
+        &self,
+        playlist_id: i64,
+        track_id: Option<i64>,
+    ) -> Result<(), LibraryError> {
+        self.library.set_playlist_cover(playlist_id, track_id)
+    }
+
     // ── Playback ─────────────────────────────────────────────────────────────
 
     pub fn play(&mut self) -> Result<(), PlaybackError> {

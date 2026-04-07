@@ -137,6 +137,12 @@ impl App {
 
     fn invalidate_playlist_cache(&mut self) {
         *self.cached_playlists.borrow_mut() = None;
+        for (_, pane) in self.panes.iter_mut() {
+            if let Some(cp) = pane.content.as_any_mut().downcast_mut::<CollectionsPane>() {
+                cp.playlist_art_keys.clear();
+                cp.playlists_initialized = false;
+            }
+        }
     }
 
     fn ensure_cached_playlists(&self) {

@@ -25,7 +25,8 @@ impl Database {
     pub fn get_all_playlists(&self) -> SqliteResult<Vec<Playlist>> {
         let mut stmt = self.conn.prepare(
             "SELECT p.id, p.name, p.created_at, p.updated_at,
-                    COUNT(pt.track_id) AS track_count
+                    COUNT(pt.track_id) AS track_count,
+                    COALESCE(p.cover_track_id, MIN(pt.track_id)) AS cover_track_id
              FROM playlists p
              LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
              GROUP BY p.id
@@ -35,12 +36,26 @@ impl Database {
             Ok(Playlist {
                 id: row.get("id")?,
                 name: row.get("name")?,
+                cover_track_id: row.get("cover_track_id")?,
                 track_count: row.get("track_count")?,
                 created_at: row.get("created_at")?,
                 updated_at: row.get("updated_at")?,
             })
         })?
         .collect::<SqliteResult<Vec<_>>>()
+    }
+
+    pub fn set_playlist_cover(
+        &self,
+        playlist_id: i64,
+        track_id: Option<i64>,
+    ) -> SqliteResult<()> {
+        let ts = now();
+        self.conn.execute(
+            "UPDATE playlists SET cover_track_id = ?1, updated_at = ?2 WHERE id = ?3",
+            params![track_id, ts, playlist_id],
+        )?;
+        Ok(())
     }
 
     pub fn rename_playlist(&self, id: i64, name: &str) -> SqliteResult<()> {
