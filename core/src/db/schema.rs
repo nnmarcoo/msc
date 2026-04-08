@@ -58,7 +58,6 @@ pub fn create_tables(conn: &Connection) -> SqliteResult<()> {
         CREATE INDEX IF NOT EXISTS idx_playlist_tracks_position ON playlist_tracks(playlist_id, position);"
     )?;
 
-    // Migration: add cover_track_id to existing databases that predate this column.
     let _ = conn.execute(
         "ALTER TABLE playlists ADD COLUMN cover_track_id INTEGER REFERENCES tracks(id) ON DELETE SET NULL",
         [],

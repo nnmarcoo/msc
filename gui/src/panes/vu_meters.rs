@@ -155,7 +155,6 @@ fn draw_horizontal_meter(
 
     let num_segments = 40;
     let segment_width = width / num_segments as f32;
-    // Make spacing proportional to segment width (10% of segment width, min 1px, max 3px)
     let segment_spacing = (segment_width * 0.1).clamp(1.0, 3.0);
     let level_clamped = level.clamp(0.0, 1.0);
 
@@ -219,7 +218,6 @@ fn draw_vertical_meter(
 
     let num_segments = 40;
     let segment_height = height / num_segments as f32;
-    // Make spacing proportional to segment height (10% of segment height, min 1px, max 3px)
     let segment_spacing = (segment_height * 0.1).clamp(1.0, 3.0);
     let level_clamped = level.clamp(0.0, 1.0);
 

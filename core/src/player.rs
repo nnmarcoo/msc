@@ -42,8 +42,12 @@ impl Player {
         self.library.query_n_tracks(limit)
     }
 
-    pub fn query_tracks_by_album(&self, album_name: &str) -> Result<Vec<Track>, LibraryError> {
-        self.library.query_tracks_by_album(album_name)
+    pub fn query_tracks_by_album(
+        &self,
+        album_name: &str,
+        artist: Option<&str>,
+    ) -> Result<Vec<Track>, LibraryError> {
+        self.library.query_tracks_by_album(album_name, artist)
     }
 
     pub fn query_tracks_by_artist(&self, artist_name: &str) -> Result<Vec<Track>, LibraryError> {

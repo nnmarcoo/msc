@@ -30,6 +30,7 @@ pub struct App {
     layout_presets: Vec<pane_grid::Configuration<Pane>>,
     current_preset: usize,
     hovered_track: Option<i64>,
+    hovered_card: Option<(bool, i64)>,
     media_session: Option<MediaSession>,
     cached_tracks: RefCell<Option<Vec<Track>>>,
     cached_albums: RefCell<Option<Vec<Album>>>,
@@ -66,6 +67,8 @@ pub enum Message {
     QueueAlbumNext(String, Option<String>),
     QueueAlbumBack(String, Option<String>),
     AddTrackToPlaylist(i64, i64),
+    CardHovered(bool, i64),
+    CardUnhovered,
     TrackHovered(i64),
     TrackUnhovered,
     OpenPreferences,
@@ -105,6 +108,7 @@ impl Default for App {
             layout_presets,
             current_preset,
             hovered_track: None,
+            hovered_card: None,
             media_session: None,
             cached_tracks: RefCell::new(None),
             cached_albums: RefCell::new(None),
@@ -583,7 +587,10 @@ impl App {
                     }
                     CollectionsMessage::ToggleAlbum(name, artist) => {
                         let new_key = ExpandedItem::Album(name.clone(), artist.clone());
-                        let fetched = self.player.query_tracks_by_album(&name).unwrap_or_default();
+                        let fetched = self
+                            .player
+                            .query_tracks_by_album(&name, artist.as_deref())
+                            .unwrap_or_default();
                         let album_id = {
                             let cache = self.cached_albums.borrow();
                             cache
@@ -638,23 +645,38 @@ impl App {
                 let _ = self.player.add_track_to_playlist(playlist_id, track_id);
                 self.invalidate_playlist_cache();
             }
-            Message::PlayAlbum(album_name, _artist) => {
-                if let Ok(tracks) = self.player.query_tracks_by_album(&album_name) {
+            Message::PlayAlbum(album_name, artist) => {
+                if let Ok(tracks) = self
+                    .player
+                    .query_tracks_by_album(&album_name, artist.as_deref())
+                {
                     self.player.clear_queue();
                     self.player.queue_many(tracks.iter().filter_map(|t| t.id()));
                     let _ = self.player.play();
                 }
             }
-            Message::QueueAlbumNext(album_name, _artist) => {
-                if let Ok(tracks) = self.player.query_tracks_by_album(&album_name) {
+            Message::QueueAlbumNext(album_name, artist) => {
+                if let Ok(tracks) = self
+                    .player
+                    .query_tracks_by_album(&album_name, artist.as_deref())
+                {
                     self.player
                         .queue_many_front(tracks.iter().filter_map(|t| t.id()));
                 }
             }
-            Message::QueueAlbumBack(album_name, _artist) => {
-                if let Ok(tracks) = self.player.query_tracks_by_album(&album_name) {
+            Message::QueueAlbumBack(album_name, artist) => {
+                if let Ok(tracks) = self
+                    .player
+                    .query_tracks_by_album(&album_name, artist.as_deref())
+                {
                     self.player.queue_many(tracks.iter().filter_map(|t| t.id()));
                 }
+            }
+            Message::CardHovered(is_album, id) => {
+                self.hovered_card = Some((is_album, id));
+            }
+            Message::CardUnhovered => {
+                self.hovered_card = None;
             }
             Message::TrackHovered(track_id) => {
                 self.hovered_track = Some(track_id);
@@ -725,6 +747,7 @@ impl App {
         let player = &self.player;
         let volume = self.volume;
         let hovered_track = &self.hovered_track;
+        let hovered_card = self.hovered_card;
         let seeking_position = self.seeking_position;
         let cached_tracks = &self.cached_tracks;
         let cached_albums = &self.cached_albums;
@@ -739,6 +762,7 @@ impl App {
                 player,
                 volume,
                 hovered_track,
+                hovered_card,
                 seeking_position,
                 cached_tracks,
                 cached_albums,

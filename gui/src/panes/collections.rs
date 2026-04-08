@@ -1,6 +1,7 @@
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{
-    button, column, container, image, responsive, row, scrollable, svg, text, text_input,
+    button, column, container, image, mouse_area, responsive, row, scrollable, stack, svg, text,
+    text_input,
 };
 use iced::{Color, Element, Length, Radians, Theme};
 use msc_core::{Player, Track};
@@ -12,6 +13,7 @@ use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::components::context_menu::{MenuElement, context_menu};
 use crate::formatters;
+use crate::image_processing::Colors;
 use crate::pane_view::{PaneView, ViewContext};
 use crate::styles::svg_style;
 
@@ -149,6 +151,7 @@ impl PaneView for CollectionsPane {
         let playlists = ctx.cached_playlists.borrow().clone().unwrap_or_default();
         let creating_playlist = self.creating_playlist;
         let new_playlist_name = self.new_playlist_name.as_str();
+        let hovered_card = ctx.hovered_card;
 
         let album_art_keys = &self.album_art_keys;
         let playlist_art_keys = &self.playlist_art_keys;
@@ -166,9 +169,9 @@ impl PaneView for CollectionsPane {
                 .floor()
                 .max(1.0) as usize;
             let card_size = if cols > 1 {
-                (available - GAP * (cols - 1) as f32) / cols as f32
+                ((available - GAP * (cols - 1) as f32) / cols as f32).floor()
             } else {
-                available
+                available.floor()
             };
 
             let thumb_px = card_size.round() as u32;
@@ -202,14 +205,32 @@ impl PaneView for CollectionsPane {
 
                     for album in chunk {
                         let track_id = album_art_keys.get(&album.id).map(|(tid, _)| *tid);
-                        let artwork_el = art_card(art, track_id, thumb_px, card_size);
+                        let colors = track_id.and_then(|id| {
+                            art.get(id, thumb_px, thumb_px)
+                                .or_else(|| art.get_any(id))
+                                .map(|e| e.colors)
+                        });
+                        let art_el = art_card(art, track_id, thumb_px, card_size);
                         let album_name = album.name.clone();
                         let artist = album.artist.clone();
+                        let is_hovered = hovered_card == Some((true, album.id));
+
+                        let card = card_with_overlay(
+                            art_el,
+                            card_size,
+                            is_hovered,
+                            colors,
+                            Message::PlayAlbum(album_name.clone(), artist.clone()),
+                            Message::QueueAlbumBack(album_name.clone(), artist.clone()),
+                            Message::Collections(CollectionsMessage::ToggleAlbum(
+                                album_name.clone(),
+                                artist.clone(),
+                            )),
+                            Message::CardHovered(true, album.id),
+                        );
 
                         album_row = album_row.push(context_menu(
-                            button(artwork_el).padding(0).on_press(Message::Collections(
-                                CollectionsMessage::ToggleAlbum(album_name.clone(), artist.clone()),
-                            )),
+                            card,
                             vec![
                                 MenuElement::button(
                                     "Play",
@@ -239,6 +260,7 @@ impl PaneView for CollectionsPane {
                                 cover_tid,
                                 panel_px,
                                 name.clone(),
+                                artist.clone(),
                                 Message::PlayAlbum(name.clone(), artist.clone()),
                             ));
                         }
@@ -288,13 +310,28 @@ impl PaneView for CollectionsPane {
 
                     for playlist in chunk {
                         let track_id = playlist_art_keys.get(&playlist.id).map(|(tid, _)| *tid);
+                        let colors = track_id.and_then(|id| {
+                            art.get(id, thumb_px, thumb_px)
+                                .or_else(|| art.get_any(id))
+                                .map(|e| e.colors)
+                        });
                         let artwork_el = art_card(art, track_id, thumb_px, card_size);
                         let pid = playlist.id;
+                        let is_hovered = hovered_card == Some((false, pid));
+
+                        let card = card_with_overlay(
+                            artwork_el,
+                            card_size,
+                            is_hovered,
+                            colors,
+                            Message::Collections(CollectionsMessage::PlayPlaylist(pid)),
+                            Message::Collections(CollectionsMessage::QueuePlaylistBack(pid)),
+                            Message::Collections(CollectionsMessage::TogglePlaylist(pid)),
+                            Message::CardHovered(false, pid),
+                        );
 
                         playlist_row = playlist_row.push(context_menu(
-                            button(artwork_el).padding(0).on_press(Message::Collections(
-                                CollectionsMessage::TogglePlaylist(pid),
-                            )),
+                            card,
                             vec![
                                 MenuElement::button(
                                     "Play",
@@ -333,6 +370,7 @@ impl PaneView for CollectionsPane {
                                 cover_tid,
                                 panel_px,
                                 pl.name.clone(),
+                                None,
                                 Message::Collections(CollectionsMessage::PlayPlaylist(pid)),
                             ));
                         }
@@ -402,6 +440,7 @@ fn expanded_panel<'a>(
     cover_track_id: Option<i64>,
     panel_px: u32,
     title: String,
+    artist: Option<String>,
     play_msg: Message,
 ) -> Element<'a, Message> {
     let art_display_size = panel_height - PANEL_ART_PADDING * 2.0;
@@ -515,6 +554,11 @@ fn expanded_panel<'a>(
                 weight: iced::font::Weight::Bold,
                 ..iced::Font::DEFAULT
             }),
+            if let Some(a) = artist {
+                Element::from(text(a).size(13).style(muted))
+            } else {
+                Element::from(iced::widget::Space::new().width(0))
+            },
             iced::widget::Space::new().width(Length::Fill),
             text(total_duration)
                 .size(11)
@@ -606,6 +650,88 @@ fn expanded_panel<'a>(
         .height(Length::Fixed(panel_height))
         .style(panel_style)
         .into()
+}
+
+fn card_with_overlay<'a>(
+    art: Element<'a, Message>,
+    card_size: f32,
+    is_hovered: bool,
+    colors: Option<Colors>,
+    play_msg: Message,
+    queue_msg: Message,
+    toggle_msg: Message,
+    hover_msg: Message,
+) -> Element<'a, Message> {
+    let art_button = button(art)
+        .padding(0)
+        .width(Length::Fixed(card_size))
+        .height(Length::Fixed(card_size))
+        .style(|_, _| button::Style::default())
+        .on_press(toggle_msg);
+
+    let overlay: Element<'a, Message> = if is_hovered {
+        let (bar_color, icon_color) = match colors {
+            Some(c) => {
+                let bg = Color::from_rgb8(c.background[0], c.background[1], c.background[2]);
+                let inv = Color::from_rgb(1.0 - bg.r, 1.0 - bg.g, 1.0 - bg.b);
+                (bg, inv)
+            }
+            None => (Color::BLACK, Color::WHITE),
+        };
+        let icon_style = move |_: &Theme, _: iced::widget::svg::Status| iced::widget::svg::Style {
+            color: Some(icon_color),
+        };
+
+        column![
+            iced::widget::Space::new().height(Length::Fill),
+            container(
+                row![
+                    crate::widgets::canvas_button::canvas_button(
+                        svg(SvgHandle::from_memory(include_bytes!(
+                            "../../../assets/icons/play.svg"
+                        )))
+                        .style(icon_style),
+                    )
+                    .width(20)
+                    .height(20)
+                    .on_press(play_msg),
+                    crate::widgets::canvas_button::canvas_button(
+                        svg(SvgHandle::from_memory(include_bytes!(
+                            "../../../assets/icons/queue_add.svg"
+                        )))
+                        .style(icon_style),
+                    )
+                    .width(20)
+                    .height(20)
+                    .on_press(queue_msg),
+                ]
+                .spacing(6),
+            )
+            .padding(5)
+            .center_x(card_size)
+            .style(move |_: &Theme| container::Style {
+                background: Some(bar_color.into()),
+                ..Default::default()
+            }),
+        ]
+        .width(Length::Fixed(card_size))
+        .height(Length::Fixed(card_size))
+        .into()
+    } else {
+        iced::widget::Space::new()
+            .width(Length::Fixed(card_size))
+            .height(Length::Fixed(card_size))
+            .into()
+    };
+
+    mouse_area(
+        stack![art_button, overlay]
+            .width(Length::Fixed(card_size))
+            .height(Length::Fixed(card_size)),
+    )
+    .on_enter(hover_msg)
+    .on_exit(Message::CardUnhovered)
+    .into()
 }
 
 fn placeholder_artwork<'a>(card_size: f32) -> Element<'a, Message> {

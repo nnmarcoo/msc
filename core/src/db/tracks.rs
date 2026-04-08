@@ -152,16 +152,21 @@ impl Database {
             .collect::<SqliteResult<Vec<_>>>()
     }
 
-    pub fn get_tracks_by_album(&self, album_name: &str) -> SqliteResult<Vec<Track>> {
+    pub fn get_tracks_by_album(
+        &self,
+        album_name: &str,
+        artist: Option<&str>,
+    ) -> SqliteResult<Vec<Track>> {
         let mut stmt = self.conn.prepare(
             "SELECT id, path, title, track_artist, album, album_artist,
                     genre, year, track_number, disc_number, comment,
                     duration, bit_rate, sample_rate, bit_depth, channels, missing
              FROM tracks
              WHERE album = ?1
+               AND (?2 IS NULL OR album_artist = ?2 OR track_artist = ?2)
              ORDER BY disc_number, track_number",
         )?;
-        stmt.query_map(params![album_name], row_to_track)?
+        stmt.query_map(params![album_name, artist], row_to_track)?
             .collect::<SqliteResult<Vec<_>>>()
     }
 

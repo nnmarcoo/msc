@@ -85,7 +85,6 @@ impl AudioAnalyzer {
         let fft = planner.plan_fft_forward(FFT_SIZE);
         let scratch_len = fft.get_inplace_scratch_len();
 
-        // Default to 44100; will be corrected on first process() call.
         let sample_rate = 44100.0;
         let bin_map = Self::compute_bin_map(sample_rate);
 
@@ -203,7 +202,6 @@ impl AudioAnalyzer {
 
 impl Effect for AudioAnalyzer {
     fn process(&mut self, input: &mut [Frame], dt: f64, _info: &Info) {
-        // dt = seconds per sample, so sample_rate = 1/dt.
         if dt > 0.0 {
             let sr = (1.0 / dt) as f32;
             if (sr - self.sample_rate).abs() > 1.0 {

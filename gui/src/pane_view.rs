@@ -10,6 +10,7 @@ pub struct ViewContext<'a> {
     pub player: &'a Player,
     pub volume: f32,
     pub hovered_track: &'a Option<i64>,
+    pub hovered_card: Option<(bool, i64)>,
     pub seeking_position: Option<f32>,
     pub cached_tracks: &'a RefCell<Option<Vec<Track>>>,
     pub cached_albums: &'a RefCell<Option<Vec<Album>>>,
@@ -24,7 +25,6 @@ pub trait PaneView: fmt::Debug {
 
     fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message>;
 
-    /// Called when the library is rescanned so panes can drop stale state.
     fn invalidate_cache(&mut self) {}
 
     fn clone_box(&self) -> Box<dyn PaneView>;
