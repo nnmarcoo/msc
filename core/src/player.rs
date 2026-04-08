@@ -188,6 +188,10 @@ impl Player {
         self.queue.add_many(track_ids);
     }
 
+    pub fn queue_many_front(&mut self, track_ids: impl Iterator<Item = i64>) {
+        self.queue.add_many_next(track_ids);
+    }
+
     pub fn queue_library(&mut self) -> Result<(), LibraryError> {
         let mut tracks = self.library.query_all_tracks()?;
 

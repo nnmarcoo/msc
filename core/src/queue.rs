@@ -53,6 +53,21 @@ impl Queue {
         }
     }
 
+    pub fn add_many_next(&mut self, track_ids: impl Iterator<Item = i64>) {
+        let incoming: VecDeque<i64> = track_ids.collect();
+        if self.current.is_none() {
+            let mut ids = incoming.into_iter();
+            self.current = ids.next();
+            let tail: VecDeque<i64> = self.upcoming.drain(..).collect();
+            self.upcoming.extend(ids);
+            self.upcoming.extend(tail);
+        } else {
+            let tail: VecDeque<i64> = self.upcoming.drain(..).collect();
+            self.upcoming.extend(incoming);
+            self.upcoming.extend(tail);
+        }
+    }
+
     pub fn next(&mut self) -> Option<i64> {
         match self.loop_mode {
             LoopMode::Single => {
