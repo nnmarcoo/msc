@@ -1,7 +1,7 @@
 use iced::alignment::Vertical;
 use iced::font::Weight;
 use iced::widget::svg::Handle as SvgHandle;
-use iced::widget::{column, container, responsive, row, svg, text, tooltip};
+use iced::widget::{column, container, responsive, row, space, svg, text, tooltip};
 use iced::{Element, Font, Length, Theme};
 use msc_core::Player;
 
@@ -248,12 +248,12 @@ impl PaneView for ControlsPane {
             prev_button,
             play_pause_button,
             next_button,
-            container(text("")).width(Length::Fixed(20.0)),
+            space().width(Length::Fixed(20.0)),
             vol_button,
             volume_slider,
-            container(text("")).width(Length::Fixed(20.0)),
+            space().width(Length::Fixed(20.0)),
             track_info,
-            container(text("")).width(Length::Fixed(20.0)),
+            space().width(Length::Fixed(20.0)),
             shuffle_button,
             cycle_button,
         ]
@@ -277,7 +277,6 @@ impl PaneView for ControlsPane {
     }
 }
 
-// these should prob just exist in the main set of messages
 #[derive(Debug, Clone)]
 pub enum ControlsMessage {
     PlayPause,

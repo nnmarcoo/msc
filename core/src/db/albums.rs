@@ -21,10 +21,7 @@ impl Database {
         let mut albums: HashMap<(String, Option<String>), Option<u32>> = HashMap::new();
         for track in tracks {
             if let Some(album_name) = track.album() {
-                let key = (
-                    album_name.to_string(),
-                    track.album_artist().map(|s| s.to_string()),
-                );
+                let key = (album_name.into(), track.album_artist().map(|s| s.into()));
                 albums.entry(key).or_insert_with(|| track.year());
             }
         }
@@ -49,7 +46,7 @@ impl Database {
         if result.is_ok() {
             self.conn.execute_batch("COMMIT")?;
         } else {
-            self.conn.execute_batch("ROLLBACK")?;
+            let _ = self.conn.execute_batch("ROLLBACK");
         }
         result
     }

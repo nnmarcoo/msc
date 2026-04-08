@@ -63,6 +63,8 @@ pub enum Message {
     QueueBack(i64),
     QueueFront(i64),
     PlayAlbum(String, Option<String>),
+    QueueAlbumNext(String, Option<String>),
+    QueueAlbumBack(String, Option<String>),
     AddTrackToPlaylist(i64, i64),
     TrackHovered(i64),
     TrackUnhovered,
@@ -563,9 +565,20 @@ impl App {
                     }
                     CollectionsMessage::PlayPlaylist(id) => {
                         if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
+                            self.player.clear_queue();
+                            self.player.queue_many(tracks.iter().filter_map(|t| t.id()));
+                            let _ = self.player.play();
+                        }
+                    }
+                    CollectionsMessage::QueuePlaylistNext(id) => {
+                        if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
                             self.player
                                 .queue_many_front(tracks.iter().filter_map(|t| t.id()));
-                            let _ = self.player.play();
+                        }
+                    }
+                    CollectionsMessage::QueuePlaylistBack(id) => {
+                        if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
+                            self.player.queue_many(tracks.iter().filter_map(|t| t.id()));
                         }
                     }
                     CollectionsMessage::ToggleAlbum(name, artist) => {
@@ -627,9 +640,20 @@ impl App {
             }
             Message::PlayAlbum(album_name, _artist) => {
                 if let Ok(tracks) = self.player.query_tracks_by_album(&album_name) {
+                    self.player.clear_queue();
+                    self.player.queue_many(tracks.iter().filter_map(|t| t.id()));
+                    let _ = self.player.play();
+                }
+            }
+            Message::QueueAlbumNext(album_name, _artist) => {
+                if let Ok(tracks) = self.player.query_tracks_by_album(&album_name) {
                     self.player
                         .queue_many_front(tracks.iter().filter_map(|t| t.id()));
-                    let _ = self.player.play();
+                }
+            }
+            Message::QueueAlbumBack(album_name, _artist) => {
+                if let Ok(tracks) = self.player.query_tracks_by_album(&album_name) {
+                    self.player.queue_many(tracks.iter().filter_map(|t| t.id()));
                 }
             }
             Message::TrackHovered(track_id) => {

@@ -54,16 +54,16 @@ impl Track {
             comment,
         ) = if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
             (
-                tag.title().map(|s| s.to_string()),
-                tag.artist().map(|s| s.to_string()),
-                tag.album().map(|s| s.to_string()),
+                tag.title().map(|s| s.into()),
+                tag.artist().map(|s| s.into()),
+                tag.album().map(|s| s.into()),
                 tag.get_string(&lofty::tag::ItemKey::AlbumArtist)
-                    .map(|s| s.to_string()),
-                tag.genre().map(|s| s.to_string()),
+                    .map(|s| s.into()),
+                tag.genre().map(|s| s.into()),
                 tag.year(),
                 tag.track(),
                 tag.disk(),
-                tag.comment().map(|s| s.to_string()),
+                tag.comment().map(|s| s.into()),
             )
         } else {
             (None, None, None, None, None, None, None, None, None)

@@ -54,42 +54,29 @@ impl Queue {
     }
 
     pub fn add_many_next(&mut self, track_ids: impl Iterator<Item = i64>) {
-        let incoming: VecDeque<i64> = track_ids.collect();
+        let mut incoming: VecDeque<i64> = track_ids.collect();
         if self.current.is_none() {
-            let mut ids = incoming.into_iter();
-            self.current = ids.next();
-            let tail: VecDeque<i64> = self.upcoming.drain(..).collect();
-            self.upcoming.extend(ids);
-            self.upcoming.extend(tail);
-        } else {
-            let tail: VecDeque<i64> = self.upcoming.drain(..).collect();
-            self.upcoming.extend(incoming);
-            self.upcoming.extend(tail);
+            self.current = incoming.pop_front();
         }
+        let tail: VecDeque<i64> = self.upcoming.drain(..).collect();
+        self.upcoming.extend(incoming);
+        self.upcoming.extend(tail);
     }
 
     pub fn next(&mut self) -> Option<i64> {
         match self.loop_mode {
-            LoopMode::Single => {
-                // Just return current track without advancing
-                self.current
-            }
+            LoopMode::Single => self.current,
             LoopMode::Queue => {
                 if let Some(next) = self.upcoming.pop_front() {
-                    // Normal advance within queue
                     if let Some(current) = self.current.take() {
                         self.history.push_back(current);
                     }
                     self.current = Some(next);
                 } else if self.current.is_some() && !self.history.is_empty() {
-                    // Reached end of queue - restart from beginning
-                    // Move current to history
                     if let Some(current) = self.current.take() {
                         self.history.push_back(current);
                     }
-                    // Move all history back to upcoming (in order)
                     self.upcoming.extend(self.history.drain(..));
-                    // Pop the first track as current
                     self.current = self.upcoming.pop_front();
                 }
                 self.current

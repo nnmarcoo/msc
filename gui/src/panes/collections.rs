@@ -33,6 +33,8 @@ pub enum CollectionsMessage {
     Confirm(String),
     DeletePlaylist(i64),
     PlayPlaylist(i64),
+    QueuePlaylistNext(i64),
+    QueuePlaylistBack(i64),
     ToggleAlbum(String, Option<String>),
     TogglePlaylist(i64),
 }
@@ -208,10 +210,20 @@ impl PaneView for CollectionsPane {
                             button(artwork_el).padding(0).on_press(Message::Collections(
                                 CollectionsMessage::ToggleAlbum(album_name.clone(), artist.clone()),
                             )),
-                            vec![MenuElement::button(
-                                "Play",
-                                Message::PlayAlbum(album_name, artist),
-                            )],
+                            vec![
+                                MenuElement::button(
+                                    "Play",
+                                    Message::PlayAlbum(album_name.clone(), artist.clone()),
+                                ),
+                                MenuElement::button(
+                                    "Queue next",
+                                    Message::QueueAlbumNext(album_name.clone(), artist.clone()),
+                                ),
+                                MenuElement::button(
+                                    "Add to queue",
+                                    Message::QueueAlbumBack(album_name, artist),
+                                ),
+                            ],
                         ));
                     }
 
@@ -287,6 +299,18 @@ impl PaneView for CollectionsPane {
                                 MenuElement::button(
                                     "Play",
                                     Message::Collections(CollectionsMessage::PlayPlaylist(pid)),
+                                ),
+                                MenuElement::button(
+                                    "Queue next",
+                                    Message::Collections(CollectionsMessage::QueuePlaylistNext(
+                                        pid,
+                                    )),
+                                ),
+                                MenuElement::button(
+                                    "Add to queue",
+                                    Message::Collections(CollectionsMessage::QueuePlaylistBack(
+                                        pid,
+                                    )),
                                 ),
                                 MenuElement::Separator,
                                 MenuElement::button(

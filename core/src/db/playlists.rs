@@ -92,7 +92,7 @@ impl Database {
         if result.is_ok() {
             self.conn.execute_batch("COMMIT")?;
         } else {
-            self.conn.execute_batch("ROLLBACK")?;
+            let _ = self.conn.execute_batch("ROLLBACK");
         }
         result
     }
@@ -114,7 +114,7 @@ impl Database {
         if result.is_ok() {
             self.conn.execute_batch("COMMIT")?;
         } else {
-            self.conn.execute_batch("ROLLBACK")?;
+            let _ = self.conn.execute_batch("ROLLBACK");
         }
         result
     }
