@@ -2,7 +2,7 @@ use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{
     button, column, container, image, responsive, row, scrollable, svg, text, text_input,
 };
-use iced::{Element, Length, Theme};
+use iced::{Color, Element, Length, Radians, Theme};
 use msc_core::{Player, Track};
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -380,21 +380,39 @@ fn expanded_panel<'a>(
     title: String,
     play_msg: Message,
 ) -> Element<'a, Message> {
-    let panel_style = |theme: &Theme| container::Style {
-        background: Some(theme.extended_palette().background.weak.color.into()),
-        border: iced::Border {
-            color: theme.extended_palette().background.strong.color,
-            width: 1.0,
-            ..Default::default()
-        },
-        ..Default::default()
-    };
-
     let art_display_size = panel_height - PANEL_ART_PADDING * 2.0;
 
-    let cover: Element<'a, Message> = match cover_track_id
-        .and_then(|id| art.get(id, panel_px, panel_px).or_else(|| art.get_any(id)))
-    {
+    let entry = cover_track_id
+        .and_then(|id| art.get(id, panel_px, panel_px).or_else(|| art.get_any(id)));
+
+    let cover_color: Option<[u8; 3]> = entry.map(|e| e.colors.background);
+
+    let panel_style = move |theme: &Theme| {
+        let palette = theme.extended_palette();
+        let bg_color = palette.background.weak.color;
+        let background = match cover_color {
+            Some([r, g, b]) => {
+                let left = Color::from_rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
+                iced::Background::Gradient(iced::Gradient::Linear(
+                    iced::gradient::Linear::new(Radians(0.0))
+                        .add_stop(0.0, left)
+                        .add_stop(1.0, bg_color),
+                ))
+            }
+            None => iced::Background::Color(bg_color),
+        };
+        container::Style {
+            background: Some(background),
+            border: iced::Border {
+                color: palette.background.strong.color,
+                width: 1.0,
+                ..Default::default()
+            },
+            ..Default::default()
+        }
+    };
+
+    let cover: Element<'a, Message> = match entry {
         Some(entry) => container(
             image(entry.handle.clone())
                 .width(Length::Fixed(art_display_size))
@@ -531,12 +549,12 @@ fn expanded_panel<'a>(
                 .style(|theme: &Theme, status| {
                     let palette = theme.extended_palette();
                     button::Style {
-                        background: Some(match status {
+                        background: match status {
                             button::Status::Hovered | button::Status::Pressed => {
-                                palette.primary.weak.color.into()
+                                Some(Color { a: 0.15, ..palette.primary.weak.color }.into())
                             }
-                            _ => palette.background.weak.color.into(),
-                        }),
+                            _ => None,
+                        },
                         text_color: palette.background.base.text,
                         ..Default::default()
                     }
