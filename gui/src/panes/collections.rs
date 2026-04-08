@@ -478,22 +478,15 @@ fn expanded_panel<'a>(
 
     let play_all = container(
         row![
-            button(text("▶  Play All").size(12))
-                .padding([5, 12])
-                .on_press(play_msg)
-                .style(|theme: &Theme, status| {
-                    let palette = theme.extended_palette();
-                    button::Style {
-                        background: Some(match status {
-                            button::Status::Hovered | button::Status::Pressed => {
-                                palette.primary.base.color.into()
-                            }
-                            _ => palette.primary.weak.color.into(),
-                        }),
-                        text_color: palette.primary.base.text,
-                        ..Default::default()
-                    }
-                }),
+            crate::widgets::canvas_button::canvas_button(
+                svg(SvgHandle::from_memory(include_bytes!(
+                    "../../../assets/icons/play.svg"
+                )))
+                .style(svg_style),
+            )
+            .width(28)
+            .height(28)
+            .on_press(play_msg),
             text(title).size(14).font(iced::Font {
                 weight: iced::font::Weight::Bold,
                 ..iced::Font::DEFAULT

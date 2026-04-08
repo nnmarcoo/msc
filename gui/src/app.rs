@@ -563,12 +563,8 @@ impl App {
                     }
                     CollectionsMessage::PlayPlaylist(id) => {
                         if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
-                            self.player.clear_queue();
-                            for track in tracks {
-                                if let Some(tid) = track.id() {
-                                    self.player.queue_back(tid);
-                                }
-                            }
+                            self.player
+                                .queue_many_front(tracks.iter().filter_map(|t| t.id()));
                             let _ = self.player.play();
                         }
                     }
@@ -631,12 +627,8 @@ impl App {
             }
             Message::PlayAlbum(album_name, _artist) => {
                 if let Ok(tracks) = self.player.query_tracks_by_album(&album_name) {
-                    self.player.clear_queue();
-                    for track in tracks {
-                        if let Some(id) = track.id() {
-                            self.player.queue_back(id);
-                        }
-                    }
+                    self.player
+                        .queue_many_front(tracks.iter().filter_map(|t| t.id()));
                     let _ = self.player.play();
                 }
             }
