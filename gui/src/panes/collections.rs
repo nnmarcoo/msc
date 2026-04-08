@@ -382,8 +382,8 @@ fn expanded_panel<'a>(
 ) -> Element<'a, Message> {
     let art_display_size = panel_height - PANEL_ART_PADDING * 2.0;
 
-    let entry = cover_track_id
-        .and_then(|id| art.get(id, panel_px, panel_px).or_else(|| art.get_any(id)));
+    let entry =
+        cover_track_id.and_then(|id| art.get(id, panel_px, panel_px).or_else(|| art.get_any(id)));
 
     let cover_color: Option<[u8; 3]> = entry.map(|e| e.colors.background);
 
@@ -394,7 +394,7 @@ fn expanded_panel<'a>(
             Some([r, g, b]) => {
                 let left = Color::from_rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
                 iced::Background::Gradient(iced::Gradient::Linear(
-                    iced::gradient::Linear::new(Radians(0.0))
+                    iced::gradient::Linear::new(Radians(std::f32::consts::FRAC_PI_2))
                         .add_stop(0.0, left)
                         .add_stop(1.0, bg_color),
                 ))
@@ -550,9 +550,13 @@ fn expanded_panel<'a>(
                     let palette = theme.extended_palette();
                     button::Style {
                         background: match status {
-                            button::Status::Hovered | button::Status::Pressed => {
-                                Some(Color { a: 0.15, ..palette.primary.weak.color }.into())
-                            }
+                            button::Status::Hovered | button::Status::Pressed => Some(
+                                Color {
+                                    a: 0.15,
+                                    ..palette.primary.weak.color
+                                }
+                                .into(),
+                            ),
                             _ => None,
                         },
                         text_color: palette.background.base.text,
