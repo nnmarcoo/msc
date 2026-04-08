@@ -509,13 +509,13 @@ fn expanded_panel<'a>(
     )
     .padding([6, 10]);
 
-    let mut right_col = column![play_all, separator()].spacing(0);
+    let mut track_col = column![].spacing(0);
     let mut first = true;
 
     for (i, track) in tracks.iter().enumerate() {
         if let Some(tid) = track.id() {
             if !first {
-                right_col = right_col.push(separator());
+                track_col = track_col.push(separator());
             }
             first = false;
 
@@ -571,18 +571,20 @@ fn expanded_panel<'a>(
                 ],
             );
 
-            right_col = right_col.push(track_row);
+            track_col = track_col.push(track_row);
         }
     }
 
-    let track_list = scrollable(right_col)
+    let track_list = scrollable(track_col)
         .width(Length::Fill)
         .height(Length::Fill)
         .direction(scrollable::Direction::Vertical(
             scrollable::Scrollbar::new().width(0).scroller_width(0),
         ));
 
-    container(row![cover, track_list])
+    let right = column![play_all, separator(), track_list].spacing(0);
+
+    container(row![cover, right])
         .width(Length::Fill)
         .height(Length::Fixed(panel_height))
         .style(panel_style)
