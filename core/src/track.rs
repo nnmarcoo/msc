@@ -8,7 +8,7 @@ use lofty::{
     tag::Accessor,
 };
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Track {
     pub(crate) id: Option<i64>,
 

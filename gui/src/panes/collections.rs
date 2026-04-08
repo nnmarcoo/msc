@@ -3,7 +3,7 @@ use iced::widget::{
     button, column, container, image, responsive, row, scrollable, svg, text, text_input,
 };
 use iced::{Element, Length, Theme};
-use msc_core::Player;
+use msc_core::{Player, Track};
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -11,6 +11,7 @@ use std::path::PathBuf;
 use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::components::context_menu::{MenuElement, context_menu};
+use crate::formatters;
 use crate::pane_view::{PaneView, ViewContext};
 use crate::styles::svg_style;
 
@@ -18,27 +19,38 @@ type ArtKeys = HashMap<i64, (i64, PathBuf)>;
 
 const DEBOUNCE_TICKS: u32 = 3;
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ExpandedItem {
+    Album(String, Option<String>),
+    Playlist(i64),
+}
+
 #[derive(Debug, Clone)]
 pub enum CollectionsMessage {
     ToggleNewPlaylistInput,
     NameChanged(String),
     Confirm(String),
-    Cancel,
     DeletePlaylist(i64),
     PlayPlaylist(i64),
+    ToggleAlbum(String, Option<String>),
+    TogglePlaylist(i64),
 }
 
 #[derive(Debug, Clone)]
 pub struct CollectionsPane {
-    album_art_keys: ArtKeys,
+    pub(crate) album_art_keys: ArtKeys,
     pub(crate) playlist_art_keys: ArtKeys,
     albums_initialized: bool,
     pub(crate) playlists_initialized: bool,
     thumbnail_size: Cell<u32>,
+    panel_art_size: Cell<u32>,
     stable_size: u32,
     stable_ticks: u32,
     pub(crate) creating_playlist: bool,
     pub(crate) new_playlist_name: String,
+    pub(crate) expanded: Option<ExpandedItem>,
+    pub(crate) expanded_tracks: Vec<Track>,
+    pub(crate) expanded_cover: Option<(i64, PathBuf)>,
 }
 
 impl CollectionsPane {
@@ -49,10 +61,14 @@ impl CollectionsPane {
             albums_initialized: false,
             playlists_initialized: false,
             thumbnail_size: Cell::new(0),
+            panel_art_size: Cell::new(0),
             stable_size: 0,
             stable_ticks: 0,
             creating_playlist: false,
             new_playlist_name: String::new(),
+            expanded: None,
+            expanded_tracks: Vec::new(),
+            expanded_cover: None,
         }
     }
 }
@@ -104,6 +120,12 @@ impl PaneView for CollectionsPane {
                 for (_, (tid, path)) in &self.playlist_art_keys {
                     art.get_or_queue(*tid, path, size, size);
                 }
+                let panel_size = self.panel_art_size.get();
+                if panel_size > 0 {
+                    if let Some((tid, path)) = &self.expanded_cover {
+                        art.get_or_queue(*tid, path, panel_size, panel_size);
+                    }
+                }
             }
         }
     }
@@ -113,6 +135,9 @@ impl PaneView for CollectionsPane {
         self.playlist_art_keys.clear();
         self.albums_initialized = false;
         self.playlists_initialized = false;
+        self.expanded = None;
+        self.expanded_tracks.clear();
+        self.expanded_cover = None;
     }
 
     fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
@@ -124,6 +149,9 @@ impl PaneView for CollectionsPane {
 
         let album_art_keys = &self.album_art_keys;
         let playlist_art_keys = &self.playlist_art_keys;
+        let expanded = &self.expanded;
+        let expanded_tracks = &self.expanded_tracks;
+        let expanded_cover = &self.expanded_cover;
 
         responsive(move |size| {
             const MIN_CARD_WIDTH: f32 = 150.0;
@@ -142,6 +170,11 @@ impl PaneView for CollectionsPane {
 
             let thumb_px = card_size.round() as u32;
             self.thumbnail_size.set(thumb_px);
+
+            const PANEL_ART_PADDING: f32 = 8.0;
+            let panel_height = 2.0 * card_size + GAP;
+            let panel_px = (panel_height - PANEL_ART_PADDING * 2.0).round() as u32;
+            self.panel_art_size.set(panel_px);
 
             if albums.is_empty() && playlists.is_empty() && !creating_playlist {
                 return container(text("No albums or playlists").size(18).style(
@@ -171,14 +204,32 @@ impl PaneView for CollectionsPane {
                         let album_name = album.name.clone();
                         let artist = album.artist.clone();
 
-                        album_row = album_row.push(
-                            button(artwork_el)
-                                .padding(0)
-                                .on_press(Message::PlayAlbum(album_name, artist)),
-                        );
+                        album_row = album_row.push(context_menu(
+                            button(artwork_el).padding(0).on_press(Message::Collections(
+                                CollectionsMessage::ToggleAlbum(album_name.clone(), artist.clone()),
+                            )),
+                            vec![MenuElement::button(
+                                "Play",
+                                Message::PlayAlbum(album_name, artist),
+                            )],
+                        ));
                     }
 
                     albums_section = albums_section.push(album_row);
+
+                    if let Some(ExpandedItem::Album(ref name, ref artist)) = *expanded {
+                        if chunk.iter().any(|a| &a.name == name) {
+                            let cover_tid = expanded_cover.as_ref().map(|(tid, _)| *tid);
+                            albums_section = albums_section.push(expanded_panel(
+                                expanded_tracks,
+                                panel_height,
+                                art,
+                                cover_tid,
+                                panel_px,
+                                Message::PlayAlbum(name.clone(), artist.clone()),
+                            ));
+                        }
+                    }
                 }
 
                 content = content.push(albums_section);
@@ -229,7 +280,7 @@ impl PaneView for CollectionsPane {
 
                         playlist_row = playlist_row.push(context_menu(
                             button(artwork_el).padding(0).on_press(Message::Collections(
-                                CollectionsMessage::PlayPlaylist(pid),
+                                CollectionsMessage::TogglePlaylist(pid),
                             )),
                             vec![
                                 MenuElement::button(
@@ -246,6 +297,20 @@ impl PaneView for CollectionsPane {
                     }
 
                     playlists_section = playlists_section.push(playlist_row);
+
+                    if let Some(ExpandedItem::Playlist(pid)) = *expanded {
+                        if chunk.iter().any(|p| p.id == pid) {
+                            let cover_tid = expanded_cover.as_ref().map(|(tid, _)| *tid);
+                            playlists_section = playlists_section.push(expanded_panel(
+                                expanded_tracks,
+                                panel_height,
+                                art,
+                                cover_tid,
+                                panel_px,
+                                Message::Collections(CollectionsMessage::PlayPlaylist(pid)),
+                            ));
+                        }
+                    }
                 }
             } else if !creating_playlist {
                 playlists_section =
@@ -301,6 +366,177 @@ fn section_header<'a, Message: 'a>(label: &'a str) -> Element<'a, Message> {
         .style(|theme: &Theme| text::Style {
             color: Some(theme.extended_palette().background.strong.text),
         })
+        .into()
+}
+
+fn expanded_panel<'a>(
+    tracks: &'a [Track],
+    panel_height: f32,
+    art: &'a ArtCache,
+    cover_track_id: Option<i64>,
+    panel_px: u32,
+    play_msg: Message,
+) -> Element<'a, Message> {
+    let panel_style = |theme: &Theme| container::Style {
+        background: Some(theme.extended_palette().background.weak.color.into()),
+        border: iced::Border {
+            color: theme.extended_palette().background.strong.color,
+            width: 1.0,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+
+    const ART_PADDING: f32 = 8.0;
+    let art_display_size = panel_height - ART_PADDING * 2.0;
+
+    let cover: Element<'a, Message> = match cover_track_id
+        .and_then(|id| art.get(id, panel_px, panel_px).or_else(|| art.get_any(id)))
+    {
+        Some(entry) => container(
+            image(entry.handle.clone())
+                .width(Length::Fixed(art_display_size))
+                .height(Length::Fixed(art_display_size))
+                .content_fit(iced::ContentFit::Cover),
+        )
+        .padding(ART_PADDING)
+        .width(Length::Fixed(panel_height))
+        .height(Length::Fixed(panel_height))
+        .into(),
+        None => container(placeholder_artwork(art_display_size))
+            .padding(ART_PADDING)
+            .width(Length::Fixed(panel_height))
+            .height(Length::Fixed(panel_height))
+            .into(),
+    };
+
+    if tracks.is_empty() {
+        return container(row![
+            cover,
+            container(
+                text("No tracks")
+                    .size(12)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.strong.text),
+                    })
+            )
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .width(Length::Fill),
+        ])
+        .width(Length::Fill)
+        .height(Length::Fixed(panel_height))
+        .style(panel_style)
+        .into();
+    }
+
+    let muted = |theme: &Theme| text::Style {
+        color: Some(theme.extended_palette().background.strong.text),
+    };
+
+    let separator = || {
+        container(iced::widget::Space::new())
+            .height(Length::Fixed(1.0))
+            .width(Length::Fill)
+            .style(|theme: &Theme| container::Style {
+                background: Some(theme.extended_palette().background.strong.color.into()),
+                ..Default::default()
+            })
+    };
+
+    let play_all = container(
+        button(text("▶  Play All").size(12))
+            .padding([5, 12])
+            .on_press(play_msg)
+            .style(|theme: &Theme, status| {
+                let palette = theme.extended_palette();
+                button::Style {
+                    background: Some(match status {
+                        button::Status::Hovered | button::Status::Pressed => {
+                            palette.primary.base.color.into()
+                        }
+                        _ => palette.primary.weak.color.into(),
+                    }),
+                    text_color: palette.primary.base.text,
+                    ..Default::default()
+                }
+            }),
+    )
+    .padding([6, 10]);
+
+    let mut right_col = column![play_all, separator()].spacing(0);
+    let mut first = true;
+
+    for (i, track) in tracks.iter().enumerate() {
+        if let Some(tid) = track.id() {
+            if !first {
+                right_col = right_col.push(separator());
+            }
+            first = false;
+
+            let num = track
+                .track_number()
+                .map(|n| n.to_string())
+                .unwrap_or_else(|| (i + 1).to_string());
+            let title = track.title().unwrap_or("-").to_string();
+            let duration = formatters::format_duration(track.duration());
+
+            let track_row = context_menu(
+                button(
+                    row![
+                        text(num)
+                            .size(11)
+                            .align_x(iced::alignment::Horizontal::Right)
+                            .style(muted)
+                            .width(Length::Fixed(24.0)),
+                        text(title).size(13).width(Length::Fill),
+                        text(duration)
+                            .size(11)
+                            .align_x(iced::alignment::Horizontal::Right)
+                            .style(muted)
+                            .width(Length::Fixed(46.0)),
+                    ]
+                    .spacing(10)
+                    .align_y(iced::Alignment::Center),
+                )
+                .padding([7, 12])
+                .width(Length::Fill)
+                .style(|theme: &Theme, status| {
+                    let palette = theme.extended_palette();
+                    button::Style {
+                        background: Some(match status {
+                            button::Status::Hovered | button::Status::Pressed => {
+                                palette.primary.weak.color.into()
+                            }
+                            _ => palette.background.weak.color.into(),
+                        }),
+                        text_color: palette.background.base.text,
+                        ..Default::default()
+                    }
+                })
+                .on_press(Message::PlayTrack(tid)),
+                vec![
+                    MenuElement::button("Play", Message::PlayTrack(tid)),
+                    MenuElement::button("Queue next", Message::QueueFront(tid)),
+                    MenuElement::button("Queue", Message::QueueBack(tid)),
+                ],
+            );
+
+            right_col = right_col.push(track_row);
+        }
+    }
+
+    let track_list = scrollable(right_col)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .direction(scrollable::Direction::Vertical(
+            scrollable::Scrollbar::new().width(0).scroller_width(0),
+        ));
+
+    container(row![cover, track_list])
+        .width(Length::Fill)
+        .height(Length::Fixed(panel_height))
+        .style(panel_style)
         .into()
 }
 

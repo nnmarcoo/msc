@@ -14,7 +14,7 @@ use crate::components::{bottom_bar, preferences};
 use crate::config::{Config, LayoutAxis, LayoutNode};
 use crate::media_controls::MediaSession;
 use crate::pane::{Pane, PaneType};
-use crate::panes::collections::CollectionsPane;
+use crate::panes::collections::{CollectionsPane, ExpandedItem};
 use crate::panes::{CollectionsMessage, ControlsMessage};
 use crate::styles::set_radius;
 use crate::window_handle;
@@ -134,6 +134,11 @@ impl App {
             if let Some(cp) = pane.content.as_any_mut().downcast_mut::<CollectionsPane>() {
                 cp.playlist_art_keys.clear();
                 cp.playlists_initialized = false;
+                if matches!(cp.expanded, Some(ExpandedItem::Playlist(_))) {
+                    cp.expanded = None;
+                    cp.expanded_tracks.clear();
+                    cp.expanded_cover = None;
+                }
             }
         }
     }
@@ -423,7 +428,7 @@ impl App {
                         self.edit_mode = !self.edit_mode;
                     }
                     BottomBarMessage::SwitchPreset(index) => {
-                        if index < self.layout_presets.len() {
+                        if index < self.layout_presets.len() && index != self.current_preset {
                             if self.edit_mode {
                                 self.save_current_layout();
                             }
@@ -511,7 +516,7 @@ impl App {
                             CollectionsMessage::NameChanged(name) => {
                                 cp.new_playlist_name = name.clone();
                             }
-                            CollectionsMessage::Cancel | CollectionsMessage::Confirm(_) => {
+                            CollectionsMessage::Confirm(_) => {
                                 cp.creating_playlist = false;
                                 cp.new_playlist_name.clear();
                             }
@@ -540,6 +545,56 @@ impl App {
                                 }
                             }
                             let _ = self.player.play();
+                        }
+                    }
+                    CollectionsMessage::ToggleAlbum(name, artist) => {
+                        let new_key = ExpandedItem::Album(name.clone(), artist.clone());
+                        let fetched = self.player.query_tracks_by_album(&name).unwrap_or_default();
+                        let album_id = {
+                            let cache = self.cached_albums.borrow();
+                            cache
+                                .as_ref()
+                                .and_then(|albums| albums.iter().find(|a| a.name == name))
+                                .map(|a| a.id)
+                        };
+                        for (_, pane) in self.panes.iter_mut() {
+                            if let Some(cp) =
+                                pane.content.as_any_mut().downcast_mut::<CollectionsPane>()
+                            {
+                                if cp.expanded.as_ref() == Some(&new_key) {
+                                    cp.expanded = None;
+                                    cp.expanded_tracks.clear();
+                                    cp.expanded_cover = None;
+                                } else {
+                                    cp.expanded = Some(new_key.clone());
+                                    cp.expanded_tracks = fetched.clone();
+                                    cp.expanded_cover = album_id
+                                        .and_then(|aid| cp.album_art_keys.get(&aid))
+                                        .map(|(tid, path)| (*tid, path.clone()));
+                                }
+                            }
+                        }
+                    }
+                    CollectionsMessage::TogglePlaylist(id) => {
+                        let new_key = ExpandedItem::Playlist(id);
+                        let fetched = self.player.get_tracks_in_playlist(id).unwrap_or_default();
+                        for (_, pane) in self.panes.iter_mut() {
+                            if let Some(cp) =
+                                pane.content.as_any_mut().downcast_mut::<CollectionsPane>()
+                            {
+                                if cp.expanded.as_ref() == Some(&new_key) {
+                                    cp.expanded = None;
+                                    cp.expanded_tracks.clear();
+                                    cp.expanded_cover = None;
+                                } else {
+                                    cp.expanded = Some(new_key.clone());
+                                    cp.expanded_tracks = fetched.clone();
+                                    cp.expanded_cover = cp
+                                        .playlist_art_keys
+                                        .get(&id)
+                                        .map(|(tid, path)| (*tid, path.clone()));
+                                }
+                            }
                         }
                     }
                     _ => {}
@@ -590,6 +645,9 @@ impl App {
                         if let Ok(num) = c.parse::<usize>() {
                             if num >= 1 && num <= self.layout_presets.len() {
                                 let index = num - 1;
+                                if index == self.current_preset {
+                                    return Task::none();
+                                }
                                 if self.edit_mode {
                                     self.save_current_layout();
                                 }
@@ -611,7 +669,7 @@ impl App {
         Task::none()
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         if self.is_minimized {
             return space().into();
         }
