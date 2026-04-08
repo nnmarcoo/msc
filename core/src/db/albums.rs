@@ -60,7 +60,7 @@ impl Database {
              FROM albums a
              LEFT JOIN tracks t ON t.album = a.name
              GROUP BY a.id, a.name, a.artist, a.year
-             ORDER BY a.name",
+             ORDER BY LOWER(COALESCE(a.artist, '')), a.year NULLS LAST, LOWER(a.name)",
         )?;
 
         stmt.query_map([], |row| {
