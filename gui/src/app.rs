@@ -383,6 +383,11 @@ impl App {
                         c.rounded = v;
                     }
                 }
+                PreferenceMessage::SetPresetIndicator(v) => {
+                    if let Some(c) = &mut self.editing_config {
+                        c.preset_indicator = v;
+                    }
+                }
                 PreferenceMessage::Save => {
                     if let Some(mut c) = self.editing_config.take() {
                         c.layouts = self.config.layouts.clone();
@@ -743,6 +748,7 @@ impl App {
                 self.layout_presets.len(),
                 self.current_preset,
                 self.edit_mode,
+                self.config.preset_indicator,
             )
             .map(Message::BottomBar)
         ]

@@ -14,6 +14,7 @@ pub struct CanvasButton<'a, Message> {
     width: Length,
     height: Length,
     padding: f32,
+    active: bool,
 }
 
 #[derive(Default)]
@@ -31,6 +32,7 @@ pub fn canvas_button<'a, Message>(
         width: Length::Shrink,
         height: Length::Shrink,
         padding: 0.,
+        active: false,
     }
 }
 
@@ -52,6 +54,11 @@ impl<'a, Message> CanvasButton<'a, Message> {
 
     pub fn padding(mut self, padding: f32) -> Self {
         self.padding = padding;
+        self
+    }
+
+    pub fn active(mut self, active: bool) -> Self {
+        self.active = active;
         self
     }
 }
@@ -108,6 +115,8 @@ impl<'a, Message: Clone> Widget<Message, Theme, iced::Renderer> for CanvasButton
             palette.primary.strong.color
         } else if state.is_hovered && is_mouse_over {
             palette.primary.base.color
+        } else if self.active {
+            palette.primary.weak.color
         } else {
             Color::TRANSPARENT
         };

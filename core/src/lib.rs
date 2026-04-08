@@ -20,6 +20,5 @@ pub use playlist::Playlist;
 pub use queue::LoopMode;
 pub use track::Track;
 
-pub(crate) use backend::Backend;
 pub(crate) use db::Database;
 pub(crate) use queue::Queue;

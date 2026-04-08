@@ -5,7 +5,7 @@ use iced::widget::tooltip::Position;
 use iced::widget::{button, column, container, row, rule, scrollable, svg, text, toggler, tooltip};
 use iced::{Element, Length, Theme};
 
-use crate::config::Config;
+use crate::config::{Config, PresetIndicator};
 use crate::styles::{PAD, TOOLTIP_DELAY, bar_style, svg_style};
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::theme_picker::ThemePicker;
@@ -14,6 +14,7 @@ use crate::widgets::theme_picker::ThemePicker;
 pub enum PreferenceMessage {
     SetTheme(Theme),
     SetRounded(bool),
+    SetPresetIndicator(PresetIndicator),
     SetLibrary,
     Reset,
     Save,
@@ -136,6 +137,21 @@ pub fn view<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, PreferenceMes
             "Use rounded corners on UI elements",
             toggler(pending.rounded)
                 .on_toggle(PreferenceMessage::SetRounded)
+                .into(),
+            theme,
+        ),
+        iced::widget::Space::new().height(PAD),
+        setting(
+            "Layout indicators",
+            "Show layout presets as numbers or dots",
+            toggler(pending.preset_indicator == PresetIndicator::Dots)
+                .on_toggle(|dots| {
+                    PreferenceMessage::SetPresetIndicator(if dots {
+                        PresetIndicator::Dots
+                    } else {
+                        PresetIndicator::Numbers
+                    })
+                })
                 .into(),
             theme,
         ),

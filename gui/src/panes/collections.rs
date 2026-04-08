@@ -18,6 +18,7 @@ use crate::styles::svg_style;
 type ArtKeys = HashMap<i64, (i64, PathBuf)>;
 
 const DEBOUNCE_TICKS: u32 = 3;
+const PANEL_ART_PADDING: f32 = 8.0;
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExpandedItem {
@@ -171,7 +172,6 @@ impl PaneView for CollectionsPane {
             let thumb_px = card_size.round() as u32;
             self.thumbnail_size.set(thumb_px);
 
-            const PANEL_ART_PADDING: f32 = 8.0;
             let panel_height = 2.0 * card_size + GAP;
             let panel_px = (panel_height - PANEL_ART_PADDING * 2.0).round() as u32;
             self.panel_art_size.set(panel_px);
@@ -226,6 +226,7 @@ impl PaneView for CollectionsPane {
                                 art,
                                 cover_tid,
                                 panel_px,
+                                name.clone(),
                                 Message::PlayAlbum(name.clone(), artist.clone()),
                             ));
                         }
@@ -299,7 +300,7 @@ impl PaneView for CollectionsPane {
                     playlists_section = playlists_section.push(playlist_row);
 
                     if let Some(ExpandedItem::Playlist(pid)) = *expanded {
-                        if chunk.iter().any(|p| p.id == pid) {
+                        if let Some(pl) = chunk.iter().find(|p| p.id == pid) {
                             let cover_tid = expanded_cover.as_ref().map(|(tid, _)| *tid);
                             playlists_section = playlists_section.push(expanded_panel(
                                 expanded_tracks,
@@ -307,6 +308,7 @@ impl PaneView for CollectionsPane {
                                 art,
                                 cover_tid,
                                 panel_px,
+                                pl.name.clone(),
                                 Message::Collections(CollectionsMessage::PlayPlaylist(pid)),
                             ));
                         }
@@ -375,6 +377,7 @@ fn expanded_panel<'a>(
     art: &'a ArtCache,
     cover_track_id: Option<i64>,
     panel_px: u32,
+    title: String,
     play_msg: Message,
 ) -> Element<'a, Message> {
     let panel_style = |theme: &Theme| container::Style {
@@ -387,8 +390,7 @@ fn expanded_panel<'a>(
         ..Default::default()
     };
 
-    const ART_PADDING: f32 = 8.0;
-    let art_display_size = panel_height - ART_PADDING * 2.0;
+    let art_display_size = panel_height - PANEL_ART_PADDING * 2.0;
 
     let cover: Element<'a, Message> = match cover_track_id
         .and_then(|id| art.get(id, panel_px, panel_px).or_else(|| art.get_any(id)))
@@ -399,12 +401,12 @@ fn expanded_panel<'a>(
                 .height(Length::Fixed(art_display_size))
                 .content_fit(iced::ContentFit::Cover),
         )
-        .padding(ART_PADDING)
+        .padding(PANEL_ART_PADDING)
         .width(Length::Fixed(panel_height))
         .height(Length::Fixed(panel_height))
         .into(),
         None => container(placeholder_artwork(art_display_size))
-            .padding(ART_PADDING)
+            .padding(PANEL_ART_PADDING)
             .width(Length::Fixed(panel_height))
             .height(Length::Fixed(panel_height))
             .into(),
@@ -444,23 +446,48 @@ fn expanded_panel<'a>(
             })
     };
 
+    let total_secs: u32 = tracks.iter().map(|t| t.duration() as u32).sum();
+    let total_duration = {
+        let h = total_secs / 3600;
+        let m = (total_secs % 3600) / 60;
+        let s = total_secs % 60;
+        if h > 0 {
+            format!("{h}:{m:02}:{s:02}")
+        } else {
+            format!("{m}:{s:02}")
+        }
+    };
+
     let play_all = container(
-        button(text("▶  Play All").size(12))
-            .padding([5, 12])
-            .on_press(play_msg)
-            .style(|theme: &Theme, status| {
-                let palette = theme.extended_palette();
-                button::Style {
-                    background: Some(match status {
-                        button::Status::Hovered | button::Status::Pressed => {
-                            palette.primary.base.color.into()
-                        }
-                        _ => palette.primary.weak.color.into(),
-                    }),
-                    text_color: palette.primary.base.text,
-                    ..Default::default()
-                }
+        row![
+            button(text("▶  Play All").size(12))
+                .padding([5, 12])
+                .on_press(play_msg)
+                .style(|theme: &Theme, status| {
+                    let palette = theme.extended_palette();
+                    button::Style {
+                        background: Some(match status {
+                            button::Status::Hovered | button::Status::Pressed => {
+                                palette.primary.base.color.into()
+                            }
+                            _ => palette.primary.weak.color.into(),
+                        }),
+                        text_color: palette.primary.base.text,
+                        ..Default::default()
+                    }
+                }),
+            text(title).size(14).font(iced::Font {
+                weight: iced::font::Weight::Bold,
+                ..iced::Font::DEFAULT
             }),
+            iced::widget::Space::new().width(Length::Fill),
+            text(total_duration)
+                .size(11)
+                .style(muted)
+                .align_x(iced::alignment::Horizontal::Right),
+        ]
+        .spacing(10)
+        .align_y(iced::Alignment::Center),
     )
     .padding([6, 10]);
 
