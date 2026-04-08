@@ -27,10 +27,48 @@ pub const ALL_THEMES: &[Theme] = &[
     Theme::Ferra,
 ];
 
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum PresetIndicator {
+    Numbers,
+    Dots,
+}
+
+impl Default for PresetIndicator {
+    fn default() -> Self {
+        PresetIndicator::Numbers
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum LayoutAxis {
+    Horizontal,
+    Vertical,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum LayoutNode {
+    Pane {
+        pane_type: String,
+    },
+    Split {
+        axis: LayoutAxis,
+        ratio: f32,
+        a: Box<LayoutNode>,
+        b: Box<LayoutNode>,
+    },
+}
+
 #[derive(Debug, Clone)]
 pub struct Config {
     pub theme: Theme,
     pub rounded: bool,
+    pub preset_indicator: PresetIndicator,
+    pub layouts: Vec<LayoutNode>,
+    pub current_layout: usize,
+    pub volume: f32,
 }
 
 impl Default for Config {
@@ -38,6 +76,10 @@ impl Default for Config {
         Self {
             theme: Theme::KanagawaDragon,
             rounded: true,
+            preset_indicator: PresetIndicator::Numbers,
+            layouts: vec![],
+            current_layout: 0,
+            volume: 0.5,
         }
     }
 }
@@ -47,6 +89,18 @@ struct ConfigFile {
     theme: String,
     #[serde(default = "default_true")]
     rounded: bool,
+    #[serde(default)]
+    preset_indicator: PresetIndicator,
+    #[serde(default)]
+    layouts: Vec<LayoutNode>,
+    #[serde(default)]
+    current_layout: usize,
+    #[serde(default = "default_volume")]
+    volume: f32,
+}
+
+fn default_volume() -> f32 {
+    0.5
 }
 
 fn default_true() -> bool {
@@ -58,6 +112,10 @@ impl From<&Config> for ConfigFile {
         Self {
             theme: c.theme.to_string(),
             rounded: c.rounded,
+            preset_indicator: c.preset_indicator,
+            layouts: c.layouts.clone(),
+            current_layout: c.current_layout,
+            volume: c.volume,
         }
     }
 }
@@ -67,6 +125,10 @@ impl From<ConfigFile> for Config {
         Self {
             theme: theme_from_str(&f.theme),
             rounded: f.rounded,
+            preset_indicator: f.preset_indicator,
+            layouts: f.layouts,
+            current_layout: f.current_layout,
+            volume: f.volume.clamp(0.0, 1.0),
         }
     }
 }

@@ -5,7 +5,7 @@ use iced::widget::tooltip::Position;
 use iced::widget::{button, column, container, row, rule, scrollable, svg, text, toggler, tooltip};
 use iced::{Element, Length, Theme};
 
-use crate::config::Config;
+use crate::config::{Config, PresetIndicator};
 use crate::styles::{PAD, TOOLTIP_DELAY, bar_style, svg_style};
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::theme_picker::ThemePicker;
@@ -14,10 +14,14 @@ use crate::widgets::theme_picker::ThemePicker;
 pub enum PreferenceMessage {
     SetTheme(Theme),
     SetRounded(bool),
+    SetPresetIndicator(PresetIndicator),
     SetLibrary,
     Reset,
     Save,
     Cancel,
+    ClearLibrary,
+    ConfirmClearLibrary,
+    CancelClearLibrary,
 }
 
 fn section<'a>(label: &'a str, theme: &Theme) -> Element<'a, PreferenceMessage> {
@@ -53,7 +57,11 @@ fn setting<'a>(
     .into()
 }
 
-pub fn view<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, PreferenceMessage> {
+pub fn view<'a>(
+    pending: &'a Config,
+    theme: &Theme,
+    confirming_clear: bool,
+) -> Element<'a, PreferenceMessage> {
     let action_buttons = container(
         row![
             tooltip(
@@ -117,6 +125,26 @@ pub fn view<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, PreferenceMes
     .padding(PAD * 2.0)
     .style(bar_style);
 
+    let clear_control: Element<'a, PreferenceMessage> = if confirming_clear {
+        row![
+            button(text("Cancel").size(12))
+                .on_press(PreferenceMessage::CancelClearLibrary)
+                .padding([4.0, 8.0]),
+            button(text("Confirm").size(12))
+                .on_press(PreferenceMessage::ConfirmClearLibrary)
+                .padding([4.0, 8.0])
+                .style(button::danger),
+        ]
+        .spacing(PAD)
+        .into()
+    } else {
+        button(text("Clear Database").size(12))
+            .on_press(PreferenceMessage::ClearLibrary)
+            .padding([4.0, 8.0])
+            .style(button::danger)
+            .into()
+    };
+
     let content = column![
         container(text("Preferences").size(16))
             .width(Length::Fill)
@@ -139,6 +167,21 @@ pub fn view<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, PreferenceMes
                 .into(),
             theme,
         ),
+        iced::widget::Space::new().height(PAD),
+        setting(
+            "Layout indicators",
+            "Show layout presets as numbers or dots",
+            toggler(pending.preset_indicator == PresetIndicator::Dots)
+                .on_toggle(|dots| {
+                    PreferenceMessage::SetPresetIndicator(if dots {
+                        PresetIndicator::Dots
+                    } else {
+                        PresetIndicator::Numbers
+                    })
+                })
+                .into(),
+            theme,
+        ),
         iced::widget::Space::new().height(PAD * 2.0),
         section("Library", theme),
         iced::widget::Space::new().height(PAD),
@@ -149,6 +192,15 @@ pub fn view<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, PreferenceMes
                 .on_press(PreferenceMessage::SetLibrary)
                 .padding([4.0, 8.0])
                 .into(),
+            theme,
+        ),
+        iced::widget::Space::new().height(PAD * 2.0),
+        section("Danger Zone", theme),
+        iced::widget::Space::new().height(PAD),
+        setting(
+            "Clear library",
+            "Remove all tracks, albums, and playlists from the database",
+            clear_control,
             theme,
         ),
     ]

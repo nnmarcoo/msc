@@ -3,6 +3,7 @@ use iced::widget::svg::Handle;
 use iced::widget::{column, container, row, space, svg, text, tooltip};
 use iced::{Element, Length};
 
+use crate::config::PresetIndicator;
 use crate::styles::{BAR_HEIGHT, PAD, TOOLTIP_DELAY, bar_style, svg_style};
 use crate::widgets::canvas_button::canvas_button;
 use crate::widgets::menu::{menu_item, menu_separator, styled_menu};
@@ -19,21 +20,27 @@ pub enum Message {
 
 pub fn view(
     preset_count: usize,
-    _current_preset: usize,
+    current_preset: usize,
     edit_mode: bool,
+    preset_indicator: PresetIndicator,
 ) -> Element<'static, Message> {
     let mut preset_buttons = row![].spacing(2).align_y(Vertical::Center);
 
     if preset_count > 1 || edit_mode {
         for index in 0..preset_count {
+            let label = match preset_indicator {
+                PresetIndicator::Numbers => (index + 1).to_string(),
+                PresetIndicator::Dots => "•".to_string(),
+            };
             preset_buttons = preset_buttons.push(
                 canvas_button(
-                    text((index + 1).to_string())
+                    text(label)
                         .align_x(Horizontal::Center)
                         .align_y(Vertical::Center),
                 )
                 .width(20)
                 .height(20)
+                .active(index == current_preset)
                 .on_press(Message::SwitchPreset(index)),
             );
         }

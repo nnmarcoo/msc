@@ -3,7 +3,7 @@ use std::{fs::create_dir_all, path::Path};
 use thiserror::Error;
 use walkdir::WalkDir;
 
-use crate::{Album, Config, ConfigError, Database, Track};
+use crate::{Album, Config, ConfigError, Database, Playlist, Track};
 
 pub struct Library {
     db: Database,
@@ -96,6 +96,54 @@ impl Library {
 
     pub fn query_track_from_path(&self, path: &str) -> Result<Option<Track>, LibraryError> {
         Ok(self.db.get_track_by_path(path)?)
+    }
+
+    pub fn create_playlist(&self, name: &str) -> Result<i64, LibraryError> {
+        Ok(self.db.create_playlist(name)?)
+    }
+
+    pub fn get_all_playlists(&self) -> Result<Vec<Playlist>, LibraryError> {
+        Ok(self.db.get_all_playlists()?)
+    }
+
+    pub fn rename_playlist(&self, id: i64, name: &str) -> Result<(), LibraryError> {
+        Ok(self.db.rename_playlist(id, name)?)
+    }
+
+    pub fn delete_playlist(&self, id: i64) -> Result<(), LibraryError> {
+        Ok(self.db.delete_playlist(id)?)
+    }
+
+    pub fn add_track_to_playlist(
+        &self,
+        playlist_id: i64,
+        track_id: i64,
+    ) -> Result<(), LibraryError> {
+        Ok(self.db.add_track_to_playlist(playlist_id, track_id)?)
+    }
+
+    pub fn remove_track_from_playlist(
+        &self,
+        playlist_id: i64,
+        track_id: i64,
+    ) -> Result<(), LibraryError> {
+        Ok(self.db.remove_track_from_playlist(playlist_id, track_id)?)
+    }
+
+    pub fn get_tracks_in_playlist(&self, playlist_id: i64) -> Result<Vec<Track>, LibraryError> {
+        Ok(self.db.get_tracks_in_playlist(playlist_id)?)
+    }
+
+    pub fn set_playlist_cover(
+        &self,
+        playlist_id: i64,
+        track_id: Option<i64>,
+    ) -> Result<(), LibraryError> {
+        Ok(self.db.set_playlist_cover(playlist_id, track_id)?)
+    }
+
+    pub fn clear_library(&self) -> Result<(), LibraryError> {
+        Ok(self.db.clear_library()?)
     }
 }
 

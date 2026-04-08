@@ -1,17 +1,14 @@
-use iced::alignment::Vertical;
-use iced::widget::svg::Handle;
-use iced::widget::{button, container, pane_grid, pick_list, responsive, row, svg, text};
-use iced::{Border, Element, Length, Theme};
-use msc_core::{Album, Player, Track};
+use iced::widget::{Space, container, pane_grid, text};
+use iced::{Length, Theme};
+use msc_core::{Album, Player, Playlist, Track};
 use std::cell::RefCell;
 use std::fmt::{self, Display};
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
+use crate::components::context_menu::{MenuElement, context_menu};
 use crate::pane_view::{PaneView, ViewContext};
 use crate::panes::*;
-use crate::styles::svg_style;
-use crate::widgets::square_button::square_button;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PaneType {
@@ -41,7 +38,7 @@ impl PaneType {
         PaneType::Empty,
     ];
 
-    pub fn title(&self) -> &str {
+    pub fn title(&self) -> &'static str {
         match self {
             PaneType::Controls => "Controls",
             PaneType::Queue => "Queue",
@@ -54,6 +51,14 @@ impl PaneType {
             PaneType::TrackInfo => "Track Info",
             PaneType::Empty => "Empty",
         }
+    }
+
+    pub fn from_title(s: &str) -> Self {
+        Self::ALL
+            .iter()
+            .find(|t| t.title() == s)
+            .copied()
+            .unwrap_or(PaneType::Empty)
     }
 
     pub fn create(&self) -> Box<dyn PaneView> {
@@ -120,100 +125,62 @@ impl Pane {
         seeking_position: Option<f32>,
         cached_tracks: &'a RefCell<Option<Vec<Track>>>,
         cached_albums: &'a RefCell<Option<Vec<Album>>>,
+        cached_playlists: &'a RefCell<Option<Vec<Playlist>>>,
         art: &'a ArtCache,
     ) -> pane_grid::Content<'a, Message> {
         if edit_mode {
             let current_type = self.get_type();
-            let title = row![
-                pick_list(&PaneType::ALL[..], Some(current_type), move |pane_type| {
-                    Message::PaneTypeChanged(pane, pane_type)
-                })
-                .text_size(14)
-            ]
-            .spacing(5)
-            .align_y(Vertical::Center);
 
-            let horizontal_split: Element<'_, Message> = square_button(
-                svg(Handle::from_memory(include_bytes!(
-                    "../../assets/icons/horizontal.svg"
-                )))
-                .style(svg_style),
-                20,
-            )
-            .style(button::primary)
-            .on_press(Message::Split(pane_grid::Axis::Horizontal, pane))
-            .into();
+            let mut items: Vec<MenuElement<Message>> = PaneType::ALL
+                .iter()
+                .filter(|&&t| t != current_type)
+                .map(|t| MenuElement::button(t.title(), Message::PaneTypeChanged(pane, *t)))
+                .collect();
 
-            let vertical_split: Element<'_, Message> = square_button(
-                svg(Handle::from_memory(include_bytes!(
-                    "../../assets/icons/vertical.svg"
-                )))
-                .style(svg_style),
-                20,
-            )
-            .style(button::primary)
-            .on_press(Message::Split(pane_grid::Axis::Vertical, pane))
-            .into();
-
-            let mut controls = row![horizontal_split, vertical_split]
-                .spacing(5)
-                .align_y(Vertical::Center);
+            items.push(MenuElement::Separator);
+            items.push(MenuElement::button(
+                "Split Horizontally",
+                Message::Split(pane_grid::Axis::Horizontal, pane),
+            ));
+            items.push(MenuElement::button(
+                "Split Vertically",
+                Message::Split(pane_grid::Axis::Vertical, pane),
+            ));
 
             if total_panes > 1 {
-                let close_btn: Element<'_, Message> = button(
-                    svg(Handle::from_memory(include_bytes!(
-                        "../../assets/icons/x.svg"
-                    )))
-                    .style(svg_style),
-                )
-                .width(Length::Fixed(20.0))
-                .height(Length::Fixed(20.0))
-                .padding(0)
-                .style(button::danger)
-                .on_press(Message::Close(pane))
-                .into();
-
-                controls = controls.push(close_btn);
+                items.push(MenuElement::Separator);
+                items.push(MenuElement::button("Close", Message::Close(pane)));
             }
 
-            let controls_element: Element<'_, Message> = container(controls).into();
-
-            let title_bar = pane_grid::TitleBar::new(title)
-                .controls(controls_element)
-                .style(|theme: &Theme| {
-                    let palette = theme.extended_palette();
-                    container::Style {
-                        text_color: Some(palette.background.strong.text),
-                        background: Some(palette.background.strong.color.into()),
-                        ..Default::default()
-                    }
-                });
-
-            let edit_content = responsive(move |size| {
-                let size_text = format!("{}x{}", size.width as u32, size.height as u32);
-                container(text(size_text).size(16))
+            let body =
+                context_menu(
+                    container(text(current_type.title()).size(16).style(|theme: &Theme| {
+                        text::Style {
+                            color: Some(theme.extended_palette().background.base.text),
+                        }
+                    }))
                     .width(Length::Fill)
                     .height(Length::Fill)
                     .center_x(Length::Fill)
                     .center_y(Length::Fill)
-                    .padding(5)
-                    .style(|theme: &Theme| {
-                        let palette = theme.extended_palette();
-                        container::Style {
-                            text_color: Some(palette.background.weak.text),
-                            background: Some(palette.background.base.color.into()),
-                            border: Border {
-                                width: 2.0,
-                                color: palette.background.strong.color,
-                                ..Default::default()
-                            },
-                            ..Default::default()
-                        }
-                    })
-                    .into()
-            });
+                    .style(|theme: &Theme| container::Style {
+                        background: Some(theme.extended_palette().background.base.color.into()),
+                        ..Default::default()
+                    }),
+                    items,
+                );
 
-            pane_grid::Content::new(edit_content).title_bar(title_bar)
+            let title_bar = pane_grid::TitleBar::new(Space::new().height(0))
+                .padding([9, 0])
+                .style(|theme: &Theme| {
+                    let palette = theme.extended_palette();
+                    container::Style {
+                        background: Some(palette.primary.base.color.into()),
+                        ..Default::default()
+                    }
+                });
+
+            pane_grid::Content::new(body).title_bar(title_bar)
         } else {
             let ctx = ViewContext {
                 player,
@@ -222,6 +189,7 @@ impl Pane {
                 seeking_position,
                 cached_tracks,
                 cached_albums,
+                cached_playlists,
                 art,
             };
 

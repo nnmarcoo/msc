@@ -1,5 +1,5 @@
 use iced::Element;
-use msc_core::{Album, Player, Track};
+use msc_core::{Album, Player, Playlist, Track};
 use std::cell::RefCell;
 use std::fmt;
 
@@ -13,10 +13,13 @@ pub struct ViewContext<'a> {
     pub seeking_position: Option<f32>,
     pub cached_tracks: &'a RefCell<Option<Vec<Track>>>,
     pub cached_albums: &'a RefCell<Option<Vec<Album>>>,
+    pub cached_playlists: &'a RefCell<Option<Vec<Playlist>>>,
     pub art: &'a ArtCache,
 }
 
 pub trait PaneView: fmt::Debug {
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any;
+
     fn update(&mut self, player: &Player, art: &mut ArtCache);
 
     fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message>;

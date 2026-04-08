@@ -4,7 +4,7 @@ use thiserror::Error;
 use kira::backend::cpal;
 
 use crate::{
-    Album, Config, ConfigError, Library, LibraryError, Queue, Track, VisData,
+    Album, Config, ConfigError, Library, LibraryError, Playlist, Queue, Track, VisData,
     backend::{Backend, BackendState, PlaybackError},
     queue::LoopMode,
 };
@@ -25,8 +25,6 @@ impl Player {
             queue: Queue::new(),
         })
     }
-
-    // ── Library ──────────────────────────────────────────────────────────────
 
     pub fn populate_library(&mut self, root: &Path) -> Result<(), LibraryError> {
         self.library.populate(root)
@@ -68,7 +66,58 @@ impl Player {
         self.library.query_track_count()
     }
 
-    // ── Playback ─────────────────────────────────────────────────────────────
+    pub fn create_playlist(&self, name: &str) -> Result<i64, LibraryError> {
+        self.library.create_playlist(name)
+    }
+
+    pub fn get_all_playlists(&self) -> Result<Vec<Playlist>, LibraryError> {
+        self.library.get_all_playlists()
+    }
+
+    pub fn rename_playlist(&self, id: i64, name: &str) -> Result<(), LibraryError> {
+        self.library.rename_playlist(id, name)
+    }
+
+    pub fn delete_playlist(&self, id: i64) -> Result<(), LibraryError> {
+        self.library.delete_playlist(id)
+    }
+
+    pub fn add_track_to_playlist(
+        &self,
+        playlist_id: i64,
+        track_id: i64,
+    ) -> Result<(), LibraryError> {
+        self.library.add_track_to_playlist(playlist_id, track_id)
+    }
+
+    pub fn remove_track_from_playlist(
+        &self,
+        playlist_id: i64,
+        track_id: i64,
+    ) -> Result<(), LibraryError> {
+        self.library
+            .remove_track_from_playlist(playlist_id, track_id)
+    }
+
+    pub fn get_tracks_in_playlist(&self, playlist_id: i64) -> Result<Vec<Track>, LibraryError> {
+        self.library.get_tracks_in_playlist(playlist_id)
+    }
+
+    pub fn set_playlist_cover(
+        &self,
+        playlist_id: i64,
+        track_id: Option<i64>,
+    ) -> Result<(), LibraryError> {
+        self.library.set_playlist_cover(playlist_id, track_id)
+    }
+
+    pub fn clear_library(&mut self) -> Result<(), LibraryError> {
+        self.queue.clear();
+        self.backend.stop();
+        self.library.clear_library()?;
+        Config::clear_root()?;
+        Ok(())
+    }
 
     pub fn play(&mut self) -> Result<(), PlaybackError> {
         match self.backend.state() {
@@ -103,15 +152,12 @@ impl Player {
         self.backend.vis_data()
     }
 
-    /// Called each tick to advance to next track when the current one finishes.
     pub fn update(&mut self) -> Result<(), PlaybackError> {
         if self.backend.state() == BackendState::Finished {
             self.start_next()?;
         }
         Ok(())
     }
-
-    // ── Queue ─────────────────────────────────────────────────────────────────
 
     pub fn shuffle_queue(&mut self) {
         self.queue.shuffle();

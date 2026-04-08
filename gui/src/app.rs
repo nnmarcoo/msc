@@ -3,7 +3,7 @@ use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container, space};
 use iced::{Element, Event, Length, Subscription, Task, Theme};
-use msc_core::{Album, Player, Track};
+use msc_core::{Album, Player, Playlist, Track};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
@@ -11,10 +11,11 @@ use std::time::Duration;
 use crate::art_cache::ArtCache;
 use crate::components::preferences::PreferenceMessage;
 use crate::components::{bottom_bar, preferences};
-use crate::config::Config;
+use crate::config::{Config, LayoutAxis, LayoutNode};
 use crate::media_controls::MediaSession;
 use crate::pane::{Pane, PaneType};
-use crate::panes::ControlsMessage;
+use crate::panes::collections::{CollectionsPane, ExpandedItem};
+use crate::panes::{CollectionsMessage, ControlsMessage};
 use crate::styles::set_radius;
 use crate::window_handle;
 
@@ -32,10 +33,12 @@ pub struct App {
     media_session: Option<MediaSession>,
     cached_tracks: RefCell<Option<Vec<Track>>>,
     cached_albums: RefCell<Option<Vec<Album>>>,
+    cached_playlists: RefCell<Option<Vec<Playlist>>>,
     art_cache: ArtCache,
     is_minimized: bool,
     config: Config,
     editing_config: Option<Config>,
+    confirming_clear: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -47,6 +50,7 @@ pub enum Message {
     Dragged(pane_grid::DragEvent),
     Resized(pane_grid::ResizeEvent),
     Controls(ControlsMessage),
+    Collections(CollectionsMessage),
     LibraryPathSelected(Option<PathBuf>),
     SetLibrary,
     PaneTypeChanged(pane_grid::Pane, PaneType),
@@ -59,6 +63,7 @@ pub enum Message {
     QueueBack(i64),
     QueueFront(i64),
     PlayAlbum(String, Option<String>),
+    AddTrackToPlaylist(i64, i64),
     TrackHovered(i64),
     TrackUnhovered,
     OpenPreferences,
@@ -71,46 +76,42 @@ impl Default for App {
         let config = Config::load();
         set_radius(config.rounded);
 
-        let pane_config = pane_grid::Configuration::Split {
-            axis: pane_grid::Axis::Horizontal,
-            ratio: 0.9,
-            a: Box::new(pane_grid::Configuration::Split {
-                axis: pane_grid::Axis::Vertical,
-                ratio: 0.7,
-                a: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Library))),
-                b: Box::new(pane_grid::Configuration::Split {
-                    axis: pane_grid::Axis::Horizontal,
-                    ratio: 0.5,
-                    a: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Artwork))),
-                    b: Box::new(pane_grid::Configuration::Pane(Pane::new(PaneType::Queue))),
-                }),
-            }),
-            b: Box::new(pane_grid::Configuration::Pane(Pane::new(
-                PaneType::Controls,
-            ))),
+        let default_layout = pane_grid::Configuration::Pane(Pane::new(PaneType::Library));
+
+        let layout_presets: Vec<pane_grid::Configuration<Pane>> = if config.layouts.is_empty() {
+            vec![default_layout]
+        } else {
+            config.layouts.iter().map(node_to_pane_config).collect()
         };
 
-        let panes = pane_grid::State::with_configuration(pane_config.clone());
-        let player = Player::new().expect("Failed to initialize player");
+        let current_preset = config
+            .current_layout
+            .min(layout_presets.len().saturating_sub(1));
+
+        let panes = pane_grid::State::with_configuration(layout_presets[current_preset].clone());
+        let mut player = Player::new().expect("Failed to initialize player");
+        player.set_volume(config.volume);
 
         Self {
             panes,
             focus: None,
             edit_mode: false,
             player,
-            volume: 0.5,
-            previous_volume: 0.5,
+            volume: config.volume,
+            previous_volume: config.volume,
             seeking_position: None,
-            layout_presets: vec![pane_config],
-            current_preset: 0,
+            layout_presets,
+            current_preset,
             hovered_track: None,
             media_session: None,
             cached_tracks: RefCell::new(None),
             cached_albums: RefCell::new(None),
+            cached_playlists: RefCell::new(None),
             art_cache: ArtCache::new(),
             is_minimized: false,
             config,
             editing_config: None,
+            confirming_clear: false,
         }
     }
 }
@@ -123,9 +124,32 @@ impl App {
     fn invalidate_library_cache(&mut self) {
         *self.cached_tracks.borrow_mut() = None;
         *self.cached_albums.borrow_mut() = None;
+        *self.cached_playlists.borrow_mut() = None;
         self.art_cache.invalidate();
         for (_, pane) in self.panes.iter_mut() {
             pane.invalidate_cache();
+        }
+    }
+
+    fn invalidate_playlist_cache(&mut self) {
+        *self.cached_playlists.borrow_mut() = None;
+        for (_, pane) in self.panes.iter_mut() {
+            if let Some(cp) = pane.content.as_any_mut().downcast_mut::<CollectionsPane>() {
+                cp.playlist_art_keys.clear();
+                cp.playlists_initialized = false;
+                if matches!(cp.expanded, Some(ExpandedItem::Playlist(_))) {
+                    cp.expanded = None;
+                    cp.expanded_tracks.clear();
+                    cp.expanded_cover = None;
+                }
+            }
+        }
+    }
+
+    fn ensure_cached_playlists(&self) {
+        let mut cache = self.cached_playlists.borrow_mut();
+        if cache.is_none() {
+            *cache = Some(self.player.get_all_playlists().unwrap_or_default());
         }
     }
 
@@ -152,9 +176,18 @@ impl App {
     }
 
     fn save_current_layout(&mut self) {
-        let config = self.panes.layout().clone();
-        self.layout_presets[self.current_preset] =
-            Self::layout_to_configuration(&self.panes, config);
+        let node = self.panes.layout().clone();
+        self.layout_presets[self.current_preset] = Self::layout_to_configuration(&self.panes, node);
+    }
+
+    fn persist_layouts(&mut self) {
+        self.config.layouts = self
+            .layout_presets
+            .iter()
+            .map(pane_config_to_node)
+            .collect();
+        self.config.current_layout = self.current_preset;
+        self.config.save();
     }
 
     fn layout_to_configuration(
@@ -309,6 +342,8 @@ impl App {
                 ControlsMessage::VolumeChanged(vol) => {
                     self.volume = vol;
                     self.player.set_volume(vol);
+                    self.config.volume = vol;
+                    self.config.save();
                 }
                 ControlsMessage::ToggleMute => {
                     if self.volume > 0.0 {
@@ -318,6 +353,8 @@ impl App {
                         self.volume = self.previous_volume;
                     }
                     self.player.set_volume(self.volume);
+                    self.config.volume = self.volume;
+                    self.config.save();
                 }
                 ControlsMessage::SeekChanged(pos) => {
                     self.seeking_position = Some(pos);
@@ -353,15 +390,24 @@ impl App {
                         c.rounded = v;
                     }
                 }
+                PreferenceMessage::SetPresetIndicator(v) => {
+                    if let Some(c) = &mut self.editing_config {
+                        c.preset_indicator = v;
+                    }
+                }
                 PreferenceMessage::Save => {
-                    if let Some(c) = self.editing_config.take() {
+                    if let Some(mut c) = self.editing_config.take() {
+                        c.layouts = self.config.layouts.clone();
+                        c.current_layout = self.config.current_layout;
                         set_radius(c.rounded);
                         c.save();
                         self.config = c;
+                        self.confirming_clear = false;
                     }
                 }
                 PreferenceMessage::Cancel => {
                     self.editing_config = None;
+                    self.confirming_clear = false;
                     set_radius(self.config.rounded);
                 }
                 PreferenceMessage::Reset => {
@@ -381,6 +427,17 @@ impl App {
                         Message::LibraryPathSelected,
                     );
                 }
+                PreferenceMessage::ClearLibrary => {
+                    self.confirming_clear = true;
+                }
+                PreferenceMessage::CancelClearLibrary => {
+                    self.confirming_clear = false;
+                }
+                PreferenceMessage::ConfirmClearLibrary => {
+                    self.confirming_clear = false;
+                    let _ = self.player.clear_library();
+                    self.invalidate_library_cache();
+                }
             },
             Message::BottomBar(msg) => {
                 use bottom_bar::Message as BottomBarMessage;
@@ -391,11 +448,12 @@ impl App {
                     BottomBarMessage::ToggleEditMode => {
                         if self.edit_mode {
                             self.save_current_layout();
+                            self.persist_layouts();
                         }
                         self.edit_mode = !self.edit_mode;
                     }
                     BottomBarMessage::SwitchPreset(index) => {
-                        if index < self.layout_presets.len() {
+                        if index < self.layout_presets.len() && index != self.current_preset {
                             if self.edit_mode {
                                 self.save_current_layout();
                             }
@@ -404,6 +462,7 @@ impl App {
                                 self.layout_presets[index].clone(),
                             );
                             self.focus = None;
+                            self.persist_layouts();
                         }
                     }
                     BottomBarMessage::AddPreset => {
@@ -412,6 +471,7 @@ impl App {
                         self.current_preset = self.layout_presets.len() - 1;
                         self.panes = pane_grid::State::with_configuration(new_preset);
                         self.focus = None;
+                        self.persist_layouts();
                     }
                     BottomBarMessage::RemovePreset => {
                         if self.layout_presets.len() > 1 {
@@ -422,6 +482,7 @@ impl App {
                                 self.layout_presets[self.current_preset].clone(),
                             );
                             self.focus = None;
+                            self.persist_layouts();
                         }
                     }
                 }
@@ -469,6 +530,105 @@ impl App {
                     self.player.queue_front(track_id);
                 }
             }
+            Message::Collections(msg) => {
+                for (_, pane) in self.panes.iter_mut() {
+                    if let Some(cp) = pane.content.as_any_mut().downcast_mut::<CollectionsPane>() {
+                        match &msg {
+                            CollectionsMessage::ToggleNewPlaylistInput => {
+                                cp.creating_playlist = !cp.creating_playlist;
+                                cp.new_playlist_name.clear();
+                            }
+                            CollectionsMessage::NameChanged(name) => {
+                                cp.new_playlist_name = name.clone();
+                            }
+                            CollectionsMessage::Confirm(_) => {
+                                cp.creating_playlist = false;
+                                cp.new_playlist_name.clear();
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+
+                match msg {
+                    CollectionsMessage::Confirm(name) => {
+                        if !name.is_empty() {
+                            let _ = self.player.create_playlist(&name);
+                            self.invalidate_playlist_cache();
+                        }
+                    }
+                    CollectionsMessage::DeletePlaylist(id) => {
+                        let _ = self.player.delete_playlist(id);
+                        self.invalidate_playlist_cache();
+                    }
+                    CollectionsMessage::PlayPlaylist(id) => {
+                        if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
+                            self.player.clear_queue();
+                            for track in tracks {
+                                if let Some(tid) = track.id() {
+                                    self.player.queue_back(tid);
+                                }
+                            }
+                            let _ = self.player.play();
+                        }
+                    }
+                    CollectionsMessage::ToggleAlbum(name, artist) => {
+                        let new_key = ExpandedItem::Album(name.clone(), artist.clone());
+                        let fetched = self.player.query_tracks_by_album(&name).unwrap_or_default();
+                        let album_id = {
+                            let cache = self.cached_albums.borrow();
+                            cache
+                                .as_ref()
+                                .and_then(|albums| albums.iter().find(|a| a.name == name))
+                                .map(|a| a.id)
+                        };
+                        for (_, pane) in self.panes.iter_mut() {
+                            if let Some(cp) =
+                                pane.content.as_any_mut().downcast_mut::<CollectionsPane>()
+                            {
+                                if cp.expanded.as_ref() == Some(&new_key) {
+                                    cp.expanded = None;
+                                    cp.expanded_tracks.clear();
+                                    cp.expanded_cover = None;
+                                } else {
+                                    cp.expanded = Some(new_key.clone());
+                                    cp.expanded_tracks = fetched.clone();
+                                    cp.expanded_cover = album_id
+                                        .and_then(|aid| cp.album_art_keys.get(&aid))
+                                        .map(|(tid, path)| (*tid, path.clone()));
+                                }
+                            }
+                        }
+                    }
+                    CollectionsMessage::TogglePlaylist(id) => {
+                        let new_key = ExpandedItem::Playlist(id);
+                        let fetched = self.player.get_tracks_in_playlist(id).unwrap_or_default();
+                        for (_, pane) in self.panes.iter_mut() {
+                            if let Some(cp) =
+                                pane.content.as_any_mut().downcast_mut::<CollectionsPane>()
+                            {
+                                if cp.expanded.as_ref() == Some(&new_key) {
+                                    cp.expanded = None;
+                                    cp.expanded_tracks.clear();
+                                    cp.expanded_cover = None;
+                                } else {
+                                    cp.expanded = Some(new_key.clone());
+                                    cp.expanded_tracks = fetched.clone();
+                                    cp.expanded_cover = cp
+                                        .playlist_art_keys
+                                        .get(&id)
+                                        .map(|(tid, path)| (*tid, path.clone()));
+                                }
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            Message::AddTrackToPlaylist(track_id, playlist_id) => {
+                let _ = self.player.add_track_to_playlist(playlist_id, track_id);
+                self.invalidate_playlist_cache();
+            }
             Message::PlayAlbum(album_name, _artist) => {
                 if let Ok(tracks) = self.player.query_tracks_by_album(&album_name) {
                     self.player.clear_queue();
@@ -510,6 +670,9 @@ impl App {
                         if let Ok(num) = c.parse::<usize>() {
                             if num >= 1 && num <= self.layout_presets.len() {
                                 let index = num - 1;
+                                if index == self.current_preset {
+                                    return Task::none();
+                                }
                                 if self.edit_mode {
                                     self.save_current_layout();
                                 }
@@ -518,6 +681,7 @@ impl App {
                                     self.layout_presets[index].clone(),
                                 );
                                 self.focus = None;
+                                self.persist_layouts();
                             }
                         }
                     }
@@ -530,7 +694,7 @@ impl App {
         Task::none()
     }
 
-    pub fn view(&self) -> Element<Message> {
+    pub fn view(&self) -> Element<'_, Message> {
         if self.is_minimized {
             return space().into();
         }
@@ -540,6 +704,7 @@ impl App {
 
         self.ensure_cached_tracks();
         self.ensure_cached_albums();
+        self.ensure_cached_playlists();
 
         let player = &self.player;
         let volume = self.volume;
@@ -547,6 +712,7 @@ impl App {
         let seeking_position = self.seeking_position;
         let cached_tracks = &self.cached_tracks;
         let cached_albums = &self.cached_albums;
+        let cached_playlists = &self.cached_playlists;
         let art_cache = &self.art_cache;
 
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
@@ -560,12 +726,13 @@ impl App {
                 seeking_position,
                 cached_tracks,
                 cached_albums,
+                cached_playlists,
                 art_cache,
             )
         })
         .width(Length::Fill)
         .height(Length::Fill)
-        .spacing(if edit_mode { 4 } else { 0 });
+        .spacing(if edit_mode { 6 } else { 0 });
 
         if edit_mode {
             pane_grid = pane_grid
@@ -581,7 +748,7 @@ impl App {
                 .style(|theme: &Theme| {
                     let palette = theme.extended_palette();
                     container::Style {
-                        background: Some(palette.background.weak.color.into()),
+                        background: Some(palette.background.strong.color.into()),
                         ..Default::default()
                     }
                 })
@@ -592,7 +759,8 @@ impl App {
         };
 
         if let Some(pending) = &self.editing_config {
-            return preferences::view(pending, &self.config.theme).map(Message::Preference);
+            return preferences::view(pending, &self.config.theme, self.confirming_clear)
+                .map(Message::Preference);
         }
 
         column![
@@ -601,6 +769,7 @@ impl App {
                 self.layout_presets.len(),
                 self.current_preset,
                 self.edit_mode,
+                self.config.preset_indicator,
             )
             .map(Message::BottomBar)
         ]
@@ -618,5 +787,39 @@ impl App {
             every(tick_duration).map(|_| Message::Tick),
             iced::event::listen().map(Message::Event),
         ])
+    }
+}
+
+fn pane_config_to_node(config: &pane_grid::Configuration<Pane>) -> LayoutNode {
+    match config {
+        pane_grid::Configuration::Pane(pane) => LayoutNode::Pane {
+            pane_type: pane.pane_type.title().to_string(),
+        },
+        pane_grid::Configuration::Split { axis, ratio, a, b } => LayoutNode::Split {
+            axis: match axis {
+                pane_grid::Axis::Horizontal => LayoutAxis::Horizontal,
+                pane_grid::Axis::Vertical => LayoutAxis::Vertical,
+            },
+            ratio: *ratio,
+            a: Box::new(pane_config_to_node(a)),
+            b: Box::new(pane_config_to_node(b)),
+        },
+    }
+}
+
+fn node_to_pane_config(node: &LayoutNode) -> pane_grid::Configuration<Pane> {
+    match node {
+        LayoutNode::Pane { pane_type } => {
+            pane_grid::Configuration::Pane(Pane::new(PaneType::from_title(pane_type)))
+        }
+        LayoutNode::Split { axis, ratio, a, b } => pane_grid::Configuration::Split {
+            axis: match axis {
+                LayoutAxis::Horizontal => pane_grid::Axis::Horizontal,
+                LayoutAxis::Vertical => pane_grid::Axis::Vertical,
+            },
+            ratio: *ratio,
+            a: Box::new(node_to_pane_config(a)),
+            b: Box::new(node_to_pane_config(b)),
+        },
     }
 }

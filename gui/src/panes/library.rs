@@ -118,18 +118,32 @@ impl PaneView for LibraryPane {
                 let track_content =
                     mouse_area(track_inner).on_move(move |_| Message::TrackHovered(track_id));
 
-                let track_row = context_menu(
-                    track_content,
-                    vec![
-                        MenuElement::button("Add to playlist", Message::Tick),
-                        MenuElement::Separator,
-                        MenuElement::button("Play", Message::PlayTrack(track_id)),
-                        MenuElement::button("Queue next", Message::QueueFront(track_id)),
-                        MenuElement::button("Queue", Message::QueueBack(track_id)),
-                        MenuElement::Separator,
-                        MenuElement::button("Queue library", Message::QueueLibrary),
-                    ],
-                );
+                let playlists = ctx.cached_playlists.borrow().clone().unwrap_or_default();
+
+                let mut menu_items: Vec<MenuElement<Message>> = Vec::new();
+
+                if playlists.is_empty() {
+                    menu_items.push(MenuElement::label("No playlists"));
+                } else {
+                    for playlist in &playlists {
+                        menu_items.push(MenuElement::button(
+                            format!("Add to \"{}\"", playlist.name),
+                            Message::AddTrackToPlaylist(track_id, playlist.id),
+                        ));
+                    }
+                }
+
+                menu_items.push(MenuElement::Separator);
+                menu_items.push(MenuElement::button("Play", Message::PlayTrack(track_id)));
+                menu_items.push(MenuElement::button(
+                    "Queue next",
+                    Message::QueueFront(track_id),
+                ));
+                menu_items.push(MenuElement::button("Queue", Message::QueueBack(track_id)));
+                menu_items.push(MenuElement::Separator);
+                menu_items.push(MenuElement::button("Queue library", Message::QueueLibrary));
+
+                let track_row = context_menu(track_content, menu_items);
 
                 track_list = track_list.push(track_row);
             }
@@ -149,6 +163,10 @@ impl PaneView for LibraryPane {
         )
         .on_exit(Message::TrackUnhovered)
         .into()
+    }
+
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
     }
 
     fn clone_box(&self) -> Box<dyn PaneView> {

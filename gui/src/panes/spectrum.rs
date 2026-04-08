@@ -38,6 +38,10 @@ impl PaneView for SpectrumPane {
         .into()
     }
 
+    fn as_any_mut(&mut self) -> &mut dyn std::any::Any {
+        self
+    }
+
     fn clone_box(&self) -> Box<dyn PaneView> {
         Box::new(self.clone())
     }
