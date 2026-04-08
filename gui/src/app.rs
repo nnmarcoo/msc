@@ -89,15 +89,16 @@ impl Default for App {
             .min(layout_presets.len().saturating_sub(1));
 
         let panes = pane_grid::State::with_configuration(layout_presets[current_preset].clone());
-        let player = Player::new().expect("Failed to initialize player");
+        let mut player = Player::new().expect("Failed to initialize player");
+        player.set_volume(config.volume);
 
         Self {
             panes,
             focus: None,
             edit_mode: false,
             player,
-            volume: 0.5,
-            previous_volume: 0.5,
+            volume: config.volume,
+            previous_volume: config.volume,
             seeking_position: None,
             layout_presets,
             current_preset,
@@ -341,6 +342,8 @@ impl App {
                 ControlsMessage::VolumeChanged(vol) => {
                     self.volume = vol;
                     self.player.set_volume(vol);
+                    self.config.volume = vol;
+                    self.config.save();
                 }
                 ControlsMessage::ToggleMute => {
                     if self.volume > 0.0 {
@@ -350,6 +353,8 @@ impl App {
                         self.volume = self.previous_volume;
                     }
                     self.player.set_volume(self.volume);
+                    self.config.volume = self.volume;
+                    self.config.save();
                 }
                 ControlsMessage::SeekChanged(pos) => {
                     self.seeking_position = Some(pos);
