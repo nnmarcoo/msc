@@ -20,4 +20,13 @@ impl Database {
         schema::create_tables(&conn)?;
         Ok(Database { conn })
     }
+
+    pub fn clear_library(&self) -> SqliteResult<()> {
+        self.conn.execute_batch(
+            "DELETE FROM playlist_tracks;
+             DELETE FROM playlists;
+             DELETE FROM albums;
+             DELETE FROM tracks;",
+        )
+    }
 }

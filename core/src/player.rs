@@ -26,8 +26,6 @@ impl Player {
         })
     }
 
-    // ── Library ──────────────────────────────────────────────────────────────
-
     pub fn populate_library(&mut self, root: &Path) -> Result<(), LibraryError> {
         self.library.populate(root)
     }
@@ -113,7 +111,13 @@ impl Player {
         self.library.set_playlist_cover(playlist_id, track_id)
     }
 
-    // ── Playback ─────────────────────────────────────────────────────────────
+    pub fn clear_library(&mut self) -> Result<(), LibraryError> {
+        self.queue.clear();
+        self.backend.stop();
+        self.library.clear_library()?;
+        Config::clear_root()?;
+        Ok(())
+    }
 
     pub fn play(&mut self) -> Result<(), PlaybackError> {
         match self.backend.state() {
@@ -148,15 +152,12 @@ impl Player {
         self.backend.vis_data()
     }
 
-    /// Called each tick to advance to next track when the current one finishes.
     pub fn update(&mut self) -> Result<(), PlaybackError> {
         if self.backend.state() == BackendState::Finished {
             self.start_next()?;
         }
         Ok(())
     }
-
-    // ── Queue ─────────────────────────────────────────────────────────────────
 
     pub fn shuffle_queue(&mut self) {
         self.queue.shuffle();

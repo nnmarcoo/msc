@@ -38,6 +38,7 @@ pub struct App {
     is_minimized: bool,
     config: Config,
     editing_config: Option<Config>,
+    confirming_clear: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -109,6 +110,7 @@ impl Default for App {
             is_minimized: false,
             config,
             editing_config: None,
+            confirming_clear: false,
         }
     }
 }
@@ -395,10 +397,12 @@ impl App {
                         set_radius(c.rounded);
                         c.save();
                         self.config = c;
+                        self.confirming_clear = false;
                     }
                 }
                 PreferenceMessage::Cancel => {
                     self.editing_config = None;
+                    self.confirming_clear = false;
                     set_radius(self.config.rounded);
                 }
                 PreferenceMessage::Reset => {
@@ -417,6 +421,17 @@ impl App {
                         },
                         Message::LibraryPathSelected,
                     );
+                }
+                PreferenceMessage::ClearLibrary => {
+                    self.confirming_clear = true;
+                }
+                PreferenceMessage::CancelClearLibrary => {
+                    self.confirming_clear = false;
+                }
+                PreferenceMessage::ConfirmClearLibrary => {
+                    self.confirming_clear = false;
+                    let _ = self.player.clear_library();
+                    self.invalidate_library_cache();
                 }
             },
             Message::BottomBar(msg) => {
@@ -739,7 +754,8 @@ impl App {
         };
 
         if let Some(pending) = &self.editing_config {
-            return preferences::view(pending, &self.config.theme).map(Message::Preference);
+            return preferences::view(pending, &self.config.theme, self.confirming_clear)
+                .map(Message::Preference);
         }
 
         column![

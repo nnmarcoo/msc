@@ -141,6 +141,10 @@ impl Library {
     ) -> Result<(), LibraryError> {
         Ok(self.db.set_playlist_cover(playlist_id, track_id)?)
     }
+
+    pub fn clear_library(&self) -> Result<(), LibraryError> {
+        Ok(self.db.clear_library()?)
+    }
 }
 
 #[derive(Debug, Error)]

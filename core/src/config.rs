@@ -53,6 +53,13 @@ impl Config {
         Ok(())
     }
 
+    pub fn clear_root() -> Result<(), ConfigError> {
+        let mut config = Self::get().write().unwrap();
+        config.root = None;
+        config.save()?;
+        Ok(())
+    }
+
     pub fn save_current() -> Result<(), ConfigError> {
         let config = Self::get().read().unwrap();
         config.save()
