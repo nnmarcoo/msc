@@ -1,3 +1,4 @@
+use iced::alignment::Vertical;
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{
     button, column, container, image, mouse_area, responsive, row, scrollable, stack, svg, text,
@@ -679,7 +680,7 @@ fn card_with_overlay<'a>(
             None => (Color::BLACK, Color::WHITE),
         };
         let icon_style = move |_: &Theme, _: iced::widget::svg::Status| iced::widget::svg::Style {
-            color: Some(icon_color),
+            color: Some(Color::WHITE),
         };
 
         column![
@@ -707,10 +708,16 @@ fn card_with_overlay<'a>(
                 ]
                 .spacing(6),
             )
+            .height(Length::Fixed(card_size))
             .padding(5)
             .center_x(card_size)
+            .align_bottom(card_size)
             .style(move |_: &Theme| container::Style {
-                background: Some(bar_color.into()),
+                background: Some(iced::Background::Gradient(iced::Gradient::Linear(
+                    iced::gradient::Linear::new(Radians(std::f32::consts::PI))
+                        .add_stop(0.0, Color::TRANSPARENT)
+                        .add_stop(1.0, Color::BLACK),
+                ))),
                 ..Default::default()
             }),
         ]
