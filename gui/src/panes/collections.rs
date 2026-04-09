@@ -520,10 +520,10 @@ fn expanded_panel<'a>(
 
     let separator = || {
         container(iced::widget::Space::new())
-            .height(Length::Fixed(1.0))
+            .height(Length::Fixed(2.0))
             .width(Length::Fill)
             .style(|theme: &Theme| container::Style {
-                background: Some(theme.extended_palette().background.strong.color.into()),
+                background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.05).into()),
                 ..Default::default()
             })
     };
