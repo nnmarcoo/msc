@@ -671,14 +671,6 @@ fn card_with_overlay<'a>(
         .on_press(toggle_msg);
 
     let overlay: Element<'a, Message> = if is_hovered {
-        let (bar_color, icon_color) = match colors {
-            Some(c) => {
-                let bg = Color::from_rgb8(c.background[0], c.background[1], c.background[2]);
-                let inv = Color::from_rgb(1.0 - bg.r, 1.0 - bg.g, 1.0 - bg.b);
-                (bg, inv)
-            }
-            None => (Color::BLACK, Color::WHITE),
-        };
         let icon_style = move |_: &Theme, _: iced::widget::svg::Status| iced::widget::svg::Style {
             color: Some(Color::WHITE),
         };
