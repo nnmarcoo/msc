@@ -171,7 +171,11 @@ impl AudioAnalyzer {
 
             for (i, &db) in bin_db.iter().enumerate() {
                 let normalized = ((db - floor) / RANGE_DB).clamp(0.0, 1.0);
-                let smoothing = if normalized > self.bins[i] { ATTACK } else { FALL };
+                let smoothing = if normalized > self.bins[i] {
+                    ATTACK
+                } else {
+                    FALL
+                };
                 self.bins[i] = self.bins[i] * smoothing + normalized * (1.0 - smoothing);
             }
         }
