@@ -3,6 +3,7 @@ use iced::advanced::renderer::{self, Quad};
 use iced::advanced::widget::tree::{self, Tree};
 use iced::advanced::{self, Clipboard, Layout, Shell, Widget};
 use iced::alignment::Vertical;
+use iced::border;
 use iced::mouse;
 use iced::widget::{Column, container, text};
 use iced::{Background, Element, Event, Length, Point, Rectangle, Renderer, Size, Theme};
@@ -96,7 +97,7 @@ impl<Message: Clone + 'static> Widget<Message, Theme, Renderer> for MenuItem<Mes
             renderer.fill_quad(
                 Quad {
                     bounds,
-                    border: iced::border::rounded(radius()),
+                    border: border::rounded(radius()),
                     ..Default::default()
                 },
                 Background::Color(menu_item_hover_color(theme)),
@@ -158,7 +159,7 @@ pub fn menu_label<'a, Message: 'a + Clone>(label: impl Into<String>) -> Element<
     container(
         text(label.into())
             .size(11)
-            .style(|theme: &Theme| iced::widget::text::Style {
+            .style(|theme: &Theme| text::Style {
                 color: Some(theme.extended_palette().background.strong.text),
             }),
     )

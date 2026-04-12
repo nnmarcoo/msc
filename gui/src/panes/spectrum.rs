@@ -1,5 +1,5 @@
 use iced::{
-    Color, Element, Length, Rectangle, Size, Theme, mouse,
+    Color, Element, Length, Point, Rectangle, Size, Theme, mouse,
     widget::{
         canvas::{self, Canvas, Frame, Geometry},
         container,
@@ -68,7 +68,7 @@ impl canvas::Program<Message> for Spectrum {
         let bar_color = palette.primary.strong.color;
         let background_color = palette.background.base.color;
 
-        frame.fill_rectangle(iced::Point::ORIGIN, bounds.size(), background_color);
+        frame.fill_rectangle(Point::ORIGIN, bounds.size(), background_color);
 
         if self.bins.is_empty() {
             return vec![frame.into_geometry()];
@@ -92,7 +92,7 @@ impl canvas::Program<Message> for Spectrum {
             );
 
             frame.fill_rectangle(
-                iced::Point::new(x, y),
+                Point::new(x, y),
                 Size::new(bar_width - spacing, height),
                 color,
             );

@@ -1,5 +1,5 @@
 use iced::{
-    Color, Element, Length, Rectangle, Size, Theme, mouse,
+    Color, Element, Length, Point, Rectangle, Size, Theme, mouse,
     widget::{
         canvas::{self, Canvas, Frame, Geometry, Path, Stroke},
         container,
@@ -70,7 +70,7 @@ impl canvas::Program<Message> for VUMeters {
         let palette = theme.extended_palette();
         let background_color = palette.background.base.color;
 
-        frame.fill_rectangle(iced::Point::ORIGIN, bounds.size(), background_color);
+        frame.fill_rectangle(Point::ORIGIN, bounds.size(), background_color);
 
         let spacing = 20.0;
         let meter_width = (bounds.width - spacing) / 2.0;
@@ -141,13 +141,9 @@ fn draw_horizontal_meter(
     let bg_color = palette.background.weak.color;
     let border_color = palette.background.strong.color;
 
-    frame.fill_rectangle(
-        iced::Point::new(x, bar_y),
-        Size::new(width, bar_height),
-        bg_color,
-    );
+    frame.fill_rectangle(Point::new(x, bar_y), Size::new(width, bar_height), bg_color);
 
-    let border_path = Path::rectangle(iced::Point::new(x, bar_y), Size::new(width, bar_height));
+    let border_path = Path::rectangle(Point::new(x, bar_y), Size::new(width, bar_height));
     frame.stroke(
         &border_path,
         Stroke::default().with_color(border_color).with_width(1.5),
@@ -168,7 +164,7 @@ fn draw_horizontal_meter(
             let color = get_meter_color(theme, segment_level);
 
             frame.fill_rectangle(
-                iced::Point::new(seg_x + segment_spacing / 2.0, bar_y + 3.0),
+                Point::new(seg_x + segment_spacing / 2.0, bar_y + 3.0),
                 Size::new(seg_width, bar_height - 6.0),
                 color,
             );
@@ -180,7 +176,7 @@ fn draw_horizontal_meter(
     for &marker in &markers {
         let marker_x = x + marker * width;
         frame.fill_rectangle(
-            iced::Point::new(marker_x, bar_y - 5.0),
+            Point::new(marker_x, bar_y - 5.0),
             Size::new(1.0, 3.0),
             marker_color,
         );
@@ -204,13 +200,9 @@ fn draw_vertical_meter(
     let bg_color = palette.background.weak.color;
     let border_color = palette.background.strong.color;
 
-    frame.fill_rectangle(
-        iced::Point::new(bar_x, y),
-        Size::new(bar_width, height),
-        bg_color,
-    );
+    frame.fill_rectangle(Point::new(bar_x, y), Size::new(bar_width, height), bg_color);
 
-    let border_path = Path::rectangle(iced::Point::new(bar_x, y), Size::new(bar_width, height));
+    let border_path = Path::rectangle(Point::new(bar_x, y), Size::new(bar_width, height));
     frame.stroke(
         &border_path,
         Stroke::default().with_color(border_color).with_width(1.5),
@@ -232,7 +224,7 @@ fn draw_vertical_meter(
             let color = get_meter_color(theme, segment_level);
 
             frame.fill_rectangle(
-                iced::Point::new(bar_x + 3.0, seg_y + segment_spacing / 2.0),
+                Point::new(bar_x + 3.0, seg_y + segment_spacing / 2.0),
                 Size::new(bar_width - 6.0, seg_height),
                 color,
             );
@@ -244,7 +236,7 @@ fn draw_vertical_meter(
     for &marker in &markers {
         let marker_y = y + height - (marker * height);
         frame.fill_rectangle(
-            iced::Point::new(bar_x - 5.0, marker_y),
+            Point::new(bar_x - 5.0, marker_y),
             Size::new(3.0, 1.0),
             marker_color,
         );

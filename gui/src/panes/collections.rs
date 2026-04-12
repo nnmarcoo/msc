@@ -1,10 +1,15 @@
-use iced::alignment::Vertical;
-use iced::widget::svg::Handle as SvgHandle;
+use iced::alignment::Horizontal;
+use iced::font::Weight as FontWeight;
+use iced::gradient;
+use iced::widget::svg::{Handle as SvgHandle, Status as SvgStatus, Style as SvgStyle};
 use iced::widget::{
-    button, column, container, image, mouse_area, responsive, row, scrollable, stack, svg, text,
-    text_input,
+    button, column, container, image, mouse_area, responsive, row, scrollable, space, stack, svg,
+    text, text_input,
 };
-use iced::{Color, Element, Length, Radians, Theme};
+use iced::{
+    Alignment, Background, Border, Color, ContentFit, Element, Font, Gradient, Length, Radians,
+    Theme,
+};
 use msc_core::{Player, Track};
 use std::cell::Cell;
 use std::collections::HashMap;
@@ -273,14 +278,14 @@ impl PaneView for CollectionsPane {
 
             let playlists_header = row![
                 section_header("Playlists"),
-                iced::widget::Space::new().width(Length::Fill),
+                space::Space::new().width(Length::Fill),
                 button(text(if creating_playlist { "✕" } else { "+" }).size(14))
                     .padding([2, 8])
                     .on_press(Message::Collections(
                         CollectionsMessage::ToggleNewPlaylistInput,
                     )),
             ]
-            .align_y(iced::Alignment::Center)
+            .align_y(Alignment::Center)
             .spacing(8);
 
             let mut playlists_section = column![playlists_header].spacing(GAP);
@@ -300,7 +305,7 @@ impl PaneView for CollectionsPane {
                         ))),
                 ]
                 .spacing(6)
-                .align_y(iced::Alignment::Center);
+                .align_y(Alignment::Center);
 
                 playlists_section = playlists_section.push(input_row);
             }
@@ -419,7 +424,7 @@ fn art_card<'a>(
         Some(entry) => image(entry.handle.clone())
             .width(Length::Fixed(card_size))
             .height(Length::Fixed(card_size))
-            .content_fit(iced::ContentFit::Cover)
+            .content_fit(ContentFit::Cover)
             .into(),
         None => placeholder_artwork(card_size),
     }
@@ -457,17 +462,17 @@ fn expanded_panel<'a>(
         let background = match cover_color {
             Some([r, g, b]) => {
                 let left = Color::from_rgb(r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0);
-                iced::Background::Gradient(iced::Gradient::Linear(
-                    iced::gradient::Linear::new(Radians(std::f32::consts::FRAC_PI_2))
+                Background::Gradient(Gradient::Linear(
+                    gradient::Linear::new(Radians(std::f32::consts::FRAC_PI_2))
                         .add_stop(0.0, left)
                         .add_stop(1.0, bg_color),
                 ))
             }
-            None => iced::Background::Color(bg_color),
+            None => Background::Color(bg_color),
         };
         container::Style {
             background: Some(background),
-            border: iced::Border {
+            border: Border {
                 color: palette.background.strong.color,
                 width: 1.0,
                 ..Default::default()
@@ -481,7 +486,7 @@ fn expanded_panel<'a>(
             image(entry.handle.clone())
                 .width(Length::Fixed(art_display_size))
                 .height(Length::Fixed(art_display_size))
-                .content_fit(iced::ContentFit::Cover),
+                .content_fit(ContentFit::Cover),
         )
         .padding(PANEL_ART_PADDING)
         .width(Length::Fixed(panel_height))
@@ -519,7 +524,7 @@ fn expanded_panel<'a>(
     };
 
     let separator = || {
-        container(iced::widget::Space::new())
+        container(space::Space::new())
             .height(Length::Fixed(2.0))
             .width(Length::Fill)
             .style(|theme: &Theme| container::Style {
@@ -551,23 +556,23 @@ fn expanded_panel<'a>(
             .width(28)
             .height(28)
             .on_press(play_msg),
-            text(title).size(14).font(iced::Font {
-                weight: iced::font::Weight::Bold,
-                ..iced::Font::DEFAULT
+            text(title).size(14).font(Font {
+                weight: FontWeight::Bold,
+                ..Font::DEFAULT
             }),
             if let Some(a) = artist {
                 Element::from(text(a).size(13).style(muted))
             } else {
-                Element::from(iced::widget::Space::new().width(0))
+                Element::from(space::Space::new().width(0))
             },
-            iced::widget::Space::new().width(Length::Fill),
+            space::Space::new().width(Length::Fill),
             text(total_duration)
                 .size(11)
                 .style(muted)
-                .align_x(iced::alignment::Horizontal::Right),
+                .align_x(Horizontal::Right),
         ]
         .spacing(10)
-        .align_y(iced::Alignment::Center),
+        .align_y(Alignment::Center),
     )
     .padding([6, 10]);
 
@@ -593,18 +598,18 @@ fn expanded_panel<'a>(
                     row![
                         text(num)
                             .size(11)
-                            .align_x(iced::alignment::Horizontal::Right)
+                            .align_x(Horizontal::Right)
                             .style(muted)
                             .width(Length::Fixed(24.0)),
                         text(title).size(13).width(Length::Fill),
                         text(duration)
                             .size(11)
-                            .align_x(iced::alignment::Horizontal::Right)
+                            .align_x(Horizontal::Right)
                             .style(muted)
                             .width(Length::Fixed(46.0)),
                     ]
                     .spacing(10)
-                    .align_y(iced::Alignment::Center),
+                    .align_y(Alignment::Center),
                 )
                 .padding([7, 12])
                 .width(Length::Fill)
@@ -671,12 +676,12 @@ fn card_with_overlay<'a>(
         .on_press(toggle_msg);
 
     let overlay: Element<'a, Message> = if is_hovered {
-        let icon_style = move |_: &Theme, _: iced::widget::svg::Status| iced::widget::svg::Style {
+        let icon_style = move |_: &Theme, _: SvgStatus| SvgStyle {
             color: Some(Color::WHITE),
         };
 
         column![
-            iced::widget::Space::new().height(Length::Fill),
+            space::Space::new().height(Length::Fill),
             container(
                 row![
                     crate::widgets::canvas_button::canvas_button(
@@ -705,8 +710,8 @@ fn card_with_overlay<'a>(
             .center_x(card_size)
             .align_bottom(card_size)
             .style(move |_: &Theme| container::Style {
-                background: Some(iced::Background::Gradient(iced::Gradient::Linear(
-                    iced::gradient::Linear::new(Radians(std::f32::consts::PI))
+                background: Some(Background::Gradient(Gradient::Linear(
+                    gradient::Linear::new(Radians(std::f32::consts::PI))
                         .add_stop(0.0, Color::TRANSPARENT)
                         .add_stop(1.0, Color::BLACK),
                 ))),
@@ -717,7 +722,7 @@ fn card_with_overlay<'a>(
         .height(Length::Fixed(card_size))
         .into()
     } else {
-        iced::widget::Space::new()
+        space::Space::new()
             .width(Length::Fixed(card_size))
             .height(Length::Fixed(card_size))
             .into()
