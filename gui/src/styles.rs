@@ -1,5 +1,5 @@
 use iced::{
-    Background, Color, Theme,
+    Background, Border, Color, Theme, border,
     widget::{button, container, svg},
 };
 use std::sync::OnceLock;
@@ -57,7 +57,7 @@ pub fn icon_button_style(theme: &Theme, status: button::Status) -> button::Style
     };
     button::Style {
         background,
-        border: iced::border::rounded(radius()),
+        border: border::rounded(radius()),
         text_color: palette.background.base.text,
         ..Default::default()
     }
@@ -68,7 +68,7 @@ pub fn menu_container_style(theme: &Theme) -> container::Style {
     container::Style {
         text_color: Some(palette.background.base.text),
         background: Some(Background::Color(palette.background.weak.color)),
-        border: iced::Border {
+        border: Border {
             color: palette.background.strong.color,
             width: 1.0,
             radius: radius().into(),

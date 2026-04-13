@@ -1,7 +1,7 @@
 use iced::{
-    Color, Element, Length, Rectangle, Size, Theme, mouse,
+    Color, Element, Length, Point, Rectangle, Size, Theme, mouse,
     widget::{
-        canvas::{self, Canvas, Frame, Geometry, Path, Stroke},
+        canvas::{self, Canvas, Frame, Geometry, Path, Stroke, Text},
         container,
     },
 };
@@ -10,33 +10,64 @@ use verse_core::Player;
 use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::pane_view::{PaneView, ViewContext};
+use crate::styles::PAD;
+
+const ATTACK: f32 = 0.7;
+const FALL: f32 = 0.75;
+const DECAY: f32 = 0.93;
 
 #[derive(Debug, Clone)]
-pub struct VUMetersPane;
+pub struct VUMetersPane {
+    rms_left: f32,
+    rms_right: f32,
+}
 
 impl VUMetersPane {
     pub fn new() -> Self {
-        Self
+        Self {
+            rms_left: 0.0,
+            rms_right: 0.0,
+        }
     }
 }
 
 impl PaneView for VUMetersPane {
-    fn update(&mut self, _player: &Player, _art: &mut ArtCache) {}
+    fn update(&mut self, player: &Player, _art: &mut ArtCache) {
+        let viz_data = player.vis_data();
+        let target_l = linear_to_pos(viz_data.rms_left);
+        let target_r = linear_to_pos(viz_data.rms_right);
 
-    fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
-        let viz_data = ctx.player.vis_data();
+        if player.is_playing() {
+            let coeff_l = if target_l > self.rms_left {
+                ATTACK
+            } else {
+                FALL
+            };
+            let coeff_r = if target_r > self.rms_right {
+                ATTACK
+            } else {
+                FALL
+            };
+            self.rms_left = self.rms_left * coeff_l + target_l * (1.0 - coeff_l);
+            self.rms_right = self.rms_right * coeff_r + target_r * (1.0 - coeff_r);
+        } else {
+            self.rms_left *= DECAY;
+            self.rms_right *= DECAY;
+        }
+    }
 
+    fn view<'a>(&'a self, _ctx: ViewContext<'a>) -> Element<'a, Message> {
         container(
             Canvas::new(VUMeters {
-                left: viz_data.peak_left,
-                right: viz_data.peak_right,
+                rms_left: self.rms_left,
+                rms_right: self.rms_right,
             })
             .width(Length::Fill)
             .height(Length::Fill),
         )
         .width(Length::Fill)
         .height(Length::Fill)
-        .padding(20)
+        .padding(PAD)
         .into()
     }
 
@@ -50,12 +81,22 @@ impl PaneView for VUMetersPane {
 }
 
 struct VUMeters {
-    left: f32,
-    right: f32,
+    rms_left: f32,
+    rms_right: f32,
 }
 
 impl canvas::Program<Message> for VUMeters {
     type State = ();
+
+    fn update(
+        &self,
+        _state: &mut Self::State,
+        _event: &canvas::Event,
+        _bounds: Rectangle,
+        _cursor: mouse::Cursor,
+    ) -> Option<canvas::Action<Message>> {
+        Some(canvas::Action::request_redraw())
+    }
 
     fn draw(
         &self,
@@ -66,211 +107,219 @@ impl canvas::Program<Message> for VUMeters {
         _cursor: mouse::Cursor,
     ) -> Vec<Geometry> {
         let mut frame = Frame::new(renderer, bounds.size());
-
         let palette = theme.extended_palette();
-        let background_color = palette.background.base.color;
+        frame.fill_rectangle(Point::ORIGIN, bounds.size(), palette.background.base.color);
 
-        frame.fill_rectangle(iced::Point::ORIGIN, bounds.size(), background_color);
-
-        let spacing = 20.0;
-        let meter_width = (bounds.width - spacing) / 2.0;
-        let meter_height = bounds.height;
-
-        let is_wide = bounds.width > bounds.height;
-
-        if is_wide {
-            draw_horizontal_meter(
-                &mut frame,
-                theme,
-                0.0,
-                0.0,
-                meter_width,
-                meter_height,
-                self.left,
-            );
-
-            draw_horizontal_meter(
-                &mut frame,
-                theme,
-                meter_width + spacing,
-                0.0,
-                meter_width,
-                meter_height,
-                self.right,
-            );
+        if bounds.width > bounds.height * 1.2 {
+            draw_horizontal_pair(&mut frame, theme, bounds, self.rms_left, self.rms_right);
         } else {
-            draw_vertical_meter(
-                &mut frame,
-                theme,
-                0.0,
-                0.0,
-                meter_width,
-                meter_height,
-                self.left,
-            );
-
-            draw_vertical_meter(
-                &mut frame,
-                theme,
-                meter_width + spacing,
-                0.0,
-                meter_width,
-                meter_height,
-                self.right,
-            );
+            draw_vertical_pair(&mut frame, theme, bounds, self.rms_left, self.rms_right);
         }
 
         vec![frame.into_geometry()]
     }
 }
 
-fn draw_horizontal_meter(
-    frame: &mut Frame,
-    theme: &Theme,
-    x: f32,
-    y: f32,
-    width: f32,
-    height: f32,
-    level: f32,
-) {
-    let palette = theme.extended_palette();
-
-    let bar_height = height * 0.6;
-    let bar_y = y + (height - bar_height) / 2.0;
-
-    let bg_color = palette.background.weak.color;
-    let border_color = palette.background.strong.color;
-
-    frame.fill_rectangle(
-        iced::Point::new(x, bar_y),
-        Size::new(width, bar_height),
-        bg_color,
-    );
-
-    let border_path = Path::rectangle(iced::Point::new(x, bar_y), Size::new(width, bar_height));
-    frame.stroke(
-        &border_path,
-        Stroke::default().with_color(border_color).with_width(1.5),
-    );
-
-    let num_segments = 40;
-    let segment_width = width / num_segments as f32;
-    let segment_spacing = (segment_width * 0.1).clamp(1.0, 3.0);
-    let level_clamped = level.clamp(0.0, 1.0);
-
-    for i in 0..num_segments {
-        let seg_x = x + i as f32 * segment_width;
-        let seg_width = segment_width - segment_spacing;
-
-        let segment_level = i as f32 / num_segments as f32;
-
-        if segment_level <= level_clamped {
-            let color = get_meter_color(theme, segment_level);
-
-            frame.fill_rectangle(
-                iced::Point::new(seg_x + segment_spacing / 2.0, bar_y + 3.0),
-                Size::new(seg_width, bar_height - 6.0),
-                color,
-            );
-        }
-    }
-
-    let marker_color = palette.background.strong.color;
-    let markers = vec![0.0, 0.25, 0.5, 0.75, 1.0];
-    for &marker in &markers {
-        let marker_x = x + marker * width;
-        frame.fill_rectangle(
-            iced::Point::new(marker_x, bar_y - 5.0),
-            Size::new(1.0, 3.0),
-            marker_color,
-        );
-    }
-}
-
-fn draw_vertical_meter(
-    frame: &mut Frame,
-    theme: &Theme,
-    x: f32,
-    y: f32,
-    width: f32,
-    height: f32,
-    level: f32,
-) {
-    let palette = theme.extended_palette();
-
-    let bar_width = width * 0.7;
-    let bar_x = x + (width - bar_width) / 2.0;
-
-    let bg_color = palette.background.weak.color;
-    let border_color = palette.background.strong.color;
-
-    frame.fill_rectangle(
-        iced::Point::new(bar_x, y),
-        Size::new(bar_width, height),
-        bg_color,
-    );
-
-    let border_path = Path::rectangle(iced::Point::new(bar_x, y), Size::new(bar_width, height));
-    frame.stroke(
-        &border_path,
-        Stroke::default().with_color(border_color).with_width(1.5),
-    );
-
-    let num_segments = 40;
-    let segment_height = height / num_segments as f32;
-    let segment_spacing = (segment_height * 0.1).clamp(1.0, 3.0);
-    let level_clamped = level.clamp(0.0, 1.0);
-
-    for i in 0..num_segments {
-        let seg_index = num_segments - 1 - i;
-        let seg_y = y + seg_index as f32 * segment_height;
-        let seg_height = segment_height - segment_spacing;
-
-        let segment_level = i as f32 / num_segments as f32;
-
-        if segment_level <= level_clamped {
-            let color = get_meter_color(theme, segment_level);
-
-            frame.fill_rectangle(
-                iced::Point::new(bar_x + 3.0, seg_y + segment_spacing / 2.0),
-                Size::new(bar_width - 6.0, seg_height),
-                color,
-            );
-        }
-    }
-
-    let marker_color = palette.background.strong.color;
-    let markers = vec![0.0, 0.25, 0.5, 0.75, 1.0];
-    for &marker in &markers {
-        let marker_y = y + height - (marker * height);
-        frame.fill_rectangle(
-            iced::Point::new(bar_x - 5.0, marker_y),
-            Size::new(3.0, 1.0),
-            marker_color,
-        );
-    }
-}
-
-fn get_meter_color(theme: &Theme, level: f32) -> Color {
-    let palette = theme.extended_palette();
-    let primary = palette.primary.strong.color;
-
-    if level < 0.7 {
-        let intensity = level / 0.7;
+fn bar_color(theme: &Theme, intensity: f32, lit: bool) -> Color {
+    let c = theme.extended_palette().primary.strong.color;
+    if lit {
         Color::from_rgb(
-            primary.r * intensity + (1.0 - intensity) * 0.2,
-            primary.g * intensity + (1.0 - intensity) * 0.2,
-            primary.b * intensity + (1.0 - intensity) * 0.2,
-        )
-    } else if level < 0.9 {
-        let t = (level - 0.7) / 0.2;
-        let danger = palette.danger.strong.color;
-        Color::from_rgb(
-            primary.r * (1.0 - t) + danger.r * t,
-            primary.g * (1.0 - t) + danger.g * t,
-            primary.b * (1.0 - t) + danger.b * t,
+            c.r * intensity + (1.0 - intensity) * 0.2,
+            c.g * intensity + (1.0 - intensity) * 0.2,
+            c.b * intensity + (1.0 - intensity) * 0.2,
         )
     } else {
-        palette.danger.strong.color
+        Color::from_rgb(c.r * 0.2, c.g * 0.2, c.b * 0.2)
     }
+}
+
+const DB_MARKERS: &[(f32, &str)] = &[
+    (0.333, "-18"),
+    (0.5, "-12"),
+    (0.667, "-6"),
+    (0.833, "-3"),
+    (1.0, "0"),
+];
+
+fn linear_to_pos(v: f32) -> f32 {
+    if v <= 0.0 {
+        return 0.0;
+    }
+    let db = 20.0 * v.log10();
+    ((db + 60.0) / 60.0).clamp(0.0, 1.0)
+}
+
+fn draw_horizontal_pair(
+    frame: &mut Frame,
+    theme: &Theme,
+    bounds: Rectangle,
+    rms_l: f32,
+    rms_r: f32,
+) {
+    let palette = theme.extended_palette();
+    let label_color = palette.background.base.text.scale_alpha(0.4);
+    let tick_color = palette.background.base.text.scale_alpha(0.15);
+
+    let pad = PAD * 2.0;
+    let label_w = 14.0;
+    let scale_h = 18.0;
+
+    let mx = pad + label_w;
+    let mw = bounds.width - mx - pad;
+    let my = pad;
+    let mh = bounds.height - pad - scale_h;
+    let ch_gap = 4.0;
+    let ch = (mh - ch_gap) / 2.0;
+
+    draw_h_channel(frame, theme, mx, my, mw, ch, rms_l);
+    draw_h_channel(frame, theme, mx, my + ch + ch_gap, mw, ch, rms_r);
+
+    let sz: iced::Pixels = 10.0.into();
+    frame.fill_text(Text {
+        content: "L".into(),
+        position: Point::new(pad, my + ch * 0.5 - 5.0),
+        color: label_color,
+        size: sz,
+        ..Text::default()
+    });
+    frame.fill_text(Text {
+        content: "R".into(),
+        position: Point::new(pad, my + ch + ch_gap + ch * 0.5 - 5.0),
+        color: label_color,
+        size: sz,
+        ..Text::default()
+    });
+
+    let scale_y = my + mh + 4.0;
+    for &(pos, label) in DB_MARKERS {
+        let tx = mx + pos * mw;
+        frame.fill_rectangle(Point::new(tx, scale_y), Size::new(1.0, 4.0), tick_color);
+        let offset = -(label.len() as f32 * 2.8);
+        frame.fill_text(Text {
+            content: label.into(),
+            position: Point::new(tx + offset, scale_y + 5.0),
+            color: label_color,
+            size: 9.0.into(),
+            ..Text::default()
+        });
+    }
+}
+
+fn draw_h_channel(
+    frame: &mut Frame,
+    theme: &Theme,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    rms: f32,
+) {
+    let palette = theme.extended_palette();
+    let n = 50usize;
+    let gap = 1.5f32;
+    let seg_w = ((width - gap * (n as f32 - 1.0)) / n as f32).max(1.5);
+    let total_w = seg_w * n as f32 + gap * (n as f32 - 1.0);
+    let x0 = x + (width - total_w) / 2.0;
+
+    for i in 0..n {
+        let seg_pos = i as f32 / (n - 1) as f32;
+        let sx = x0 + i as f32 * (seg_w + gap);
+        let color = bar_color(theme, seg_pos, seg_pos <= rms);
+        frame.fill_rectangle(
+            Point::new(sx, y + 1.0),
+            Size::new(seg_w, height - 2.0),
+            color,
+        );
+    }
+
+    let outline = palette.background.base.text.scale_alpha(0.06);
+    let border = Path::rectangle(Point::new(x0, y), Size::new(total_w, height));
+    frame.stroke(
+        &border,
+        Stroke::default().with_color(outline).with_width(1.0),
+    );
+}
+
+fn draw_vertical_pair(frame: &mut Frame, theme: &Theme, bounds: Rectangle, rms_l: f32, rms_r: f32) {
+    let palette = theme.extended_palette();
+    let label_color = palette.background.base.text.scale_alpha(0.4);
+    let tick_color = palette.background.base.text.scale_alpha(0.15);
+
+    let pad = PAD * 2.0;
+    let label_h = 14.0;
+    let scale_w = 24.0;
+
+    let mx = pad;
+    let mw = bounds.width - pad - scale_w;
+    let my = pad;
+    let mh = bounds.height - pad - label_h;
+    let ch_gap = 4.0;
+    let cw = (mw - ch_gap) / 2.0;
+
+    draw_v_channel(frame, theme, mx, my, cw, mh, rms_l);
+    draw_v_channel(frame, theme, mx + cw + ch_gap, my, cw, mh, rms_r);
+
+    let sz: iced::Pixels = 10.0.into();
+    frame.fill_text(Text {
+        content: "L".into(),
+        position: Point::new(mx + cw * 0.5 - 3.0, my + mh + 3.0),
+        color: label_color,
+        size: sz,
+        ..Text::default()
+    });
+    frame.fill_text(Text {
+        content: "R".into(),
+        position: Point::new(mx + cw + ch_gap + cw * 0.5 - 3.0, my + mh + 3.0),
+        color: label_color,
+        size: sz,
+        ..Text::default()
+    });
+
+    let scale_x = mx + mw + 4.0;
+    for &(pos, label) in DB_MARKERS {
+        let ty = my + mh - pos * mh;
+        frame.fill_rectangle(Point::new(scale_x, ty), Size::new(4.0, 1.0), tick_color);
+        frame.fill_text(Text {
+            content: label.into(),
+            position: Point::new(scale_x + 6.0, ty - 4.5),
+            color: label_color,
+            size: 9.0.into(),
+            ..Text::default()
+        });
+    }
+}
+
+fn draw_v_channel(
+    frame: &mut Frame,
+    theme: &Theme,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    rms: f32,
+) {
+    let palette = theme.extended_palette();
+    let n = 50usize;
+    let gap = 1.5f32;
+    let seg_h = ((height - gap * (n as f32 - 1.0)) / n as f32).max(1.5);
+    let total_h = seg_h * n as f32 + gap * (n as f32 - 1.0);
+    let y0 = y + (height - total_h) / 2.0;
+
+    for i in 0..n {
+        let seg_pos = i as f32 / (n - 1) as f32;
+        let sy = y0 + (n - 1 - i) as f32 * (seg_h + gap);
+        let color = bar_color(theme, seg_pos, seg_pos <= rms);
+        frame.fill_rectangle(
+            Point::new(x + 1.0, sy),
+            Size::new(width - 2.0, seg_h),
+            color,
+        );
+    }
+
+    let outline = palette.background.base.text.scale_alpha(0.06);
+    let border = Path::rectangle(Point::new(x, y0), Size::new(width, total_h));
+    frame.stroke(
+        &border,
+        Stroke::default().with_color(outline).with_width(1.0),
+    );
 }

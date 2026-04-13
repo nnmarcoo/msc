@@ -82,7 +82,7 @@ impl PaneView for ArtworkPane {
                 )
                 .width(Length::Fill)
                 .height(Length::Fill)
-                .style(move |_theme: &Theme| iced::widget::container::Style {
+                .style(move |_theme: &Theme| container::Style {
                     background: Some(Color::from_rgb8(r, g, b).into()),
                     ..Default::default()
                 })

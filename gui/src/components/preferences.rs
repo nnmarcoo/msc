@@ -2,7 +2,9 @@ use iced::alignment::{Horizontal, Vertical};
 use iced::widget::scrollable::{Direction, Scrollbar};
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::tooltip::Position;
-use iced::widget::{button, column, container, row, rule, scrollable, svg, text, toggler, tooltip};
+use iced::widget::{
+    button, column, container, row, rule, scrollable, space, svg, text, toggler, tooltip,
+};
 use iced::{Element, Length, Theme};
 
 use crate::config::{Config, PresetIndicator};
@@ -76,7 +78,7 @@ pub fn view<'a>(
             .gap(8)
             .delay(TOOLTIP_DELAY)
             .snap_within_viewport(true),
-            iced::widget::Space::new().width(Length::Fill),
+            space::Space::new().width(Length::Fill),
             tooltip(
                 canvas_button(
                     svg(SvgHandle::from_memory(include_bytes!(
@@ -149,16 +151,16 @@ pub fn view<'a>(
         container(text("Preferences").size(16))
             .width(Length::Fill)
             .align_x(Horizontal::Center),
-        iced::widget::Space::new().height(PAD * 2.0),
+        space::Space::new().height(PAD * 2.0),
         section("Appearance", theme),
-        iced::widget::Space::new().height(PAD),
+        space::Space::new().height(PAD),
         setting(
             "Theme",
             "Color scheme for the application",
             ThemePicker::new(pending.theme.clone(), PreferenceMessage::SetTheme).into(),
             theme,
         ),
-        iced::widget::Space::new().height(PAD),
+        space::Space::new().height(PAD),
         setting(
             "Rounded corners",
             "Use rounded corners on UI elements",
@@ -167,7 +169,7 @@ pub fn view<'a>(
                 .into(),
             theme,
         ),
-        iced::widget::Space::new().height(PAD),
+        space::Space::new().height(PAD),
         setting(
             "Layout indicators",
             "Show layout presets as numbers or dots",
@@ -182,9 +184,9 @@ pub fn view<'a>(
                 .into(),
             theme,
         ),
-        iced::widget::Space::new().height(PAD * 2.0),
+        space::Space::new().height(PAD * 2.0),
         section("Library", theme),
-        iced::widget::Space::new().height(PAD),
+        space::Space::new().height(PAD),
         setting(
             "Music library folder",
             "The folder scanned for your music collection",
@@ -194,9 +196,9 @@ pub fn view<'a>(
                 .into(),
             theme,
         ),
-        iced::widget::Space::new().height(PAD * 2.0),
+        space::Space::new().height(PAD * 2.0),
         section("Danger Zone", theme),
-        iced::widget::Space::new().height(PAD),
+        space::Space::new().height(PAD),
         setting(
             "Clear library",
             "Remove all tracks, albums, and playlists from the database",

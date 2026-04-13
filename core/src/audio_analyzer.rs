@@ -11,6 +11,7 @@ const MIN_FREQ: f32 = 60.0;
 const MAX_FREQ: f32 = 16000.0;
 
 const ATTACK: f32 = 0.4;
+const FALL: f32 = 0.80;
 const DECAY: f32 = 0.92;
 
 #[derive(Clone, Copy, Debug, Default)]
@@ -173,7 +174,7 @@ impl AudioAnalyzer {
                 let smoothing = if normalized > self.bins[i] {
                     ATTACK
                 } else {
-                    DECAY
+                    FALL
                 };
                 self.bins[i] = self.bins[i] * smoothing + normalized * (1.0 - smoothing);
             }

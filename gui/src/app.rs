@@ -2,6 +2,7 @@ use iced::keyboard::{self, Key, key};
 use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container, space};
+use iced::window;
 use iced::{Element, Event, Length, Subscription, Task, Theme};
 use verse_core::{Album, Player, Playlist, Track};
 use std::cell::RefCell;
@@ -9,8 +10,8 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use crate::art_cache::ArtCache;
-use crate::components::preferences::PreferenceMessage;
-use crate::components::{bottom_bar, preferences};
+use crate::components::bottom_bar::{self, Message as BottomBarMessage};
+use crate::components::preferences::{self as preferences, PreferenceMessage};
 use crate::config::{Config, LayoutAxis, LayoutNode};
 use crate::media_controls::MediaSession;
 use crate::pane::{Pane, PaneType};
@@ -445,54 +446,51 @@ impl App {
                     self.invalidate_library_cache();
                 }
             },
-            Message::BottomBar(msg) => {
-                use bottom_bar::Message as BottomBarMessage;
-                match msg {
-                    BottomBarMessage::OpenPreferences => {
-                        self.editing_config = Some(self.config.clone());
+            Message::BottomBar(msg) => match msg {
+                BottomBarMessage::OpenPreferences => {
+                    self.editing_config = Some(self.config.clone());
+                }
+                BottomBarMessage::ToggleEditMode => {
+                    if self.edit_mode {
+                        self.save_current_layout();
+                        self.persist_layouts();
                     }
-                    BottomBarMessage::ToggleEditMode => {
+                    self.edit_mode = !self.edit_mode;
+                }
+                BottomBarMessage::SwitchPreset(index) => {
+                    if index < self.layout_presets.len() && index != self.current_preset {
                         if self.edit_mode {
                             self.save_current_layout();
-                            self.persist_layouts();
                         }
-                        self.edit_mode = !self.edit_mode;
-                    }
-                    BottomBarMessage::SwitchPreset(index) => {
-                        if index < self.layout_presets.len() && index != self.current_preset {
-                            if self.edit_mode {
-                                self.save_current_layout();
-                            }
-                            self.current_preset = index;
-                            self.panes = pane_grid::State::with_configuration(
-                                self.layout_presets[index].clone(),
-                            );
-                            self.focus = None;
-                            self.persist_layouts();
-                        }
-                    }
-                    BottomBarMessage::AddPreset => {
-                        let new_preset = pane_grid::Configuration::Pane(Pane::new(PaneType::Empty));
-                        self.layout_presets.push(new_preset.clone());
-                        self.current_preset = self.layout_presets.len() - 1;
-                        self.panes = pane_grid::State::with_configuration(new_preset);
+                        self.current_preset = index;
+                        self.panes = pane_grid::State::with_configuration(
+                            self.layout_presets[index].clone(),
+                        );
                         self.focus = None;
                         self.persist_layouts();
                     }
-                    BottomBarMessage::RemovePreset => {
-                        if self.layout_presets.len() > 1 {
-                            self.layout_presets.remove(self.current_preset);
-                            self.current_preset =
-                                self.current_preset.min(self.layout_presets.len() - 1);
-                            self.panes = pane_grid::State::with_configuration(
-                                self.layout_presets[self.current_preset].clone(),
-                            );
-                            self.focus = None;
-                            self.persist_layouts();
-                        }
+                }
+                BottomBarMessage::AddPreset => {
+                    let new_preset = pane_grid::Configuration::Pane(Pane::new(PaneType::Empty));
+                    self.layout_presets.push(new_preset.clone());
+                    self.current_preset = self.layout_presets.len() - 1;
+                    self.panes = pane_grid::State::with_configuration(new_preset);
+                    self.focus = None;
+                    self.persist_layouts();
+                }
+                BottomBarMessage::RemovePreset => {
+                    if self.layout_presets.len() > 1 {
+                        self.layout_presets.remove(self.current_preset);
+                        self.current_preset =
+                            self.current_preset.min(self.layout_presets.len() - 1);
+                        self.panes = pane_grid::State::with_configuration(
+                            self.layout_presets[self.current_preset].clone(),
+                        );
+                        self.focus = None;
+                        self.persist_layouts();
                     }
                 }
-            }
+            },
             Message::ClearQueue => {
                 self.player.clear_queue();
             }
@@ -686,10 +684,10 @@ impl App {
             }
             Message::Event(event) => match event {
                 Event::Window(window_event) => match window_event {
-                    iced::window::Event::Resized(size) => {
+                    window::Event::Resized(size) => {
                         self.is_minimized = size.width == 0.0 && size.height == 0.0;
                     }
-                    iced::window::Event::CloseRequested => {
+                    window::Event::CloseRequested => {
                         std::process::exit(0);
                     }
                     _ => {}

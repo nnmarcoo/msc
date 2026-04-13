@@ -89,7 +89,7 @@ fn draw_swatches(renderer: &mut Renderer, center_y: f32, right_x: f32, theme: &T
                 },
                 border: Border {
                     radius: (SWATCH_SIZE / 4.0).into(),
-                    color: Color::BLACK.scale_alpha(0.2),
+                    color: p.background.base.text.scale_alpha(0.2),
                     width: 1.0,
                 },
                 ..Quad::default()
