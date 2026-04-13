@@ -1,7 +1,7 @@
 use iced::alignment::Horizontal;
 use iced::widget::{button, column, container, mouse_area, row, scrollable, text};
 use iced::{Element, Length, Theme};
-use msc_core::Player;
+use verse_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;

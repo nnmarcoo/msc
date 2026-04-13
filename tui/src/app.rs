@@ -1,6 +1,6 @@
 use color_eyre::eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use msc_core::Player;
+use verse_core::Player;
 use ratatui::{DefaultTerminal, Frame};
 use std::time::Duration;
 

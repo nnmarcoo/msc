@@ -1,6 +1,6 @@
 use iced::widget::{column, text};
 use iced::{Element, Theme};
-use msc_core::Player;
+use verse_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;

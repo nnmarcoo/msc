@@ -1,5 +1,5 @@
 <div align="center">
-  <h1>msc</h1>
+  <h1>verse</h1>
   <p><em>cross-platform music player built with Rust</em></p>
 
   ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-0077aa?style=for-the-badge)

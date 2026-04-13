@@ -1,7 +1,7 @@
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{Image, container, responsive, svg};
 use iced::{Color, ContentFit, Element, Length, Theme};
-use msc_core::Player;
+use verse_core::Player;
 use std::cell::Cell;
 
 use crate::app::Message;

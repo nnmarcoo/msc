@@ -3,7 +3,7 @@ use iced::font::Weight;
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{column, container, responsive, row, space, svg, text, tooltip};
 use iced::{Element, Font, Length, Theme};
-use msc_core::Player;
+use verse_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;

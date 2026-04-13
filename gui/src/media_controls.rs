@@ -9,8 +9,8 @@ pub struct MediaSession {
 impl MediaSession {
     pub fn new(hwnd: Option<*mut std::ffi::c_void>) -> Result<Self, String> {
         let config = PlatformConfig {
-            display_name: "MSC",
-            dbus_name: "msc",
+            display_name: "Verse",
+            dbus_name: "verse",
             hwnd,
         };
 

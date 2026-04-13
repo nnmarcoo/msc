@@ -1,7 +1,7 @@
 use iced::font::Weight;
 use iced::widget::{column, container, row, text};
 use iced::{Element, Font, Length, Theme};
-use msc_core::Player;
+use verse_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;

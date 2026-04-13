@@ -1,6 +1,6 @@
 use crate::image_processing::{Colors, extract_colors};
 use iced::widget::image::Handle;
-use msc_core::extract_artwork_bytes;
+use verse_core::extract_artwork_bytes;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},

@@ -14,7 +14,7 @@ pub struct Config {
 }
 
 fn project_dirs() -> Result<directories::ProjectDirs, ConfigError> {
-    directories::ProjectDirs::from("", "", "msc").ok_or(ConfigError::DirectoryNotFound)
+    directories::ProjectDirs::from("", "", "verse").ok_or(ConfigError::DirectoryNotFound)
 }
 
 impl Config {

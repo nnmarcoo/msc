@@ -5,7 +5,7 @@ use iced::widget::{
     text_input,
 };
 use iced::{Color, Element, Length, Radians, Theme};
-use msc_core::{Player, Track};
+use verse_core::{Player, Track};
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -416,11 +416,19 @@ fn art_card<'a>(
     card_size: f32,
 ) -> Element<'a, Message> {
     match track_id.and_then(|id| art.get(id, thumb_px, thumb_px).or_else(|| art.get_any(id))) {
-        Some(entry) => image(entry.handle.clone())
-            .width(Length::Fixed(card_size))
-            .height(Length::Fixed(card_size))
-            .content_fit(iced::ContentFit::Cover)
-            .into(),
+        Some(entry) => container(
+            image(entry.handle.clone())
+                .width(Length::Fixed(card_size - 1.0))
+                .height(Length::Fixed(card_size))
+                .content_fit(iced::ContentFit::Cover),
+        )
+        .padding(iced::Padding {
+            left: 1.0,
+            ..Default::default()
+        })
+        .width(Length::Fixed(card_size))
+        .height(Length::Fixed(card_size))
+        .into(),
         None => placeholder_artwork(card_size),
     }
 }
@@ -663,58 +671,59 @@ fn card_with_overlay<'a>(
     toggle_msg: Message,
     hover_msg: Message,
 ) -> Element<'a, Message> {
-    let art_button = button(art)
-        .padding(0)
-        .width(Length::Fixed(card_size))
-        .height(Length::Fixed(card_size))
-        .style(|_, _| button::Style::default())
-        .on_press(toggle_msg);
+    let art_button = container(
+        button(art)
+            .padding(0)
+            .width(Length::Fixed(card_size))
+            .height(Length::Fixed(card_size))
+            .style(|_, _| button::Style::default())
+            .on_press(toggle_msg),
+    )
+    .width(Length::Fixed(card_size))
+    .height(Length::Fixed(card_size))
+    .clip(true);
 
     let overlay: Element<'a, Message> = if is_hovered {
         let icon_style = move |_: &Theme, _: iced::widget::svg::Status| iced::widget::svg::Style {
             color: Some(Color::WHITE),
         };
 
-        column![
-            iced::widget::Space::new().height(Length::Fill),
-            container(
-                row![
-                    crate::widgets::canvas_button::canvas_button(
-                        svg(SvgHandle::from_memory(include_bytes!(
-                            "../../../assets/icons/play.svg"
-                        )))
-                        .style(icon_style),
-                    )
-                    .width(20)
-                    .height(20)
-                    .on_press(play_msg),
-                    crate::widgets::canvas_button::canvas_button(
-                        svg(SvgHandle::from_memory(include_bytes!(
-                            "../../../assets/icons/queue_add.svg"
-                        )))
-                        .style(icon_style),
-                    )
-                    .width(20)
-                    .height(20)
-                    .on_press(queue_msg),
-                ]
-                .spacing(6),
-            )
-            .height(Length::Fixed(card_size))
-            .padding(5)
-            .center_x(card_size)
-            .align_bottom(card_size)
-            .style(move |_: &Theme| container::Style {
-                background: Some(iced::Background::Gradient(iced::Gradient::Linear(
-                    iced::gradient::Linear::new(Radians(std::f32::consts::PI))
-                        .add_stop(0.0, Color::TRANSPARENT)
-                        .add_stop(1.0, Color::BLACK),
-                ))),
-                ..Default::default()
-            }),
-        ]
-        .width(Length::Fixed(card_size))
-        .height(Length::Fixed(card_size))
+        container(
+            row![
+                crate::widgets::canvas_button::canvas_button(
+                    svg(SvgHandle::from_memory(include_bytes!(
+                        "../../../assets/icons/play.svg"
+                    )))
+                    .style(icon_style),
+                )
+                .width(20)
+                .height(20)
+                .on_press(play_msg),
+                crate::widgets::canvas_button::canvas_button(
+                    svg(SvgHandle::from_memory(include_bytes!(
+                        "../../../assets/icons/queue_add.svg"
+                    )))
+                    .style(icon_style),
+                )
+                .width(20)
+                .height(20)
+                .on_press(queue_msg),
+            ]
+            .spacing(6),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .padding(5)
+        .align_x(iced::alignment::Horizontal::Center)
+        .align_y(Vertical::Bottom)
+        .style(move |_: &Theme| container::Style {
+            background: Some(iced::Background::Gradient(iced::Gradient::Linear(
+                iced::gradient::Linear::new(Radians(std::f32::consts::PI))
+                    .add_stop(0.0, Color::TRANSPARENT)
+                    .add_stop(1.0, Color::BLACK),
+            ))),
+            ..Default::default()
+        })
         .into()
     } else {
         iced::widget::Space::new()

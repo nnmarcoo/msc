@@ -142,7 +142,7 @@ fn theme_from_str(s: &str) -> Theme {
 }
 
 fn config_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("msc").join("gui.toml"))
+    dirs::config_dir().map(|d| d.join("verse").join("gui.toml"))
 }
 
 impl Config {
@@ -165,7 +165,7 @@ impl Config {
         };
         if let Some(parent) = path.parent() {
             if let Err(e) = std::fs::create_dir_all(parent) {
-                eprintln!("msc: could not create config dir: {e}");
+                eprintln!("verse: could not create config dir: {e}");
                 return;
             }
         }
@@ -173,7 +173,7 @@ impl Config {
             Ok(text) => {
                 let _ = std::fs::write(&path, text);
             }
-            Err(e) => eprintln!("msc: failed to serialize config: {e}"),
+            Err(e) => eprintln!("verse: failed to serialize config: {e}"),
         }
     }
 }

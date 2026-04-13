@@ -5,7 +5,7 @@ use iced::{
         container,
     },
 };
-use msc_core::Player;
+use verse_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;

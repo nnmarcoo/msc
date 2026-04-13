@@ -3,7 +3,7 @@ use iced::time::every;
 use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container, space};
 use iced::{Element, Event, Length, Subscription, Task, Theme};
-use msc_core::{Album, Player, Playlist, Track};
+use verse_core::{Album, Player, Playlist, Track};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
