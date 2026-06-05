@@ -1,12 +1,12 @@
 use crate::image_processing::{Colors, extract_colors};
 use iced::widget::image::Handle;
-use verse_core::extract_artwork_bytes;
 use std::{
     collections::{HashMap, HashSet},
     path::{Path, PathBuf},
     sync::mpsc::{self, Receiver, Sender},
     thread::{self, JoinHandle},
 };
+use verse_core::extract_artwork_bytes;
 
 pub struct ArtEntry {
     pub handle: Handle,

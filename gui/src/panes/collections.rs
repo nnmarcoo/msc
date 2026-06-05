@@ -10,15 +10,10 @@ use iced::{
     Alignment, Background, Border, Color, ContentFit, Element, Font, Gradient, Length, Radians,
     Theme,
 };
-<<<<<<< HEAD
-use iced::{Color, Element, Length, Radians, Theme};
-use verse_core::{Player, Track};
-=======
-use msc_core::{Player, Track};
->>>>>>> 823ddd72eaa64cde5db469f3bfd0239bc38f69db
 use std::cell::Cell;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use verse_core::{Player, Track};
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
@@ -426,12 +421,11 @@ fn art_card<'a>(
     card_size: f32,
 ) -> Element<'a, Message> {
     match track_id.and_then(|id| art.get(id, thumb_px, thumb_px).or_else(|| art.get_any(id))) {
-<<<<<<< HEAD
         Some(entry) => container(
             image(entry.handle.clone())
                 .width(Length::Fixed(card_size - 1.0))
                 .height(Length::Fixed(card_size))
-                .content_fit(iced::ContentFit::Cover),
+                .content_fit(ContentFit::Cover),
         )
         .padding(iced::Padding {
             left: 1.0,
@@ -440,13 +434,6 @@ fn art_card<'a>(
         .width(Length::Fixed(card_size))
         .height(Length::Fixed(card_size))
         .into(),
-=======
-        Some(entry) => image(entry.handle.clone())
-            .width(Length::Fixed(card_size))
-            .height(Length::Fixed(card_size))
-            .content_fit(ContentFit::Cover)
-            .into(),
->>>>>>> 823ddd72eaa64cde5db469f3bfd0239bc38f69db
         None => placeholder_artwork(card_size),
     }
 }
@@ -706,7 +693,6 @@ fn card_with_overlay<'a>(
             color: Some(Color::WHITE),
         };
 
-<<<<<<< HEAD
         container(
             row![
                 crate::widgets::canvas_button::canvas_button(
@@ -733,58 +719,16 @@ fn card_with_overlay<'a>(
         .width(Length::Fill)
         .height(Length::Fill)
         .padding(5)
-        .align_x(iced::alignment::Horizontal::Center)
-        .align_y(Vertical::Bottom)
+        .align_x(Horizontal::Center)
+        .align_y(iced::alignment::Vertical::Bottom)
         .style(move |_: &Theme| container::Style {
-            background: Some(iced::Background::Gradient(iced::Gradient::Linear(
-                iced::gradient::Linear::new(Radians(std::f32::consts::PI))
+            background: Some(Background::Gradient(Gradient::Linear(
+                gradient::Linear::new(Radians(std::f32::consts::PI))
                     .add_stop(0.0, Color::TRANSPARENT)
                     .add_stop(1.0, Color::BLACK),
             ))),
             ..Default::default()
         })
-=======
-        column![
-            space::Space::new().height(Length::Fill),
-            container(
-                row![
-                    crate::widgets::canvas_button::canvas_button(
-                        svg(SvgHandle::from_memory(include_bytes!(
-                            "../../../assets/icons/play.svg"
-                        )))
-                        .style(icon_style),
-                    )
-                    .width(20)
-                    .height(20)
-                    .on_press(play_msg),
-                    crate::widgets::canvas_button::canvas_button(
-                        svg(SvgHandle::from_memory(include_bytes!(
-                            "../../../assets/icons/queue_add.svg"
-                        )))
-                        .style(icon_style),
-                    )
-                    .width(20)
-                    .height(20)
-                    .on_press(queue_msg),
-                ]
-                .spacing(6),
-            )
-            .height(Length::Fixed(card_size))
-            .padding(5)
-            .center_x(card_size)
-            .align_bottom(card_size)
-            .style(move |_: &Theme| container::Style {
-                background: Some(Background::Gradient(Gradient::Linear(
-                    gradient::Linear::new(Radians(std::f32::consts::PI))
-                        .add_stop(0.0, Color::TRANSPARENT)
-                        .add_stop(1.0, Color::BLACK),
-                ))),
-                ..Default::default()
-            }),
-        ]
-        .width(Length::Fixed(card_size))
-        .height(Length::Fixed(card_size))
->>>>>>> 823ddd72eaa64cde5db469f3bfd0239bc38f69db
         .into()
     } else {
         space::Space::new()

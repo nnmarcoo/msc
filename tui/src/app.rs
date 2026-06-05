@@ -1,8 +1,8 @@
 use color_eyre::eyre::Result;
 use crossterm::event::{self, Event, KeyCode, KeyEventKind};
-use verse_core::Player;
 use ratatui::{DefaultTerminal, Frame};
 use std::time::Duration;
+use verse_core::Player;
 
 pub struct App {
     player: Player,

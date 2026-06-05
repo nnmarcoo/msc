@@ -1,8 +1,8 @@
 use iced::widget::{Space, container, pane_grid, text};
 use iced::{Length, Theme};
-use verse_core::{Album, Player, Playlist, Track};
 use std::cell::RefCell;
 use std::fmt::{self, Display};
+use verse_core::{Album, Player, Playlist, Track};
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;

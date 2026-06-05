@@ -4,10 +4,10 @@ use iced::widget::pane_grid::{self, PaneGrid};
 use iced::widget::{column, container, space};
 use iced::window;
 use iced::{Element, Event, Length, Subscription, Task, Theme};
-use verse_core::{Album, Player, Playlist, Track};
 use std::cell::RefCell;
 use std::path::PathBuf;
 use std::time::Duration;
+use verse_core::{Album, Player, Playlist, Track};
 
 use crate::art_cache::ArtCache;
 use crate::components::bottom_bar::{self, Message as BottomBarMessage};
@@ -41,6 +41,7 @@ pub struct App {
     config: Config,
     editing_config: Option<Config>,
     confirming_clear: bool,
+    pref_section: preferences::PrefSection,
 }
 
 #[derive(Debug, Clone)]
@@ -119,6 +120,7 @@ impl Default for App {
             config,
             editing_config: None,
             confirming_clear: false,
+            pref_section: preferences::PrefSection::default(),
         }
     }
 }
@@ -385,8 +387,13 @@ impl App {
             }
             Message::OpenPreferences => {
                 self.editing_config = Some(self.config.clone());
+                self.pref_section = preferences::PrefSection::default();
             }
             Message::Preference(msg) => match msg {
+                PreferenceMessage::SelectSection(s) => {
+                    self.pref_section = s;
+                    self.confirming_clear = false;
+                }
                 PreferenceMessage::SetTheme(t) => {
                     if let Some(c) = &mut self.editing_config {
                         c.theme = t;
@@ -416,6 +423,15 @@ impl App {
                     self.editing_config = None;
                     self.confirming_clear = false;
                     set_radius(self.config.rounded);
+                }
+                PreferenceMessage::ResetAppearance => {
+                    if let Some(c) = &mut self.editing_config {
+                        let d = Config::default();
+                        c.theme = d.theme;
+                        c.rounded = d.rounded;
+                        c.preset_indicator = d.preset_indicator;
+                        set_radius(c.rounded);
+                    }
                 }
                 PreferenceMessage::Reset => {
                     let defaults = Config::default();
@@ -449,6 +465,7 @@ impl App {
             Message::BottomBar(msg) => match msg {
                 BottomBarMessage::OpenPreferences => {
                     self.editing_config = Some(self.config.clone());
+                    self.pref_section = preferences::PrefSection::default();
                 }
                 BottomBarMessage::ToggleEditMode => {
                     if self.edit_mode {
@@ -797,8 +814,13 @@ impl App {
         };
 
         if let Some(pending) = &self.editing_config {
-            return preferences::view(pending, &self.config.theme, self.confirming_clear)
-                .map(Message::Preference);
+            return preferences::view(
+                pending,
+                &self.config.theme,
+                self.pref_section,
+                self.confirming_clear,
+            )
+            .map(Message::Preference);
         }
 
         column![

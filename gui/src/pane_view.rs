@@ -1,7 +1,7 @@
 use iced::Element;
-use verse_core::{Album, Player, Playlist, Track};
 use std::cell::RefCell;
 use std::fmt;
+use verse_core::{Album, Player, Playlist, Track};
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;

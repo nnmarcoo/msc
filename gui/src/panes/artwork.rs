@@ -1,8 +1,8 @@
 use iced::widget::svg::Handle as SvgHandle;
 use iced::widget::{Image, container, responsive, svg};
 use iced::{Color, ContentFit, Element, Length, Theme};
-use verse_core::Player;
 use std::cell::Cell;
+use verse_core::Player;
 
 use crate::app::Message;
 use crate::art_cache::ArtCache;
