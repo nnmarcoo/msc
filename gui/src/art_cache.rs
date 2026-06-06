@@ -91,9 +91,7 @@ impl ArtCache {
     pub fn poll(&mut self) {
         while let Ok(result) = self.result_rx.try_recv() {
             self.pending.remove(&result.key);
-            if result.generation != self.generation
-                || !self.last_wanted.contains_key(&result.key)
-            {
+            if result.generation != self.generation || !self.last_wanted.contains_key(&result.key) {
                 continue;
             }
             if self
@@ -107,7 +105,10 @@ impl ArtCache {
                 )
                 .is_none()
             {
-                self.by_track.entry(result.key.0).or_default().push(result.key);
+                self.by_track
+                    .entry(result.key.0)
+                    .or_default()
+                    .push(result.key);
             }
         }
     }

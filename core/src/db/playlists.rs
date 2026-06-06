@@ -1,16 +1,8 @@
 use crate::{Playlist, Track};
 use rusqlite::{Result as SqliteResult, params};
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::Database;
-
-fn now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64
-}
+use super::{Database, now};
 
 impl Database {
     pub fn create_playlist(&self, name: &str) -> SqliteResult<i64> {
@@ -25,10 +17,11 @@ impl Database {
     pub fn get_all_playlists(&self) -> SqliteResult<Vec<Playlist>> {
         let mut stmt = self.conn.prepare(
             "SELECT p.id, p.name, p.created_at, p.updated_at,
-                    COUNT(pt.track_id) AS track_count,
-                    COALESCE(p.cover_track_id, MIN(pt.track_id)) AS cover_track_id
+                    COUNT(t.id) AS track_count,
+                    COALESCE(p.cover_track_id, MIN(t.id)) AS cover_track_id
              FROM playlists p
              LEFT JOIN playlist_tracks pt ON pt.playlist_id = p.id
+             LEFT JOIN tracks t ON t.id = pt.track_id AND t.missing = 0
              GROUP BY p.id
              ORDER BY p.name",
         )?;
@@ -71,52 +64,36 @@ impl Database {
 
     pub fn add_track_to_playlist(&self, playlist_id: i64, track_id: i64) -> SqliteResult<()> {
         let ts = now();
-        self.conn.execute_batch("BEGIN")?;
-        let result: SqliteResult<()> = (|| {
-            let position: i64 = self.conn.query_row(
-                "SELECT COALESCE(MAX(position) + 1, 0) FROM playlist_tracks WHERE playlist_id = ?1",
-                params![playlist_id],
-                |row| row.get(0),
-            )?;
-            self.conn.execute(
-                "INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position)
-                 VALUES (?1, ?2, ?3)",
-                params![playlist_id, track_id, position],
-            )?;
-            self.conn.execute(
-                "UPDATE playlists SET updated_at = ?1 WHERE id = ?2",
-                params![ts, playlist_id],
-            )?;
-            Ok(())
-        })();
-        if result.is_ok() {
-            self.conn.execute_batch("COMMIT")?;
-        } else {
-            let _ = self.conn.execute_batch("ROLLBACK");
-        }
-        result
+        let tx = self.conn.unchecked_transaction()?;
+        let position: i64 = tx.query_row(
+            "SELECT COALESCE(MAX(position) + 1, 0) FROM playlist_tracks WHERE playlist_id = ?1",
+            params![playlist_id],
+            |row| row.get(0),
+        )?;
+        tx.execute(
+            "INSERT OR IGNORE INTO playlist_tracks (playlist_id, track_id, position)
+             VALUES (?1, ?2, ?3)",
+            params![playlist_id, track_id, position],
+        )?;
+        tx.execute(
+            "UPDATE playlists SET updated_at = ?1 WHERE id = ?2",
+            params![ts, playlist_id],
+        )?;
+        tx.commit()
     }
 
     pub fn remove_track_from_playlist(&self, playlist_id: i64, track_id: i64) -> SqliteResult<()> {
         let ts = now();
-        self.conn.execute_batch("BEGIN")?;
-        let result: SqliteResult<()> = (|| {
-            self.conn.execute(
-                "DELETE FROM playlist_tracks WHERE playlist_id = ?1 AND track_id = ?2",
-                params![playlist_id, track_id],
-            )?;
-            self.conn.execute(
-                "UPDATE playlists SET updated_at = ?1 WHERE id = ?2",
-                params![ts, playlist_id],
-            )?;
-            Ok(())
-        })();
-        if result.is_ok() {
-            self.conn.execute_batch("COMMIT")?;
-        } else {
-            let _ = self.conn.execute_batch("ROLLBACK");
-        }
-        result
+        let tx = self.conn.unchecked_transaction()?;
+        tx.execute(
+            "DELETE FROM playlist_tracks WHERE playlist_id = ?1 AND track_id = ?2",
+            params![playlist_id, track_id],
+        )?;
+        tx.execute(
+            "UPDATE playlists SET updated_at = ?1 WHERE id = ?2",
+            params![ts, playlist_id],
+        )?;
+        tx.commit()
     }
 
     pub fn get_tracks_in_playlist(&self, playlist_id: i64) -> SqliteResult<Vec<Track>> {
@@ -126,7 +103,7 @@ impl Database {
                     t.duration, t.bit_rate, t.sample_rate, t.bit_depth, t.channels, t.missing
              FROM tracks t
              JOIN playlist_tracks pt ON pt.track_id = t.id
-             WHERE pt.playlist_id = ?1
+             WHERE pt.playlist_id = ?1 AND t.missing = 0
              ORDER BY pt.position",
         )?;
         stmt.query_map(params![playlist_id], |row| {

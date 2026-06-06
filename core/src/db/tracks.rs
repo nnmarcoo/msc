@@ -1,16 +1,8 @@
 use crate::Track;
 use rusqlite::{OptionalExtension, Result as SqliteResult, Row, params};
 use std::path::PathBuf;
-use std::time::{SystemTime, UNIX_EPOCH};
 
-use super::Database;
-
-fn now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs() as i64
-}
+use super::{Database, now};
 
 fn row_to_track(row: &Row) -> SqliteResult<Track> {
     Ok(Track {
@@ -42,11 +34,10 @@ impl Database {
 
         let ts = now();
 
-        self.conn.execute_batch("BEGIN")?;
-        let result: SqliteResult<()> = (|| {
-            for track in tracks {
-                self.conn.execute(
-                    "INSERT INTO tracks (
+        let tx = self.conn.unchecked_transaction()?;
+        for track in tracks {
+            tx.execute(
+                "INSERT INTO tracks (
                         path, title, track_artist, album, album_artist, genre,
                         year, track_number, disc_number, comment,
                         duration, bit_rate, sample_rate, bit_depth, channels,
@@ -70,35 +61,27 @@ impl Database {
                         channels     = excluded.channels,
                         updated_at   = excluded.updated_at,
                         missing      = 0",
-                    params![
-                        track.path().to_str(),
-                        track.title(),
-                        track.track_artist(),
-                        track.album(),
-                        track.album_artist(),
-                        track.genre(),
-                        track.year(),
-                        track.track_number(),
-                        track.disc_number(),
-                        track.comment(),
-                        track.duration(),
-                        track.bit_rate(),
-                        track.sample_rate(),
-                        track.bit_depth(),
-                        track.channels(),
-                        ts,
-                    ],
-                )?;
-            }
-            Ok(())
-        })();
-
-        if result.is_ok() {
-            self.conn.execute_batch("COMMIT")?;
-        } else {
-            let _ = self.conn.execute_batch("ROLLBACK");
+                params![
+                    track.path().to_str(),
+                    track.title(),
+                    track.track_artist(),
+                    track.album(),
+                    track.album_artist(),
+                    track.genre(),
+                    track.year(),
+                    track.track_number(),
+                    track.disc_number(),
+                    track.comment(),
+                    track.duration(),
+                    track.bit_rate(),
+                    track.sample_rate(),
+                    track.bit_depth(),
+                    track.channels(),
+                    ts,
+                ],
+            )?;
         }
-        result
+        tx.commit()
     }
 
     pub fn get_track_by_id(&self, id: i64) -> SqliteResult<Option<Track>> {
@@ -133,6 +116,7 @@ impl Database {
                     genre, year, track_number, disc_number, comment,
                     duration, bit_rate, sample_rate, bit_depth, channels, missing
              FROM tracks
+             WHERE missing = 0
              ORDER BY album, disc_number, track_number",
         )?;
         stmt.query_map([], row_to_track)?
@@ -145,6 +129,7 @@ impl Database {
                     genre, year, track_number, disc_number, comment,
                     duration, bit_rate, sample_rate, bit_depth, channels, missing
              FROM tracks
+             WHERE missing = 0
              ORDER BY album, disc_number, track_number
              LIMIT ?1",
         )?;
@@ -164,6 +149,7 @@ impl Database {
              FROM tracks
              WHERE album = ?1
                AND (?2 IS NULL OR album_artist = ?2 OR track_artist = ?2)
+               AND missing = 0
              ORDER BY disc_number, track_number",
         )?;
         stmt.query_map(params![album_name, artist], row_to_track)?
@@ -176,7 +162,8 @@ impl Database {
                     genre, year, track_number, disc_number, comment,
                     duration, bit_rate, sample_rate, bit_depth, channels, missing
              FROM tracks
-             WHERE track_artist = ?1 OR album_artist = ?1
+             WHERE (track_artist = ?1 OR album_artist = ?1)
+               AND missing = 0
              ORDER BY album, disc_number, track_number",
         )?;
         stmt.query_map(params![artist_name], row_to_track)?
