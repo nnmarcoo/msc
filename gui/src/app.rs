@@ -260,6 +260,8 @@ impl App {
                     pane.update(&self.player, &mut self.art_cache);
                 }
 
+                self.art_cache.evict();
+
                 if let Some(session) = &self.media_session {
                     for event in session.poll_events() {
                         match event {

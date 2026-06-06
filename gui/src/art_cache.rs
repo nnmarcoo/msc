@@ -8,6 +8,8 @@ use std::{
 };
 use verse_core::extract_artwork_bytes;
 
+const EVICT_GRACE_FRAMES: u64 = 32;
+
 pub struct ArtEntry {
     pub handle: Handle,
     pub colors: Colors,
@@ -16,22 +18,21 @@ pub struct ArtEntry {
 type CacheKey = (i64, u32, u32);
 
 struct WorkItem {
-    track_id: i64,
+    key: CacheKey,
     path: PathBuf,
-    width: u32,
-    height: u32,
+    generation: u64,
 }
 
 struct ArtResult {
-    track_id: i64,
-    width: u32,
-    height: u32,
+    key: CacheKey,
+    generation: u64,
     handle: Handle,
     colors: Colors,
 }
 
 fn worker_loop(rx: Receiver<WorkItem>, tx: Sender<ArtResult>) {
     while let Ok(item) = rx.recv() {
+        let (_, width, height) = item.key;
         let Some(bytes) = extract_artwork_bytes(&item.path) else {
             continue;
         };
@@ -39,21 +40,18 @@ fn worker_loop(rx: Receiver<WorkItem>, tx: Sender<ArtResult>) {
             continue;
         };
 
+        let box_w = width.min(img.width());
+        let box_h = height.min(img.height());
+        let img = img.resize(box_w, box_h, image::imageops::FilterType::Lanczos3);
         let colors = extract_colors(&img);
-        let img = img.resize(
-            item.width,
-            item.height,
-            image::imageops::FilterType::Lanczos3,
-        );
 
         let rgba = img.into_rgba8();
         let (w, h) = (rgba.width(), rgba.height());
         let handle = Handle::from_rgba(w, h, rgba.into_raw());
 
         let _ = tx.send(ArtResult {
-            track_id: item.track_id,
-            width: item.width,
-            height: item.height,
+            key: item.key,
+            generation: item.generation,
             handle,
             colors,
         });
@@ -62,7 +60,11 @@ fn worker_loop(rx: Receiver<WorkItem>, tx: Sender<ArtResult>) {
 
 pub struct ArtCache {
     ready: HashMap<CacheKey, ArtEntry>,
+    by_track: HashMap<i64, Vec<CacheKey>>,
     pending: HashSet<CacheKey>,
+    last_wanted: HashMap<CacheKey, u64>,
+    frame: u64,
+    generation: u64,
     work_tx: Sender<WorkItem>,
     result_rx: Receiver<ArtResult>,
     _worker: JoinHandle<()>,
@@ -75,7 +77,11 @@ impl ArtCache {
         let handle = thread::spawn(move || worker_loop(work_rx, result_tx));
         Self {
             ready: HashMap::new(),
+            by_track: HashMap::new(),
             pending: HashSet::new(),
+            last_wanted: HashMap::new(),
+            frame: 0,
+            generation: 0,
             work_tx,
             result_rx,
             _worker: handle,
@@ -84,41 +90,44 @@ impl ArtCache {
 
     pub fn poll(&mut self) {
         while let Ok(result) = self.result_rx.try_recv() {
-            let key = (result.track_id, result.width, result.height);
-            self.pending.remove(&key);
-            self.ready.insert(
-                key,
-                ArtEntry {
-                    handle: result.handle,
-                    colors: result.colors,
-                },
-            );
+            self.pending.remove(&result.key);
+            if result.generation != self.generation
+                || !self.last_wanted.contains_key(&result.key)
+            {
+                continue;
+            }
+            if self
+                .ready
+                .insert(
+                    result.key,
+                    ArtEntry {
+                        handle: result.handle,
+                        colors: result.colors,
+                    },
+                )
+                .is_none()
+            {
+                self.by_track.entry(result.key.0).or_default().push(result.key);
+            }
         }
     }
 
-    pub fn get_or_queue(
-        &mut self,
-        track_id: i64,
-        path: &Path,
-        width: u32,
-        height: u32,
-    ) -> Option<&ArtEntry> {
+    pub fn get_or_queue(&mut self, track_id: i64, path: &Path, width: u32, height: u32) {
         if width == 0 || height == 0 {
-            return None;
+            return;
         }
         let key = (track_id, width, height);
+        self.last_wanted.insert(key, self.frame);
         if self.ready.contains_key(&key) {
-            return self.ready.get(&key);
+            return;
         }
         if self.pending.insert(key) {
             let _ = self.work_tx.send(WorkItem {
-                track_id,
+                key,
                 path: path.to_path_buf(),
-                width,
-                height,
+                generation: self.generation,
             });
         }
-        None
     }
 
     pub fn get(&self, track_id: i64, width: u32, height: u32) -> Option<&ArtEntry> {
@@ -126,14 +135,41 @@ impl ArtCache {
     }
 
     pub fn get_any(&self, track_id: i64) -> Option<&ArtEntry> {
-        self.ready
+        self.by_track
+            .get(&track_id)?
             .iter()
-            .find(|((tid, _, _), _)| *tid == track_id)
-            .map(|(_, entry)| entry)
+            .find_map(|key| self.ready.get(key))
+    }
+
+    pub fn evict(&mut self) {
+        let frame = self.frame;
+        let stale: Vec<CacheKey> = self
+            .last_wanted
+            .iter()
+            .filter(|&(_, &last)| last + EVICT_GRACE_FRAMES <= frame)
+            .map(|(&key, _)| key)
+            .collect();
+
+        for key in stale {
+            self.last_wanted.remove(&key);
+            self.ready.remove(&key);
+            self.pending.remove(&key);
+            if let Some(sizes) = self.by_track.get_mut(&key.0) {
+                sizes.retain(|k| *k != key);
+                if sizes.is_empty() {
+                    self.by_track.remove(&key.0);
+                }
+            }
+        }
+
+        self.frame += 1;
     }
 
     pub fn invalidate(&mut self) {
         self.ready.clear();
+        self.by_track.clear();
         self.pending.clear();
+        self.last_wanted.clear();
+        self.generation += 1;
     }
 }

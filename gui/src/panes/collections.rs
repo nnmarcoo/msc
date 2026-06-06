@@ -19,7 +19,6 @@ use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::components::context_menu::{MenuElement, context_menu};
 use crate::formatters;
-use crate::image_processing::Colors;
 use crate::pane_view::{PaneView, ViewContext};
 use crate::styles::svg_style;
 
@@ -211,11 +210,6 @@ impl PaneView for CollectionsPane {
 
                     for album in chunk {
                         let track_id = album_art_keys.get(&album.id).map(|(tid, _)| *tid);
-                        let colors = track_id.and_then(|id| {
-                            art.get(id, thumb_px, thumb_px)
-                                .or_else(|| art.get_any(id))
-                                .map(|e| e.colors)
-                        });
                         let art_el = art_card(art, track_id, thumb_px, card_size);
                         let album_name = album.name.clone();
                         let artist = album.artist.clone();
@@ -225,7 +219,6 @@ impl PaneView for CollectionsPane {
                             art_el,
                             card_size,
                             is_hovered,
-                            colors,
                             Message::PlayAlbum(album_name.clone(), artist.clone()),
                             Message::QueueAlbumBack(album_name.clone(), artist.clone()),
                             Message::Collections(CollectionsMessage::ToggleAlbum(
@@ -316,11 +309,6 @@ impl PaneView for CollectionsPane {
 
                     for playlist in chunk {
                         let track_id = playlist_art_keys.get(&playlist.id).map(|(tid, _)| *tid);
-                        let colors = track_id.and_then(|id| {
-                            art.get(id, thumb_px, thumb_px)
-                                .or_else(|| art.get_any(id))
-                                .map(|e| e.colors)
-                        });
                         let artwork_el = art_card(art, track_id, thumb_px, card_size);
                         let pid = playlist.id;
                         let is_hovered = hovered_card == Some((false, pid));
@@ -329,7 +317,6 @@ impl PaneView for CollectionsPane {
                             artwork_el,
                             card_size,
                             is_hovered,
-                            colors,
                             Message::Collections(CollectionsMessage::PlayPlaylist(pid)),
                             Message::Collections(CollectionsMessage::QueuePlaylistBack(pid)),
                             Message::Collections(CollectionsMessage::TogglePlaylist(pid)),
@@ -535,7 +522,7 @@ fn expanded_panel<'a>(
         container(space::Space::new())
             .height(Length::Fixed(2.0))
             .width(Length::Fill)
-            .style(|theme: &Theme| container::Style {
+            .style(|_theme: &Theme| container::Style {
                 background: Some(Color::from_rgba(1.0, 1.0, 1.0, 0.05).into()),
                 ..Default::default()
             })
@@ -670,7 +657,6 @@ fn card_with_overlay<'a>(
     art: Element<'a, Message>,
     card_size: f32,
     is_hovered: bool,
-    colors: Option<Colors>,
     play_msg: Message,
     queue_msg: Message,
     toggle_msg: Message,
