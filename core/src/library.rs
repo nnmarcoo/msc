@@ -37,6 +37,25 @@ impl Library {
         }
     }
 
+    pub fn scan_with_root(root: &Path) -> Result<(), LibraryError> {
+        Config::set_root(root.to_path_buf())?;
+        Self::scan()
+    }
+
+    pub fn scan() -> Result<(), LibraryError> {
+        let root = Config::root().ok_or(LibraryError::RootNotSet)?;
+        let db_path = Config::database_path()?;
+
+        if let Some(parent) = db_path.parent() {
+            create_dir_all(parent)?;
+        }
+
+        let db = Database::new(&db_path)?;
+        db.mark_all_missing()?;
+        Self::scan_directory(&db, &root)?;
+        Ok(())
+    }
+
     fn scan_directory(db: &Database, root: &Path) -> Result<(), LibraryError> {
         const AUDIO_EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "ogg", "m4a", "aac"];
 

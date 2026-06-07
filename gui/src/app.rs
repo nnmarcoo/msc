@@ -42,6 +42,9 @@ pub struct App {
     editing_config: Option<Config>,
     confirming_clear: bool,
     pref_section: preferences::PrefSection,
+    library_scanning: bool,
+    last_media_track_id: Option<i64>,
+    last_media_playing: Option<bool>,
 }
 
 #[derive(Debug, Clone)]
@@ -55,6 +58,7 @@ pub enum Message {
     Controls(ControlsMessage),
     Collections(CollectionsMessage),
     LibraryPathSelected(Option<PathBuf>),
+    LibraryScanned(Result<(), String>),
     SetLibrary,
     PaneTypeChanged(pane_grid::Pane, PaneType),
     BottomBar(bottom_bar::Message),
@@ -121,6 +125,9 @@ impl Default for App {
             editing_config: None,
             confirming_clear: false,
             pref_section: preferences::PrefSection::default(),
+            library_scanning: false,
+            last_media_track_id: None,
+            last_media_playing: None,
         }
     }
 }
@@ -218,6 +225,20 @@ impl App {
         }
     }
 
+    fn spawn_scan<F>(scan: F) -> Task<Message>
+    where
+        F: FnOnce() -> Result<(), verse_core::LibraryError> + Send + 'static,
+    {
+        let (tx, rx) = iced::futures::channel::oneshot::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(scan().map_err(|e| e.to_string()));
+        });
+        Task::perform(
+            async move { rx.await.unwrap_or_else(|_| Err("scan cancelled".to_string())) },
+            Message::LibraryScanned,
+        )
+    }
+
     pub fn update(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::QueueLibrary => {
@@ -298,30 +319,41 @@ impl App {
                 }
 
                 if let Some(session) = &mut self.media_session {
-                    if self.player.is_playing() {
-                        session.set_playback(souvlaki::MediaPlayback::Playing { progress: None });
-                    } else {
-                        session.set_playback(souvlaki::MediaPlayback::Paused { progress: None });
+                    let playing = self.player.is_playing();
+                    if self.last_media_playing != Some(playing) {
+                        self.last_media_playing = Some(playing);
+                        session.set_playback(if playing {
+                            souvlaki::MediaPlayback::Playing { progress: None }
+                        } else {
+                            souvlaki::MediaPlayback::Paused { progress: None }
+                        });
                     }
 
-                    if let Some(track) = self.player.clone_current_track() {
-                        session.set_metadata(
-                            track.title().unwrap_or("Unknown Title"),
-                            track.track_artist().unwrap_or("Unknown Artist"),
-                            track.album().unwrap_or("Unknown Album"),
-                            Some(track.duration() as f64),
-                        );
+                    let current_id = self.player.queue().current_id();
+                    if self.last_media_track_id != current_id {
+                        self.last_media_track_id = current_id;
+                        if let Some(track) = self.player.clone_current_track() {
+                            session.set_metadata(
+                                track.title().unwrap_or("Unknown Title"),
+                                track.track_artist().unwrap_or("Unknown Artist"),
+                                track.album().unwrap_or("Unknown Album"),
+                                Some(track.duration() as f64),
+                            );
+                        }
                     }
                 }
             }
             Message::LibraryPathSelected(path) => {
                 if let Some(path) = path {
-                    let _ = self.player.populate_library(&path);
-                    self.invalidate_library_cache();
+                    if self.library_scanning {
+                        return Task::none();
+                    }
+                    self.library_scanning = true;
+                    return Self::spawn_scan(move || verse_core::Library::scan_with_root(&path));
                 }
             }
             Message::SetLibrary => {
-                if self.player.reload_library().is_err() {
+                if verse_core::Config::root().is_none() {
                     return Task::perform(
                         async {
                             rfd::AsyncFileDialog::new()
@@ -332,7 +364,16 @@ impl App {
                         },
                         Message::LibraryPathSelected,
                     );
-                } else {
+                }
+                if self.library_scanning {
+                    return Task::none();
+                }
+                self.library_scanning = true;
+                return Self::spawn_scan(verse_core::Library::scan);
+            }
+            Message::LibraryScanned(result) => {
+                self.library_scanning = false;
+                if result.is_ok() {
                     self.invalidate_library_cache();
                 }
             }
