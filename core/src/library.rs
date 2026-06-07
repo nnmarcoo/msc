@@ -60,7 +60,7 @@ impl Library {
         const AUDIO_EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "ogg", "m4a", "aac"];
 
         let audio_files: Vec<_> = WalkDir::new(root)
-            .follow_links(true)
+            .follow_links(false)
             .into_iter()
             .flatten()
             .filter(|e| {

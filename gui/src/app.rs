@@ -862,6 +862,7 @@ impl App {
                 &self.config.theme,
                 self.pref_section,
                 self.confirming_clear,
+                self.library_scanning,
             )
             .map(Message::Preference);
         }

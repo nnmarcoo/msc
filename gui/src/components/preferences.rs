@@ -15,6 +15,7 @@ use crate::styles::{
     pref_section_rule_style, svg_style,
 };
 use crate::widgets::canvas_button::canvas_button;
+use crate::widgets::loading_spinner::Circular;
 use crate::widgets::theme_picker::ThemePicker;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
@@ -216,7 +217,11 @@ fn appearance_pane<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, Prefer
     .into()
 }
 
-fn library_pane<'a>(theme: &Theme, confirming_clear: bool) -> Element<'a, PreferenceMessage> {
+fn library_pane<'a>(
+    theme: &Theme,
+    confirming_clear: bool,
+    scanning: bool,
+) -> Element<'a, PreferenceMessage> {
     let clear_control: Element<'a, PreferenceMessage> = if confirming_clear {
         row![
             button(text("Cancel").size(12))
@@ -237,14 +242,20 @@ fn library_pane<'a>(theme: &Theme, confirming_clear: bool) -> Element<'a, Prefer
             .into()
     };
 
+    let library_control: Element<'a, PreferenceMessage> = if scanning {
+        Circular::new().size(20.0).bar_height(2.5).into()
+    } else {
+        button(text("Set Folder").size(12))
+            .on_press(PreferenceMessage::SetLibrary)
+            .padding([4.0, 8.0])
+            .into()
+    };
+
     let rows = vec![
         setting(
             "Music library folder",
             "The folder scanned for your music collection",
-            button(text("Set Folder").size(12))
-                .on_press(PreferenceMessage::SetLibrary)
-                .padding([4.0, 8.0])
-                .into(),
+            library_control,
             theme,
         ),
         setting(
@@ -265,6 +276,7 @@ pub fn view<'a>(
     theme: &Theme,
     section_active: PrefSection,
     confirming_clear: bool,
+    scanning: bool,
 ) -> Element<'a, PreferenceMessage> {
     let header = bar(text("Preferences").size(16), false);
 
@@ -291,7 +303,7 @@ pub fn view<'a>(
 
     let pane = match section_active {
         PrefSection::Appearance => appearance_pane(pending, theme),
-        PrefSection::Library => library_pane(theme, confirming_clear),
+        PrefSection::Library => library_pane(theme, confirming_clear, scanning),
     };
 
     let content = scrollable(
