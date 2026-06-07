@@ -229,8 +229,13 @@ impl Player {
     }
 
     pub fn start_next(&mut self) -> Result<(), PlaybackError> {
-        let track_id = self.queue.next();
-        self.play_track(track_id)
+        match self.queue.next() {
+            Some(track_id) => self.play_track(Some(track_id)),
+            None => {
+                self.backend.stop();
+                Ok(())
+            }
+        }
     }
 
     pub fn start_previous(&mut self) -> Result<(), PlaybackError> {

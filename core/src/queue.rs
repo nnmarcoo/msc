@@ -87,8 +87,10 @@ impl Queue {
                         self.history.push_back(current);
                     }
                     self.current = Some(next);
+                    self.current
+                } else {
+                    None
                 }
-                self.current
             }
         }
     }
