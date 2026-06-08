@@ -16,6 +16,11 @@ pub struct ViewContext<'a> {
     pub cached_albums: &'a RefCell<Option<Vec<Album>>>,
     pub cached_playlists: &'a RefCell<Option<Vec<Playlist>>>,
     pub art: &'a ArtCache,
+    pub search_query: &'a str,
+}
+
+pub fn field_contains(field: Option<&str>, query_lower: &str) -> bool {
+    field.is_some_and(|s| s.to_lowercase().contains(query_lower))
 }
 
 pub trait PaneView: fmt::Debug {

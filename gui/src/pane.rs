@@ -128,6 +128,7 @@ impl Pane {
         cached_albums: &'a RefCell<Option<Vec<Album>>>,
         cached_playlists: &'a RefCell<Option<Vec<Playlist>>>,
         art: &'a ArtCache,
+        search_query: &'a str,
     ) -> pane_grid::Content<'a, Message> {
         if edit_mode {
             let current_type = self.get_type();
@@ -193,6 +194,7 @@ impl Pane {
                 cached_albums,
                 cached_playlists,
                 art,
+                search_query,
             };
 
             let content = self.content.view(ctx);

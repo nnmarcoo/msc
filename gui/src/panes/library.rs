@@ -7,7 +7,7 @@ use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::components::context_menu::{MenuElement, context_menu};
 use crate::formatters;
-use crate::pane_view::{PaneView, ViewContext};
+use crate::pane_view::{PaneView, ViewContext, field_contains};
 
 #[derive(Debug, Clone)]
 pub struct LibraryPane;
@@ -23,7 +23,8 @@ impl PaneView for LibraryPane {
 
     fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
         let hovered_track = ctx.hovered_track;
-        let cached_tracks = ctx.cached_tracks.borrow().clone().unwrap_or_default();
+        let tracks_guard = ctx.cached_tracks.borrow();
+        let cached_tracks = tracks_guard.as_deref().unwrap_or(&[]);
 
         if cached_tracks.is_empty() {
             return container(
@@ -81,9 +82,24 @@ impl PaneView for LibraryPane {
             ..Default::default()
         });
 
+        let query = ctx.search_query.trim().to_lowercase();
+        let tracks: Vec<_> = cached_tracks
+            .iter()
+            .filter(|t| {
+                query.is_empty()
+                    || field_contains(t.title(), &query)
+                    || field_contains(t.track_artist(), &query)
+                    || field_contains(t.album(), &query)
+                    || field_contains(t.album_artist(), &query)
+            })
+            .collect();
+
+        let playlists_guard = ctx.cached_playlists.borrow();
+        let playlists = playlists_guard.as_deref().unwrap_or(&[]);
+
         let mut track_list = column![].spacing(0);
 
-        for track in cached_tracks.iter() {
+        for track in tracks.iter() {
             if let Some(track_id) = track.id() {
                 let duration_text = formatters::format_duration(track.duration());
                 let is_hovered = hovered_track.as_ref() == Some(&track_id);
@@ -118,14 +134,12 @@ impl PaneView for LibraryPane {
                 let track_content =
                     mouse_area(track_inner).on_move(move |_| Message::TrackHovered(track_id));
 
-                let playlists = ctx.cached_playlists.borrow().clone().unwrap_or_default();
-
                 let mut menu_items: Vec<MenuElement<Message>> = Vec::new();
 
                 if playlists.is_empty() {
                     menu_items.push(MenuElement::label("No playlists"));
                 } else {
-                    for playlist in &playlists {
+                    for playlist in playlists {
                         menu_items.push(MenuElement::button(
                             format!("Add to \"{}\"", playlist.name),
                             Message::AddTrackToPlaylist(track_id, playlist.id),
@@ -149,17 +163,32 @@ impl PaneView for LibraryPane {
             }
         }
 
-        mouse_area(
-            column![
-                header,
-                scrollable(track_list).height(Length::Fill).direction(
-                    scrollable::Direction::Vertical(
-                        scrollable::Scrollbar::new().width(0).scroller_width(0),
-                    )
-                )
-            ]
+        let body: Element<'a, Message> = if tracks.is_empty() {
+            container(
+                text(format!("No results for “{}”", ctx.search_query.trim()))
+                    .size(14)
+                    .style(|theme: &Theme| text::Style {
+                        color: Some(theme.extended_palette().background.strong.text),
+                    }),
+            )
             .width(Length::Fill)
-            .height(Length::Fill),
+            .height(Length::Fill)
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into()
+        } else {
+            scrollable(track_list)
+                .height(Length::Fill)
+                .direction(scrollable::Direction::Vertical(
+                    scrollable::Scrollbar::new().width(0).scroller_width(0),
+                ))
+                .into()
+        };
+
+        mouse_area(
+            column![header, body]
+                .width(Length::Fill)
+                .height(Length::Fill),
         )
         .on_exit(Message::TrackUnhovered)
         .into()

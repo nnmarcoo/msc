@@ -19,7 +19,7 @@ use crate::app::Message;
 use crate::art_cache::ArtCache;
 use crate::components::context_menu::{MenuElement, context_menu};
 use crate::formatters;
-use crate::pane_view::{PaneView, ViewContext};
+use crate::pane_view::{PaneView, ViewContext, field_contains};
 use crate::styles::svg_style;
 
 type ArtKeys = HashMap<i64, (i64, PathBuf)>;
@@ -163,8 +163,30 @@ impl PaneView for CollectionsPane {
 
     fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
         let art = ctx.art;
-        let albums = ctx.cached_albums.borrow().clone().unwrap_or_default();
-        let playlists = ctx.cached_playlists.borrow().clone().unwrap_or_default();
+        let trimmed_query = ctx.search_query.trim();
+        let query = trimmed_query.to_lowercase();
+        let searching = !query.is_empty();
+        let query_text = trimmed_query.to_string();
+        let albums: Vec<_> = ctx
+            .cached_albums
+            .borrow()
+            .clone()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|a| {
+                query.is_empty()
+                    || field_contains(Some(a.name.as_str()), &query)
+                    || field_contains(a.artist.as_deref(), &query)
+            })
+            .collect();
+        let playlists: Vec<_> = ctx
+            .cached_playlists
+            .borrow()
+            .clone()
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|p| query.is_empty() || field_contains(Some(p.name.as_str()), &query))
+            .collect();
         let creating_playlist = self.creating_playlist;
         let new_playlist_name = self.new_playlist_name.as_str();
         let hovered_card = ctx.hovered_card;
@@ -200,11 +222,14 @@ impl PaneView for CollectionsPane {
             self.panel_art_size.set(panel_px);
 
             if albums.is_empty() && playlists.is_empty() && !creating_playlist {
-                return container(text("No albums or playlists").size(18).style(
-                    |theme: &Theme| text::Style {
-                        color: Some(theme.extended_palette().background.base.text),
-                    },
-                ))
+                let message = if searching {
+                    format!("No results for “{query_text}”")
+                } else {
+                    "No albums or playlists".to_string()
+                };
+                return container(text(message).size(18).style(|theme: &Theme| text::Style {
+                    color: Some(theme.extended_palette().background.base.text),
+                }))
                 .padding(20)
                 .width(Length::Fill)
                 .height(Length::Fill)

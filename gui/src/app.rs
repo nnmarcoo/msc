@@ -45,6 +45,7 @@ pub struct App {
     library_scanning: bool,
     last_media_track_id: Option<i64>,
     last_media_playing: Option<bool>,
+    search_query: String,
 }
 
 #[derive(Debug, Clone)]
@@ -128,6 +129,7 @@ impl Default for App {
             library_scanning: false,
             last_media_track_id: None,
             last_media_playing: None,
+            search_query: String::new(),
         }
     }
 }
@@ -550,6 +552,9 @@ impl App {
                         self.persist_layouts();
                     }
                 }
+                BottomBarMessage::SearchChanged(query) => {
+                    self.search_query = query;
+                }
             },
             Message::ClearQueue => {
                 self.player.clear_queue();
@@ -807,6 +812,9 @@ impl App {
                             let _ = self.player.play();
                         }
                     }
+                    Key::Named(key::Named::Escape) if !self.search_query.is_empty() => {
+                        self.search_query.clear();
+                    }
                     Key::Character(c) => {
                         if let Ok(num) = c.parse::<usize>() {
                             if num >= 1 && num <= self.layout_presets.len() {
@@ -856,6 +864,7 @@ impl App {
         let cached_albums = &self.cached_albums;
         let cached_playlists = &self.cached_playlists;
         let art_cache = &self.art_cache;
+        let search_query = self.search_query.as_str();
 
         let mut pane_grid = PaneGrid::new(&self.panes, move |id, pane, _is_maximized| {
             pane.view(
@@ -871,6 +880,7 @@ impl App {
                 cached_albums,
                 cached_playlists,
                 art_cache,
+                search_query,
             )
         })
         .width(Length::Fill)
@@ -919,6 +929,7 @@ impl App {
                 self.current_preset,
                 self.edit_mode,
                 self.config.preset_indicator,
+                &self.search_query,
             )
             .map(Message::BottomBar)
         ]
@@ -934,7 +945,10 @@ impl App {
 
         Subscription::batch([
             every(tick_duration).map(|_| Message::Tick),
-            iced::event::listen().map(Message::Event),
+            iced::event::listen_with(|event, status, _window| match status {
+                iced::event::Status::Ignored => Some(Message::Event(event)),
+                iced::event::Status::Captured => None,
+            }),
         ])
     }
 }

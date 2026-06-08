@@ -1,6 +1,6 @@
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::svg::Handle;
-use iced::widget::{column, container, row, space, svg, text, tooltip};
+use iced::widget::{column, container, row, space, svg, text, text_input, tooltip};
 use iced::{Element, Length};
 
 use crate::config::PresetIndicator;
@@ -16,14 +16,16 @@ pub enum Message {
     SwitchPreset(usize),
     AddPreset,
     RemovePreset,
+    SearchChanged(String),
 }
 
-pub fn view(
+pub fn view<'a>(
     preset_count: usize,
     current_preset: usize,
     edit_mode: bool,
     preset_indicator: PresetIndicator,
-) -> Element<'static, Message> {
+    search_query: &'a str,
+) -> Element<'a, Message> {
     let mut preset_buttons = row![].spacing(2).align_y(Vertical::Center);
 
     if preset_count > 1 || edit_mode {
@@ -109,8 +111,24 @@ pub fn view(
         .into()
     };
 
+    let middle: Element<'a, Message> = if edit_mode {
+        space().width(Length::Fill).into()
+    } else {
+        row![
+            space().width(Length::Fill),
+            text_input("Search…", search_query)
+                .on_input(Message::SearchChanged)
+                .width(Length::Fixed(220.0))
+                .padding([4, 8])
+                .size(13),
+            space().width(Length::Fill),
+        ]
+        .align_y(Vertical::Center)
+        .into()
+    };
+
     container(
-        row![preset_buttons, space().width(Length::Fill), right_side,]
+        row![preset_buttons, middle, right_side,]
             .height(Length::Fixed(BAR_HEIGHT))
             .width(Length::Fill)
             .align_y(Vertical::Center)
