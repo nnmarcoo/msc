@@ -1,4 +1,3 @@
-use std::path::Path;
 use thiserror::Error;
 
 use kira::backend::cpal;
@@ -24,14 +23,6 @@ impl Player {
             library: Library::new()?,
             queue: Queue::new(),
         })
-    }
-
-    pub fn populate_library(&mut self, root: &Path) -> Result<(), LibraryError> {
-        self.library.populate(root)
-    }
-
-    pub fn reload_library(&mut self) -> Result<(), LibraryError> {
-        self.library.reload()
     }
 
     pub fn query_all_tracks(&self) -> Result<Vec<Track>, LibraryError> {

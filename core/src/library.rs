@@ -22,21 +22,6 @@ impl Library {
         })
     }
 
-    pub fn populate(&mut self, root: &Path) -> Result<(), LibraryError> {
-        Config::set_root(root.to_path_buf())?;
-        self.reload()
-    }
-
-    pub fn reload(&mut self) -> Result<(), LibraryError> {
-        if let Some(root) = Config::root() {
-            self.db.mark_all_missing()?;
-            Self::scan_directory(&self.db, &root)?;
-            Ok(())
-        } else {
-            Err(LibraryError::RootNotSet)
-        }
-    }
-
     pub fn scan_with_root(root: &Path) -> Result<(), LibraryError> {
         Config::set_root(root.to_path_buf())?;
         Self::scan()

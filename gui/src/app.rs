@@ -58,7 +58,7 @@ pub enum Message {
     Controls(ControlsMessage),
     Collections(CollectionsMessage),
     LibraryPathSelected(Option<PathBuf>),
-    LibraryScanned(Result<(), String>),
+    LibraryScanned(bool),
     SetLibrary,
     PaneTypeChanged(pane_grid::Pane, PaneType),
     BottomBar(bottom_bar::Message),
@@ -231,10 +231,10 @@ impl App {
     {
         let (tx, rx) = iced::futures::channel::oneshot::channel();
         std::thread::spawn(move || {
-            let _ = tx.send(scan().map_err(|e| e.to_string()));
+            let _ = tx.send(scan().is_ok());
         });
         Task::perform(
-            async move { rx.await.unwrap_or_else(|_| Err("scan cancelled".to_string())) },
+            async move { rx.await.unwrap_or(false) },
             Message::LibraryScanned,
         )
     }
@@ -371,9 +371,9 @@ impl App {
                 self.library_scanning = true;
                 return Self::spawn_scan(verse_core::Library::scan);
             }
-            Message::LibraryScanned(result) => {
+            Message::LibraryScanned(ok) => {
                 self.library_scanning = false;
-                if result.is_ok() {
+                if ok {
                     self.invalidate_library_cache();
                 }
             }
@@ -601,6 +601,8 @@ impl App {
                             CollectionsMessage::ToggleNewPlaylistInput => {
                                 cp.creating_playlist = !cp.creating_playlist;
                                 cp.new_playlist_name.clear();
+                                cp.renaming_playlist = None;
+                                cp.rename_name.clear();
                             }
                             CollectionsMessage::NameChanged(name) => {
                                 cp.new_playlist_name = name.clone();
@@ -608,6 +610,20 @@ impl App {
                             CollectionsMessage::Confirm(_) => {
                                 cp.creating_playlist = false;
                                 cp.new_playlist_name.clear();
+                            }
+                            CollectionsMessage::StartRename(id, current) => {
+                                cp.renaming_playlist = Some(*id);
+                                cp.rename_name = current.clone();
+                                cp.creating_playlist = false;
+                                cp.new_playlist_name.clear();
+                            }
+                            CollectionsMessage::RenameChanged(name) => {
+                                cp.rename_name = name.clone();
+                            }
+                            CollectionsMessage::ConfirmRename(_, _)
+                            | CollectionsMessage::CancelRename => {
+                                cp.renaming_playlist = None;
+                                cp.rename_name.clear();
                             }
                             _ => {}
                         }
@@ -624,6 +640,35 @@ impl App {
                     CollectionsMessage::DeletePlaylist(id) => {
                         let _ = self.player.delete_playlist(id);
                         self.invalidate_playlist_cache();
+                    }
+                    CollectionsMessage::ConfirmRename(id, name) => {
+                        let name = name.trim();
+                        if !name.is_empty() {
+                            let _ = self.player.rename_playlist(id, name);
+                            self.invalidate_playlist_cache();
+                        }
+                    }
+                    CollectionsMessage::RemoveFromPlaylist(playlist_id, track_id) => {
+                        let _ = self
+                            .player
+                            .remove_track_from_playlist(playlist_id, track_id);
+                        let fresh = self
+                            .player
+                            .get_tracks_in_playlist(playlist_id)
+                            .unwrap_or_default();
+                        *self.cached_playlists.borrow_mut() = None;
+                        for (_, pane) in self.panes.iter_mut() {
+                            if let Some(cp) =
+                                pane.content.as_any_mut().downcast_mut::<CollectionsPane>()
+                            {
+                                cp.playlists_initialized = false;
+                                if cp.expanded.as_ref()
+                                    == Some(&ExpandedItem::Playlist(playlist_id))
+                                {
+                                    cp.expanded_tracks = fresh.clone();
+                                }
+                            }
+                        }
                     }
                     CollectionsMessage::PlayPlaylist(id) => {
                         if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {

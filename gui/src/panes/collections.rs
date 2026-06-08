@@ -44,6 +44,11 @@ pub enum CollectionsMessage {
     QueuePlaylistBack(i64),
     ToggleAlbum(String, Option<String>),
     TogglePlaylist(i64),
+    StartRename(i64, String),
+    RenameChanged(String),
+    ConfirmRename(i64, String),
+    CancelRename,
+    RemoveFromPlaylist(i64, i64),
 }
 
 #[derive(Debug, Clone)]
@@ -61,6 +66,8 @@ pub struct CollectionsPane {
     pub(crate) expanded: Option<ExpandedItem>,
     pub(crate) expanded_tracks: Vec<Track>,
     pub(crate) expanded_cover: Option<(i64, PathBuf)>,
+    pub(crate) renaming_playlist: Option<i64>,
+    pub(crate) rename_name: String,
 }
 
 impl CollectionsPane {
@@ -79,6 +86,8 @@ impl CollectionsPane {
             expanded: None,
             expanded_tracks: Vec::new(),
             expanded_cover: None,
+            renaming_playlist: None,
+            rename_name: String::new(),
         }
     }
 }
@@ -148,6 +157,8 @@ impl PaneView for CollectionsPane {
         self.expanded = None;
         self.expanded_tracks.clear();
         self.expanded_cover = None;
+        self.renaming_playlist = None;
+        self.rename_name.clear();
     }
 
     fn view<'a>(&'a self, ctx: ViewContext<'a>) -> Element<'a, Message> {
@@ -163,6 +174,8 @@ impl PaneView for CollectionsPane {
         let expanded = &self.expanded;
         let expanded_tracks = &self.expanded_tracks;
         let expanded_cover = &self.expanded_cover;
+        let renaming_playlist = self.renaming_playlist;
+        let rename_name = self.rename_name.as_str();
 
         responsive(move |size| {
             const MIN_CARD_WIDTH: f32 = 150.0;
@@ -261,6 +274,7 @@ impl PaneView for CollectionsPane {
                                 name.clone(),
                                 artist.clone(),
                                 Message::PlayAlbum(name.clone(), artist.clone()),
+                                None,
                             ));
                         }
                     }
@@ -303,6 +317,31 @@ impl PaneView for CollectionsPane {
                 playlists_section = playlists_section.push(input_row);
             }
 
+            if let Some(rid) = renaming_playlist {
+                let rename_row = row![
+                    text_input("Playlist name…", rename_name)
+                        .on_input(|s| Message::Collections(CollectionsMessage::RenameChanged(s)))
+                        .on_submit(Message::Collections(CollectionsMessage::ConfirmRename(
+                            rid,
+                            rename_name.trim().to_string(),
+                        )))
+                        .padding(6),
+                    button(text("Rename").size(13)).padding([6, 12]).on_press(
+                        Message::Collections(CollectionsMessage::ConfirmRename(
+                            rid,
+                            rename_name.trim().to_string(),
+                        ))
+                    ),
+                    button(text("✕").size(13))
+                        .padding([6, 10])
+                        .on_press(Message::Collections(CollectionsMessage::CancelRename)),
+                ]
+                .spacing(6)
+                .align_y(Alignment::Center);
+
+                playlists_section = playlists_section.push(rename_row);
+            }
+
             if !playlists.is_empty() {
                 for chunk in playlists.chunks(cols) {
                     let mut playlist_row = row![].spacing(GAP);
@@ -342,6 +381,13 @@ impl PaneView for CollectionsPane {
                                         pid,
                                     )),
                                 ),
+                                MenuElement::button(
+                                    "Rename",
+                                    Message::Collections(CollectionsMessage::StartRename(
+                                        pid,
+                                        playlist.name.clone(),
+                                    )),
+                                ),
                                 MenuElement::Separator,
                                 MenuElement::button(
                                     "Delete",
@@ -365,6 +411,7 @@ impl PaneView for CollectionsPane {
                                 pl.name.clone(),
                                 None,
                                 Message::Collections(CollectionsMessage::PlayPlaylist(pid)),
+                                Some(pid),
                             ));
                         }
                     }
@@ -443,6 +490,7 @@ fn expanded_panel<'a>(
     title: String,
     artist: Option<String>,
     play_msg: Message,
+    playlist_id: Option<i64>,
 ) -> Element<'a, Message> {
     let art_display_size = panel_height - PANEL_ART_PADDING * 2.0;
 
@@ -588,6 +636,19 @@ fn expanded_panel<'a>(
             let title = track.title().unwrap_or("-").to_string();
             let duration = formatters::format_duration(track.duration());
 
+            let mut track_menu = vec![
+                MenuElement::button("Play", Message::PlayTrack(tid)),
+                MenuElement::button("Queue next", Message::QueueFront(tid)),
+                MenuElement::button("Queue", Message::QueueBack(tid)),
+            ];
+            if let Some(pid) = playlist_id {
+                track_menu.push(MenuElement::Separator);
+                track_menu.push(MenuElement::button(
+                    "Remove from playlist",
+                    Message::Collections(CollectionsMessage::RemoveFromPlaylist(pid, tid)),
+                ));
+            }
+
             let track_row = context_menu(
                 button(
                     row![
@@ -626,11 +687,7 @@ fn expanded_panel<'a>(
                     }
                 })
                 .on_press(Message::PlayTrack(tid)),
-                vec![
-                    MenuElement::button("Play", Message::PlayTrack(tid)),
-                    MenuElement::button("Queue next", Message::QueueFront(tid)),
-                    MenuElement::button("Queue", Message::QueueBack(tid)),
-                ],
+                track_menu,
             );
 
             track_col = track_col.push(track_row);
