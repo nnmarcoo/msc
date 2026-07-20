@@ -1,4 +1,3 @@
-use crossbeam::atomic::AtomicCell;
 use std::{path::Path, sync::Arc, time::Duration};
 use thiserror::Error;
 
@@ -12,7 +11,7 @@ use kira::{
     track::MainTrackBuilder,
 };
 
-use crate::audio_analyzer::{AudioAnalyzerBuilder, VisData};
+use crate::audio_analyzer::{AudioAnalyzerBuilder, VisData, VisReader};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BackendState {
@@ -26,7 +25,7 @@ pub struct Backend {
     manager: AudioManager,
     sound: Option<StreamingSoundHandle<FromFileError>>,
     volume: f32,
-    visualization_data: Arc<AtomicCell<VisData>>,
+    visualization_data: Arc<VisReader>,
 }
 
 impl Backend {
@@ -137,7 +136,7 @@ impl Backend {
     }
 
     pub fn vis_data(&self) -> VisData {
-        self.visualization_data.load()
+        self.visualization_data.read()
     }
 }
 

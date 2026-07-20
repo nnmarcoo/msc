@@ -1,8 +1,8 @@
-use crossbeam::atomic::AtomicCell;
 use kira::effect::{Effect, EffectBuilder};
 use kira::{Frame, info::Info};
 use rustfft::{Fft, FftPlanner, num_complex::Complex};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
+use triple_buffer::{Input, Output, triple_buffer};
 
 const FFT_SIZE: usize = 2048;
 const NUM_BINS: usize = 32;
@@ -29,18 +29,35 @@ impl VisData {
     }
 }
 
+/// Reader half of the analyzer's triple buffer.
+///
+/// The audio thread writes without ever blocking; the `Mutex` only guards the
+/// reader handle, which `triple_buffer` requires `&mut` access to.
+pub(crate) struct VisReader {
+    output: Mutex<Output<VisData>>,
+}
+
+impl VisReader {
+    pub(crate) fn read(&self) -> VisData {
+        match self.output.lock() {
+            Ok(mut output) => *output.read(),
+            Err(poisoned) => *poisoned.into_inner().read(),
+        }
+    }
+}
+
 pub(crate) struct AudioAnalyzerBuilder {
-    shared_data: Arc<AtomicCell<VisData>>,
+    input: Input<VisData>,
 }
 
 impl AudioAnalyzerBuilder {
-    pub(crate) fn new() -> (Self, Arc<AtomicCell<VisData>>) {
-        let shared_data = Arc::new(AtomicCell::new(VisData::default()));
+    pub(crate) fn new() -> (Self, Arc<VisReader>) {
+        let (input, output) = triple_buffer(&VisData::default());
         (
-            Self {
-                shared_data: shared_data.clone(),
-            },
-            shared_data,
+            Self { input },
+            Arc::new(VisReader {
+                output: Mutex::new(output),
+            }),
         )
     }
 }
@@ -49,12 +66,12 @@ impl EffectBuilder for AudioAnalyzerBuilder {
     type Handle = ();
 
     fn build(self) -> (Box<dyn Effect>, Self::Handle) {
-        (Box::new(AudioAnalyzer::new(self.shared_data)), ())
+        (Box::new(AudioAnalyzer::new(self.input)), ())
     }
 }
 
 struct AudioAnalyzer {
-    shared_data: Arc<AtomicCell<VisData>>,
+    input: Input<VisData>,
     buffer: [f32; FFT_SIZE],
     buffer_pos: usize,
     fft: Arc<dyn Fft<f32>>,
@@ -73,7 +90,7 @@ struct AudioAnalyzer {
 }
 
 impl AudioAnalyzer {
-    fn new(shared_data: Arc<AtomicCell<VisData>>) -> Self {
+    fn new(input: Input<VisData>) -> Self {
         use std::f32::consts::PI;
 
         let mut window = [0.0f32; FFT_SIZE];
@@ -90,7 +107,7 @@ impl AudioAnalyzer {
         let bin_map = Self::compute_bin_map(sample_rate);
 
         Self {
-            shared_data,
+            input,
             buffer: [0.0; FFT_SIZE],
             buffer_pos: 0,
             fft,
@@ -184,7 +201,7 @@ impl AudioAnalyzer {
         let rms_left = (self.rms_sum_left * inv_count).sqrt();
         let rms_right = (self.rms_sum_right * inv_count).sqrt();
 
-        self.shared_data.store(VisData {
+        self.input.write(VisData {
             bins: self.bins,
             peak_left: self.peak_left,
             peak_right: self.peak_right,
