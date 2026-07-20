@@ -3,7 +3,7 @@ use thiserror::Error;
 use kira::backend::cpal;
 
 use crate::{
-    Album, Config, ConfigError, Library, LibraryError, Playlist, Queue, Track, VisData,
+    Config, ConfigError, Library, LibraryError, Queue, Track, VisData,
     backend::{Backend, BackendState, PlaybackError},
     queue::LoopMode,
 };
@@ -25,48 +25,16 @@ impl Player {
         })
     }
 
-    pub fn query_all_tracks(&self) -> Result<Vec<Track>, LibraryError> {
-        self.library.query_all_tracks()
-    }
-
-    pub fn query_n_tracks(&self, limit: i64) -> Result<Vec<Track>, LibraryError> {
-        self.library.query_n_tracks(limit)
-    }
-
-    pub fn query_tracks_by_album(
-        &self,
-        album_name: &str,
-        artist: Option<&str>,
-    ) -> Result<Vec<Track>, LibraryError> {
-        self.library.query_tracks_by_album(album_name, artist)
-    }
-
-    pub fn query_tracks_by_artist(&self, artist_name: &str) -> Result<Vec<Track>, LibraryError> {
-        self.library.query_tracks_by_artist(artist_name)
-    }
-
-    pub fn query_all_albums(&self) -> Result<Vec<Album>, LibraryError> {
-        self.library.query_all_albums()
-    }
-
-    pub fn query_track_from_id(&self, id: i64) -> Result<Option<Track>, LibraryError> {
-        self.library.query_track_from_id(id)
-    }
-
-    pub fn query_track_from_path(&self, path: &str) -> Result<Option<Track>, LibraryError> {
-        self.library.query_track_from_path(path)
-    }
-
-    pub fn query_track_count(&self) -> Result<i64, LibraryError> {
-        self.library.query_track_count()
+    /// Read-only access to the library for queries.
+    ///
+    /// Mutations go through `Player` instead, so the queue can be kept
+    /// consistent with whatever changed.
+    pub fn library(&self) -> &Library {
+        &self.library
     }
 
     pub fn create_playlist(&self, name: &str) -> Result<i64, LibraryError> {
         self.library.create_playlist(name)
-    }
-
-    pub fn get_all_playlists(&self) -> Result<Vec<Playlist>, LibraryError> {
-        self.library.get_all_playlists()
     }
 
     pub fn rename_playlist(&self, id: i64, name: &str) -> Result<(), LibraryError> {
@@ -94,10 +62,6 @@ impl Player {
             .remove_track_from_playlist(playlist_id, track_id)
     }
 
-    pub fn get_tracks_in_playlist(&self, playlist_id: i64) -> Result<Vec<Track>, LibraryError> {
-        self.library.get_tracks_in_playlist(playlist_id)
-    }
-
     pub fn set_playlist_cover(
         &self,
         playlist_id: i64,
@@ -109,7 +73,7 @@ impl Player {
     pub fn clear_library(&mut self) -> Result<(), LibraryError> {
         self.queue.clear();
         self.backend.stop();
-        self.library.clear_library()?;
+        self.library.clear()?;
         Config::clear_root()?;
         Ok(())
     }

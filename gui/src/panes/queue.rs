@@ -33,7 +33,7 @@ impl PaneView for QueuePane {
         let mut track_list = column![].spacing(0);
 
         if let Some(current_id) = current_id {
-            if let Ok(Some(track)) = player.query_track_from_id(current_id) {
+            if let Ok(Some(track)) = player.library().query_track_from_id(current_id) {
                 let is_hovered = hovered_track.as_ref() == Some(&current_id);
 
                 let track_inner = container(
@@ -110,7 +110,7 @@ impl PaneView for QueuePane {
                 break;
             }
 
-            if let Ok(Some(track)) = player.query_track_from_id(*track_id) {
+            if let Ok(Some(track)) = player.library().query_track_from_id(*track_id) {
                 let is_hovered = hovered_track.as_ref() == Some(track_id);
 
                 let track_inner = container(

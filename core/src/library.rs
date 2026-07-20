@@ -70,59 +70,54 @@ impl Library {
         Ok(())
     }
 
-    pub fn query_track_from_id(&self, id: i64) -> Result<Option<Track>, LibraryError> {
-        Ok(self.db.get_track_by_id(id)?)
+    pub(crate) fn clear(&self) -> Result<(), LibraryError> {
+        Ok(self.db.clear_library()?)
     }
+}
 
-    pub fn query_all_tracks(&self) -> Result<Vec<Track>, LibraryError> {
-        Ok(self.db.get_all_tracks()?)
-    }
+/// Forwards read-only queries to the underlying [`Database`], mapping
+/// `rusqlite::Error` into [`LibraryError`] so callers never see the SQL layer.
+macro_rules! forward_queries {
+    ($( $name:ident -> $ret:ty = $db_method:ident ( $( $arg:ident : $ty:ty ),* ); )*) => {
+        impl Library {
+            $(
+                pub fn $name(&self, $( $arg: $ty ),*) -> Result<$ret, LibraryError> {
+                    Ok(self.db.$db_method($( $arg ),*)?)
+                }
+            )*
+        }
+    };
+}
 
-    pub fn query_n_tracks(&self, limit: i64) -> Result<Vec<Track>, LibraryError> {
-        Ok(self.db.get_n_tracks(limit)?)
-    }
+forward_queries! {
+    query_track_from_id -> Option<Track> = get_track_by_id(id: i64);
+    query_track_from_path -> Option<Track> = get_track_by_path(path: &str);
+    query_all_tracks -> Vec<Track> = get_all_tracks();
+    query_n_tracks -> Vec<Track> = get_n_tracks(limit: i64);
+    query_tracks_by_album -> Vec<Track> = get_tracks_by_album(album_name: &str, artist: Option<&str>);
+    query_tracks_by_artist -> Vec<Track> = get_tracks_by_artist(artist_name: &str);
+    query_track_count -> i64 = count_tracks();
+    query_all_albums -> Vec<Album> = get_all_albums();
+    get_all_playlists -> Vec<Playlist> = get_all_playlists();
+    get_tracks_in_playlist -> Vec<Track> = get_tracks_in_playlist(playlist_id: i64);
+}
 
-    pub fn query_tracks_by_album(
-        &self,
-        album_name: &str,
-        artist: Option<&str>,
-    ) -> Result<Vec<Track>, LibraryError> {
-        Ok(self.db.get_tracks_by_album(album_name, artist)?)
-    }
-
-    pub fn query_tracks_by_artist(&self, artist_name: &str) -> Result<Vec<Track>, LibraryError> {
-        Ok(self.db.get_tracks_by_artist(artist_name)?)
-    }
-
-    pub fn query_track_count(&self) -> Result<i64, LibraryError> {
-        Ok(self.db.count_tracks()?)
-    }
-
-    pub fn query_all_albums(&self) -> Result<Vec<Album>, LibraryError> {
-        Ok(self.db.get_all_albums()?)
-    }
-
-    pub fn query_track_from_path(&self, path: &str) -> Result<Option<Track>, LibraryError> {
-        Ok(self.db.get_track_by_path(path)?)
-    }
-
-    pub fn create_playlist(&self, name: &str) -> Result<i64, LibraryError> {
+/// Playlist mutations. These stay distinct from the query forwards because
+/// `Player` wraps them to keep the queue consistent with the library.
+impl Library {
+    pub(crate) fn create_playlist(&self, name: &str) -> Result<i64, LibraryError> {
         Ok(self.db.create_playlist(name)?)
     }
 
-    pub fn get_all_playlists(&self) -> Result<Vec<Playlist>, LibraryError> {
-        Ok(self.db.get_all_playlists()?)
-    }
-
-    pub fn rename_playlist(&self, id: i64, name: &str) -> Result<(), LibraryError> {
+    pub(crate) fn rename_playlist(&self, id: i64, name: &str) -> Result<(), LibraryError> {
         Ok(self.db.rename_playlist(id, name)?)
     }
 
-    pub fn delete_playlist(&self, id: i64) -> Result<(), LibraryError> {
+    pub(crate) fn delete_playlist(&self, id: i64) -> Result<(), LibraryError> {
         Ok(self.db.delete_playlist(id)?)
     }
 
-    pub fn add_track_to_playlist(
+    pub(crate) fn add_track_to_playlist(
         &self,
         playlist_id: i64,
         track_id: i64,
@@ -130,7 +125,7 @@ impl Library {
         Ok(self.db.add_track_to_playlist(playlist_id, track_id)?)
     }
 
-    pub fn remove_track_from_playlist(
+    pub(crate) fn remove_track_from_playlist(
         &self,
         playlist_id: i64,
         track_id: i64,
@@ -138,20 +133,12 @@ impl Library {
         Ok(self.db.remove_track_from_playlist(playlist_id, track_id)?)
     }
 
-    pub fn get_tracks_in_playlist(&self, playlist_id: i64) -> Result<Vec<Track>, LibraryError> {
-        Ok(self.db.get_tracks_in_playlist(playlist_id)?)
-    }
-
-    pub fn set_playlist_cover(
+    pub(crate) fn set_playlist_cover(
         &self,
         playlist_id: i64,
         track_id: Option<i64>,
     ) -> Result<(), LibraryError> {
         Ok(self.db.set_playlist_cover(playlist_id, track_id)?)
-    }
-
-    pub fn clear_library(&self) -> Result<(), LibraryError> {
-        Ok(self.db.clear_library()?)
     }
 }
 

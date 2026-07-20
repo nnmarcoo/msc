@@ -95,10 +95,10 @@ impl CollectionsPane {
 impl PaneView for CollectionsPane {
     fn update(&mut self, player: &Player, art: &mut ArtCache) {
         if !self.albums_initialized {
-            if let Ok(albums) = player.query_all_albums() {
+            if let Ok(albums) = player.library().query_all_albums() {
                 for album in &albums {
                     if let Some(ref path_str) = album.sample_track_path {
-                        if let Ok(Some(track)) = player.query_track_from_path(path_str) {
+                        if let Ok(Some(track)) = player.library().query_track_from_path(path_str) {
                             if let Some(tid) = track.id() {
                                 self.album_art_keys
                                     .insert(album.id, (tid, track.path().to_path_buf()));
@@ -111,10 +111,10 @@ impl PaneView for CollectionsPane {
         }
 
         if !self.playlists_initialized {
-            if let Ok(playlists) = player.get_all_playlists() {
+            if let Ok(playlists) = player.library().get_all_playlists() {
                 for playlist in &playlists {
                     if let Some(tid) = playlist.cover_track_id {
-                        if let Ok(Some(track)) = player.query_track_from_id(tid) {
+                        if let Ok(Some(track)) = player.library().query_track_from_id(tid) {
                             self.playlist_art_keys
                                 .insert(playlist.id, (tid, track.path().to_path_buf()));
                         }

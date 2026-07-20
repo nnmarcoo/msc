@@ -167,14 +167,19 @@ impl App {
     fn ensure_cached_playlists(&self) {
         let mut cache = self.cached_playlists.borrow_mut();
         if cache.is_none() {
-            *cache = Some(self.player.get_all_playlists().unwrap_or_default());
+            *cache = Some(
+                self.player
+                    .library()
+                    .get_all_playlists()
+                    .unwrap_or_default(),
+            );
         }
     }
 
     fn ensure_cached_tracks(&self) {
         let mut cache = self.cached_tracks.borrow_mut();
         if cache.is_none() {
-            let mut tracks = self.player.query_all_tracks().unwrap_or_default();
+            let mut tracks = self.player.library().query_all_tracks().unwrap_or_default();
             tracks.sort_by(|a, b| {
                 a.track_artist()
                     .unwrap_or("-")
@@ -189,7 +194,7 @@ impl App {
     fn ensure_cached_albums(&self) {
         let mut cache = self.cached_albums.borrow_mut();
         if cache.is_none() {
-            *cache = Some(self.player.query_all_albums().unwrap_or_default());
+            *cache = Some(self.player.library().query_all_albums().unwrap_or_default());
         }
     }
 
@@ -568,6 +573,7 @@ impl App {
             Message::PlayTrack(track_id) => {
                 if self
                     .player
+                    .library()
                     .query_track_from_id(track_id)
                     .ok()
                     .flatten()
@@ -580,6 +586,7 @@ impl App {
             Message::QueueBack(track_id) => {
                 if self
                     .player
+                    .library()
                     .query_track_from_id(track_id)
                     .ok()
                     .flatten()
@@ -591,6 +598,7 @@ impl App {
             Message::QueueFront(track_id) => {
                 if self
                     .player
+                    .library()
                     .query_track_from_id(track_id)
                     .ok()
                     .flatten()
@@ -659,6 +667,7 @@ impl App {
                             .remove_track_from_playlist(playlist_id, track_id);
                         let fresh = self
                             .player
+                            .library()
                             .get_tracks_in_playlist(playlist_id)
                             .unwrap_or_default();
                         *self.cached_playlists.borrow_mut() = None;
@@ -676,20 +685,20 @@ impl App {
                         }
                     }
                     CollectionsMessage::PlayPlaylist(id) => {
-                        if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
+                        if let Ok(tracks) = self.player.library().get_tracks_in_playlist(id) {
                             self.player.clear_queue();
                             self.player.queue_many(tracks.iter().filter_map(|t| t.id()));
                             let _ = self.player.play();
                         }
                     }
                     CollectionsMessage::QueuePlaylistNext(id) => {
-                        if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
+                        if let Ok(tracks) = self.player.library().get_tracks_in_playlist(id) {
                             self.player
                                 .queue_many_front(tracks.iter().filter_map(|t| t.id()));
                         }
                     }
                     CollectionsMessage::QueuePlaylistBack(id) => {
-                        if let Ok(tracks) = self.player.get_tracks_in_playlist(id) {
+                        if let Ok(tracks) = self.player.library().get_tracks_in_playlist(id) {
                             self.player.queue_many(tracks.iter().filter_map(|t| t.id()));
                         }
                     }
@@ -697,6 +706,7 @@ impl App {
                         let new_key = ExpandedItem::Album(name.clone(), artist.clone());
                         let fetched = self
                             .player
+                            .library()
                             .query_tracks_by_album(&name, artist.as_deref())
                             .unwrap_or_default();
                         let album_id = {
@@ -726,7 +736,11 @@ impl App {
                     }
                     CollectionsMessage::TogglePlaylist(id) => {
                         let new_key = ExpandedItem::Playlist(id);
-                        let fetched = self.player.get_tracks_in_playlist(id).unwrap_or_default();
+                        let fetched = self
+                            .player
+                            .library()
+                            .get_tracks_in_playlist(id)
+                            .unwrap_or_default();
                         for (_, pane) in self.panes.iter_mut() {
                             if let Some(cp) =
                                 pane.content.as_any_mut().downcast_mut::<CollectionsPane>()
@@ -756,6 +770,7 @@ impl App {
             Message::PlayAlbum(album_name, artist) => {
                 if let Ok(tracks) = self
                     .player
+                    .library()
                     .query_tracks_by_album(&album_name, artist.as_deref())
                 {
                     self.player.clear_queue();
@@ -766,6 +781,7 @@ impl App {
             Message::QueueAlbumNext(album_name, artist) => {
                 if let Ok(tracks) = self
                     .player
+                    .library()
                     .query_tracks_by_album(&album_name, artist.as_deref())
                 {
                     self.player
@@ -775,6 +791,7 @@ impl App {
             Message::QueueAlbumBack(album_name, artist) => {
                 if let Ok(tracks) = self
                     .player
+                    .library()
                     .query_tracks_by_album(&album_name, artist.as_deref())
                 {
                     self.player.queue_many(tracks.iter().filter_map(|t| t.id()));
