@@ -204,6 +204,21 @@ impl Node {
         }
     }
 
+    fn parent_axis_of(&self, target: PaneId) -> Option<Axis> {
+        match self {
+            Self::Leaf { .. } => None,
+            Self::Split { axis, a, b, .. } => {
+                if matches!(**a, Self::Leaf { id } if id == target)
+                    || matches!(**b, Self::Leaf { id } if id == target)
+                {
+                    return Some(*axis);
+                }
+                a.parent_axis_of(target)
+                    .or_else(|| b.parent_axis_of(target))
+            }
+        }
+    }
+
     fn with_parent(&mut self, target: PaneId, f: &mut dyn FnMut(&mut Split, Side)) -> bool {
         match self {
             Self::Leaf { .. } => false,
@@ -359,15 +374,25 @@ impl Layout {
             .is_some_and(|(split, side)| split.locked_side() == Some(side))
     }
 
-    pub fn set_lock(&mut self, id: PaneId, pixels: Option<f32>) {
+    /// The axis of the split that `id` is a child of, if any. A vertical split
+    /// arranges its sides left/right (so locking pins a width); a horizontal
+    /// split arranges them top/bottom (locking pins a height).
+    pub fn parent_axis(&self, id: PaneId) -> Option<Axis> {
+        self.root.parent_axis_of(id)
+    }
+
+    pub fn lock(&mut self, id: PaneId, pixels: f32) {
         self.root.with_parent(id, &mut |split, side| {
-            *split = match pixels {
-                Some(pixels) => Split::Locked {
-                    side,
-                    pixels: pixels.max(MIN_PANE),
-                },
-                None => Split::Ratio { ratio: 0.5 },
+            *split = Split::Locked {
+                side,
+                pixels: pixels.max(MIN_PANE),
             };
+        });
+    }
+
+    pub fn unlock(&mut self, id: PaneId) {
+        self.root.with_parent(id, &mut |split, _side| {
+            *split = Split::Ratio { ratio: 0.5 };
         });
     }
 
@@ -505,7 +530,7 @@ mod tests {
     #[test]
     fn lock_side_a_then_drag_sets_pixels() {
         let mut l = two_pane();
-        l.set_lock(PaneId(0), Some(240.0));
+        l.lock(PaneId(0), 240.0);
         assert!(l.is_locked(PaneId(0)));
 
         let path = SplitPath(vec![]);
@@ -528,7 +553,7 @@ mod tests {
     #[test]
     fn lock_side_b_drag_moves_correct_direction() {
         let mut l = two_pane();
-        l.set_lock(PaneId(1), Some(200.0));
+        l.lock(PaneId(1), 200.0);
         let path = SplitPath(vec![]);
         l.drag_divider(&path, 60.0, 1000.0);
         match l.root {
@@ -565,7 +590,7 @@ mod tests {
     #[test]
     fn min_pane_clamp_under_pressure() {
         let mut l = two_pane();
-        l.set_lock(PaneId(0), Some(240.0));
+        l.lock(PaneId(0), 240.0);
         let path = SplitPath(vec![]);
         l.drag_divider(&path, -1000.0, 500.0);
         match l.root {
@@ -700,7 +725,7 @@ mod tests {
     #[test]
     fn locked_survives_toml_round_trip() {
         let mut l = two_pane();
-        l.set_lock(PaneId(0), Some(260.0));
+        l.lock(PaneId(0), 260.0);
         let s = toml::to_string(&l).unwrap();
         let back: Layout = toml::from_str(&s).unwrap();
         assert_eq!(l, back);

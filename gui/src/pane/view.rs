@@ -10,15 +10,31 @@
 //! target pane paints a highlight over the zone that a drop would land in.
 
 use iced::alignment::{Horizontal, Vertical};
-use iced::widget::{button, column, container, mouse_area, responsive, row, stack, text};
+use iced::widget::svg::Handle;
+use iced::widget::tooltip::Position;
+use iced::widget::{
+    button, column, container, mouse_area, responsive, row, stack, svg, text, tooltip,
+};
 use iced::{Element, Length};
 
 use crate::app::{DropTarget, Message};
 use crate::layout::{Axis, DropZone, PaneId};
 use crate::pane::PaneKind;
-use crate::styles::{self, LABEL_FONT_SIZE, PAD};
+use crate::styles::{self, LABEL_FONT_SIZE, PAD, TOOLTIP_DELAY};
 
 const ROOT_BAND: f32 = 24.0;
+
+/// Edit-mode control size, matching `LABEL_FONT_SIZE` so icons sit level with
+/// any text controls in the same bar.
+const ICON_SIZE: f32 = 14.0;
+
+const ICON_SPLIT_VERTICAL: &[u8] = include_bytes!("../../../assets/icons/split_vertical.svg");
+const ICON_SPLIT_HORIZONTAL: &[u8] = include_bytes!("../../../assets/icons/split_horizontal.svg");
+const ICON_CLOSE: &[u8] = include_bytes!("../../../assets/icons/close.svg");
+const ICON_GRIP: &[u8] = include_bytes!("../../../assets/icons/grip.svg");
+const ICON_LOCK: &[u8] = include_bytes!("../../../assets/icons/lock.svg");
+const ICON_UNLOCK: &[u8] = include_bytes!("../../../assets/icons/unlock.svg");
+const ICON_CYCLE: &[u8] = include_bytes!("../../../assets/icons/cycle.svg");
 
 #[derive(Clone, Copy)]
 pub struct DragContext {
@@ -176,13 +192,34 @@ fn zone_highlight<'a>(zone: DropZone) -> Element<'a, Message> {
 }
 
 fn edit_overlay<'a>(id: PaneId, kind: PaneKind, locked: bool) -> Element<'a, Message> {
+    responsive(move |pane_size| edit_controls(id, kind, locked, pane_size)).into()
+}
+
+fn edit_controls<'a>(
+    id: PaneId,
+    kind: PaneKind,
+    locked: bool,
+    pane_size: iced::Size,
+) -> Element<'a, Message> {
     let controls = row![
         grab_handle(id),
-        pill(if locked { "🔒" } else { "🔓" }, Message::ToggleLock(id)),
-        pill("↔", Message::SplitPane(id, Axis::Vertical)),
-        pill("↕", Message::SplitPane(id, Axis::Horizontal)),
+        svg_button(
+            if locked { ICON_LOCK } else { ICON_UNLOCK },
+            if locked { "Unlock pane" } else { "Lock pane" },
+            Message::ToggleLock(id, pane_size),
+        ),
+        svg_button(
+            ICON_SPLIT_VERTICAL,
+            "Split vertically",
+            Message::SplitPane(id, Axis::Vertical),
+        ),
+        svg_button(
+            ICON_SPLIT_HORIZONTAL,
+            "Split horizontally",
+            Message::SplitPane(id, Axis::Horizontal),
+        ),
         kind_cycle(id, kind),
-        pill("×", Message::ClosePane(id)),
+        svg_button(ICON_CLOSE, "Close pane", Message::ClosePane(id)),
     ]
     .spacing(PAD / 2.0);
 
@@ -200,31 +237,62 @@ fn edit_overlay<'a>(id: PaneId, kind: PaneKind, locked: bool) -> Element<'a, Mes
 }
 
 fn grab_handle<'a>(id: PaneId) -> Element<'a, Message> {
-    mouse_area(
-        container(text("⠿").size(LABEL_FONT_SIZE))
+    let handle = mouse_area(
+        container(icon(ICON_GRIP))
             .padding([2.0, PAD])
             .style(styles::icon_button_style_container),
     )
     .interaction(iced::mouse::Interaction::Grab)
-    .on_press(Message::PaneGrabbed(id))
-    .into()
+    .on_press(Message::PaneGrabbed(id));
+    with_tooltip(handle, "Drag to move")
 }
 
 fn kind_cycle<'a>(id: PaneId, kind: PaneKind) -> Element<'a, Message> {
     let next = next_kind(kind);
-    button(text(kind.title()).size(LABEL_FONT_SIZE))
-        .on_press(Message::SetPaneKind(id, next))
-        .padding([2.0, PAD])
-        .style(styles::icon_button_style)
+    let control = button(
+        row![icon(ICON_CYCLE), text(kind.title()).size(LABEL_FONT_SIZE)]
+            .spacing(PAD / 2.0)
+            .align_y(Vertical::Center),
+    )
+    .on_press(Message::SetPaneKind(id, next))
+    .padding([2.0, PAD])
+    .style(styles::icon_button_style);
+    with_tooltip(control, "Change pane type")
+}
+
+/// A bare theme-tinted icon at the standard edit-control size.
+fn icon<'a>(bytes: &'static [u8]) -> Element<'a, Message> {
+    svg(Handle::from_memory(bytes))
+        .style(styles::svg_style)
+        .width(Length::Fixed(ICON_SIZE))
+        .height(Length::Fixed(ICON_SIZE))
         .into()
 }
 
-fn pill(label: &str, message: Message) -> Element<'_, Message> {
-    button(text(label).size(LABEL_FONT_SIZE))
+/// An icon wrapped in a hoverable, tooltipped button — the edit bar's standard control.
+fn svg_button<'a>(bytes: &'static [u8], label: &'a str, message: Message) -> Element<'a, Message> {
+    let control = button(icon(bytes))
         .on_press(message)
         .padding([2.0, PAD])
-        .style(styles::icon_button_style)
-        .into()
+        .style(styles::icon_button_style);
+    with_tooltip(control, label)
+}
+
+/// Attaches a delayed tooltip above `content`, styled as a floating panel.
+fn with_tooltip<'a>(
+    content: impl Into<Element<'a, Message>>,
+    label: &'a str,
+) -> Element<'a, Message> {
+    tooltip(
+        content,
+        container(text(label).size(LABEL_FONT_SIZE))
+            .padding(PAD)
+            .style(styles::tooltip_style),
+        Position::Bottom,
+    )
+    .delay(TOOLTIP_DELAY)
+    .gap(PAD)
+    .into()
 }
 
 fn next_kind(kind: PaneKind) -> PaneKind {

@@ -2,16 +2,19 @@
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::time::Duration;
 
 use iced::{
-    Background, Theme,
-    widget::{button, container},
+    Background, Border, Theme,
+    widget::{button, container, svg},
 };
 
 pub const PAD: f32 = 5.0;
 pub const RADIUS: f32 = 6.0;
 
 pub const LABEL_FONT_SIZE: f32 = 11.0;
+
+pub const TOOLTIP_DELAY: Duration = Duration::from_millis(400);
 
 static ACTIVE_RADIUS: OnceLock<AtomicU32> = OnceLock::new();
 
@@ -58,6 +61,20 @@ pub fn drop_highlight_style(theme: &Theme) -> container::Style {
     }
 }
 
+pub fn tooltip_style(theme: &Theme) -> container::Style {
+    let palette = theme.extended_palette();
+    container::Style {
+        text_color: Some(palette.background.base.text),
+        background: Some(Background::Color(palette.background.weak.color)),
+        border: Border {
+            color: palette.background.strong.color,
+            width: 1.0,
+            radius: radius().into(),
+        },
+        ..Default::default()
+    }
+}
+
 pub fn icon_button_style_container(theme: &Theme) -> container::Style {
     let palette = theme.extended_palette();
     container::Style {
@@ -65,6 +82,15 @@ pub fn icon_button_style_container(theme: &Theme) -> container::Style {
         border: iced::border::rounded(radius()),
         ..Default::default()
     }
+}
+
+pub fn svg_style(theme: &Theme, status: svg::Status) -> svg::Style {
+    let base = theme.extended_palette().background.base.text;
+    let color = match status {
+        svg::Status::Hovered => base,
+        svg::Status::Idle => base.scale_alpha(0.7),
+    };
+    svg::Style { color: Some(color) }
 }
 
 pub fn icon_button_style(theme: &Theme, status: button::Status) -> button::Style {

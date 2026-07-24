@@ -89,7 +89,7 @@ pub enum Message {
     SplitPane(PaneId, Axis),
     ClosePane(PaneId),
     SetPaneKind(PaneId, PaneKind),
-    ToggleLock(PaneId),
+    ToggleLock(PaneId, iced::Size),
     DividerGrabbed(SplitPath),
     PaneGrabbed(PaneId),
     DropHovered(DropTarget),
@@ -252,10 +252,16 @@ impl App {
                 self.pane_states.reset(id, kind);
                 self.persist_layouts();
             }
-            Message::ToggleLock(id) => {
-                let locked = self.layout().is_locked(id);
-                self.layout_mut()
-                    .set_lock(id, if locked { None } else { Some(240.0) });
+            Message::ToggleLock(id, size) => {
+                if self.layout().is_locked(id) {
+                    self.layout_mut().unlock(id);
+                } else {
+                    let extent = match self.layout().parent_axis(id) {
+                        Some(Axis::Horizontal) => size.height,
+                        Some(Axis::Vertical) | None => size.width,
+                    };
+                    self.layout_mut().lock(id, extent);
+                }
                 self.persist_layouts();
             }
             Message::DividerGrabbed(path) => {
