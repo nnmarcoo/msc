@@ -3,6 +3,8 @@ use std::path::PathBuf;
 use iced::Theme;
 use serde::{Deserialize, Serialize};
 
+use crate::layout::{Layout, default_presets};
+
 pub const VOLUME_DEFAULT: f32 = 0.5;
 
 pub const ALL_THEMES: &[Theme] = &[
@@ -35,6 +37,8 @@ pub struct Config {
     pub theme: Theme,
     pub rounded: bool,
     pub volume: f32,
+    pub layouts: Vec<Layout>,
+    pub active_layout: usize,
 }
 
 impl Default for Config {
@@ -43,6 +47,8 @@ impl Default for Config {
             theme: Theme::KanagawaDragon,
             rounded: true,
             volume: VOLUME_DEFAULT,
+            layouts: default_presets(),
+            active_layout: 0,
         }
     }
 }
@@ -55,6 +61,10 @@ struct ConfigFile {
     rounded: bool,
     #[serde(default = "default_volume")]
     volume: f32,
+    #[serde(default)]
+    layouts: Vec<Layout>,
+    #[serde(default)]
+    active_layout: usize,
 }
 
 fn default_true() -> bool {
@@ -71,16 +81,27 @@ impl From<&Config> for ConfigFile {
             theme: c.theme.to_string(),
             rounded: c.rounded,
             volume: c.volume,
+            layouts: c.layouts.clone(),
+            active_layout: c.active_layout,
         }
     }
 }
 
 impl From<ConfigFile> for Config {
     fn from(f: ConfigFile) -> Self {
+        let layouts = if f.layouts.is_empty() {
+            default_presets()
+        } else {
+            f.layouts
+        };
+        let active_layout = f.active_layout.min(layouts.len() - 1);
+
         Self {
             theme: theme_from_str(&f.theme),
             rounded: f.rounded,
             volume: f.volume.clamp(0.0, 1.0),
+            layouts,
+            active_layout,
         }
     }
 }

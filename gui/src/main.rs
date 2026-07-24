@@ -3,6 +3,8 @@
 mod app;
 mod components;
 mod config;
+mod layout;
+mod pane;
 mod styles;
 mod tasks;
 

@@ -87,3 +87,29 @@ pub fn row_style(selected: bool) -> impl Fn(&Theme, button::Status) -> button::S
         }
     }
 }
+
+pub fn toggle_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |theme, status| {
+        let palette = theme.extended_palette();
+        let background = if active {
+            Some(Background::Color(palette.primary.base.color))
+        } else {
+            match status {
+                button::Status::Hovered | button::Status::Pressed => {
+                    Some(Background::Color(palette.background.weak.color))
+                }
+                _ => None,
+            }
+        };
+        button::Style {
+            background,
+            text_color: if active {
+                palette.primary.base.text
+            } else {
+                palette.background.base.text
+            },
+            border: iced::border::rounded(radius()),
+            ..Default::default()
+        }
+    }
+}

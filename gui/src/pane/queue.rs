@@ -1,17 +1,41 @@
+//! Queue pane: what is playing now and what follows.
+
 use iced::widget::{button, column, container, row, scrollable, text};
 use iced::{Element, Length};
-use verse_core::{Library, Player};
+use verse_core::{Library, Player, Track};
 
-use crate::app::Message;
+use crate::app::Message as AppMessage;
+use crate::layout::PaneId;
 use crate::styles::{self, LABEL_FONT_SIZE, PAD, ROW_FONT_SIZE};
 
-pub fn view<'a>(library: &'a Library, player: &Player) -> Element<'a, Message> {
+#[derive(Debug, Default)]
+pub struct State {
+    pub show_history: bool,
+}
+
+#[derive(Debug, Clone)]
+pub enum Message {
+    ToggleHistory,
+}
+
+pub fn update(state: &mut State, message: Message) {
+    match message {
+        Message::ToggleHistory => state.show_history = !state.show_history,
+    }
+}
+
+pub fn view<'a>(
+    _id: PaneId,
+    _state: &'a State,
+    library: &'a Library,
+    player: &Player,
+) -> Element<'a, AppMessage> {
     let queue = player.queue();
 
     let header = row![
         text("Queue").size(ROW_FONT_SIZE).width(Length::Fill),
         button(text("Clear").size(LABEL_FONT_SIZE))
-            .on_press(Message::ClearQueue)
+            .on_press(AppMessage::ClearQueue)
             .padding([2.0, PAD])
             .style(styles::icon_button_style),
     ]
@@ -20,9 +44,7 @@ pub fn view<'a>(library: &'a Library, player: &Player) -> Element<'a, Message> {
 
     let mut rows = column![].spacing(1);
 
-    if let Some(id) = queue.current()
-        && let Some(track) = library.track(id)
-    {
+    if let Some(track) = queue.current().and_then(|id| library.track(id)) {
         rows = rows.push(
             container(
                 column![
@@ -37,8 +59,8 @@ pub fn view<'a>(library: &'a Library, player: &Player) -> Element<'a, Message> {
         );
     }
 
-    for (index, &id) in queue.upcoming().iter().enumerate() {
-        let Some(track) = library.track(id) else {
+    for (index, &track_id) in queue.upcoming().iter().enumerate() {
+        let Some(track) = library.track(track_id) else {
             continue;
         };
 
@@ -51,12 +73,12 @@ pub fn view<'a>(library: &'a Library, player: &Player) -> Element<'a, Message> {
                     ]
                     .spacing(1)
                 )
-                .on_press(Message::PlayTrack(id))
+                .on_press(AppMessage::PlayTrack(track_id))
                 .width(Length::Fill)
                 .padding([PAD, PAD * 2.0])
                 .style(styles::row_style(false)),
                 button(text("×").size(ROW_FONT_SIZE))
-                    .on_press(Message::RemoveFromQueue(index))
+                    .on_press(AppMessage::RemoveFromQueue(index))
                     .padding([PAD, PAD * 1.5])
                     .style(styles::icon_button_style),
             ]
@@ -79,12 +101,12 @@ pub fn view<'a>(library: &'a Library, player: &Player) -> Element<'a, Message> {
     .into()
 }
 
-fn display_title(track: &verse_core::Track) -> &str {
+fn display_title(track: &Track) -> &str {
     track.title().unwrap_or_else(|| {
         track
             .path()
             .file_name()
-            .and_then(|n| n.to_str())
+            .and_then(|name| name.to_str())
             .unwrap_or("Unknown")
     })
 }

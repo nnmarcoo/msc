@@ -1,5 +1,4 @@
-pub mod library_list;
-pub mod queue_list;
+pub mod now_playing;
 pub mod transport;
 
 pub fn format_time(seconds: f64) -> String {
