@@ -1,5 +1,6 @@
 [workspace]
-members = ["core", "gui", "tui"] 
+# gui and tui are being rewritten against the new core; excluded until they are.
+members = ["core"]
 resolver = "2"
 
 [profile.release]
