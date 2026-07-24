@@ -1,3 +1,5 @@
+# Currently being redesigned in the exp branch
+
 <div align="center">
   <h1>verse</h1>
   <p><em>cross-platform music player built with Rust</em></p>
