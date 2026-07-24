@@ -1,7 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+//! Verse desktop GUI entry point.
+
 mod app;
-mod components;
 mod config;
 mod layout;
 mod pane;

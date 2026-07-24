@@ -1,3 +1,5 @@
+//! Async side effects: the folder picker and off-thread library scan.
+
 use std::path::PathBuf;
 
 use iced::Task;

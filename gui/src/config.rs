@@ -1,3 +1,6 @@
+//! Persisted GUI settings (theme, volume, saved layouts). Split into an owned
+//! `Config` and a serialised `ConfigFile` so on-disk changes stay forgiving.
+
 use std::path::PathBuf;
 
 use iced::Theme;

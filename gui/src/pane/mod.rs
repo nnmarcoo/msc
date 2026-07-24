@@ -4,6 +4,12 @@
 //! in [`PaneState`] keyed by [`PaneId`]. Reaching one pane's state is a match,
 //! not a downcast, so adding a kind fails to compile everywhere that must
 //! handle it instead of silently doing nothing at runtime.
+//!
+//! The per-kind state, messages, and dispatch are in place but not yet driven:
+//! panes currently render as labels while the layout mechanics are the focus.
+//! The scaffolding stays so that wiring real content later is a self-contained
+//! change rather than a rework.
+#![allow(dead_code)]
 
 pub mod library;
 pub mod queue;
@@ -65,8 +71,6 @@ impl PaneState {
     }
 }
 
-/// Per-pane state, kept beside the layout rather than inside it so that the
-/// layout stays serialisable and free of runtime-only data.
 #[derive(Debug, Default)]
 pub struct PaneStates {
     states: HashMap<PaneId, PaneState>,
@@ -105,7 +109,7 @@ impl PaneStates {
                 library::update(state, message);
             }
             (Some(PaneState::Queue(state)), PaneMessage::Queue(message)) => {
-                queue::update(state, message);
+                queue::update(state, &message);
             }
             _ => {}
         }

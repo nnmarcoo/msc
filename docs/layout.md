@@ -3,6 +3,12 @@
 A pane system where the user builds their own layout: split, resize, drag, and
 configure each pane's contents. Written against the rewritten `verse-gui`.
 
+> **Status: Option A shipped.** Layout data model, enum-based panes, per-pane
+> messages, edit mode (split/close/change-kind/drag/resize), named presets, and
+> persistence are all in. The custom-widget path (Option B) remains available
+> without touching the data model. Remaining: fixed-shell regions beyond the
+> transport bar, per-pane settings popovers, more pane kinds.
+
 ## What went wrong last time
 
 The old system worked, but was hard to follow. Four concrete causes, each of
