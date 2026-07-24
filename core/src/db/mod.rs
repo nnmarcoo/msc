@@ -7,10 +7,6 @@ use std::path::Path;
 
 use schema::SCHEMA_VERSION;
 
-/// A playlist rescued across a schema rebuild.
-///
-/// Track ids are not stable across a rescan, so membership is carried by path
-/// and re-linked once the new track rows exist.
 struct RescuedPlaylist {
     name: String,
     cover_path: Option<String>,
@@ -36,22 +32,16 @@ impl Database {
         Ok(db)
     }
 
-    /// Rebuilds the library on schema mismatch rather than migrating it.
-    ///
-    /// A full rescan costs a few hundred milliseconds, so version-by-version
-    /// `ALTER TABLE` paths are not worth their maintenance. Playlists are the
-    /// exception — they are user-authored and unrecoverable, so they are read
-    /// out before the drop and reinserted afterwards, re-linked by path.
     fn migrate(&self) -> SqliteResult<()> {
         let version = self.schema_version()?;
         if version == Some(SCHEMA_VERSION) {
             return Ok(());
         }
 
-        let rescued = match version {
-            // A pre-versioning database. Salvage playlists, discard the rest.
-            None if self.table_exists("playlists")? => self.rescue_playlists()?,
-            _ => Vec::new(),
+        let (rescued, ratings) = if self.table_exists("playlists")? {
+            (self.rescue_playlists()?, self.rescue_ratings()?)
+        } else {
+            (Vec::new(), Vec::new())
         };
 
         schema::drop_all(&self.conn)?;
@@ -61,6 +51,7 @@ impl Database {
         for playlist in &rescued {
             self.restore_playlist(playlist)?;
         }
+        self.stage_ratings(&ratings)?;
         Ok(())
     }
 
@@ -118,15 +109,11 @@ impl Database {
 }
 
 impl Drop for Database {
-    /// Without this the WAL grows unboundedly across runs — the connection was
-    /// previously never closed cleanly, leaving a 4 KB database beside a 638 KB
-    /// write-ahead log.
     fn drop(&mut self) {
         let _ = self.conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);");
     }
 }
 
-/// Playlist rescue across a schema rebuild.
 impl Database {
     fn rescue_playlists(&self) -> SqliteResult<Vec<RescuedPlaylist>> {
         let mut stmt = self.conn.prepare("SELECT id, name FROM playlists")?;
@@ -167,11 +154,6 @@ impl Database {
         stmt.query_map([playlist_id], |row| row.get(0))?.collect()
     }
 
-    /// Recreates the playlist and stages its membership by path.
-    ///
-    /// The referenced tracks do not exist yet — the rebuild dropped them and the
-    /// next scan recreates them with fresh ids — so membership is parked in
-    /// `pending_playlist_tracks` and resolved later by [`Self::relink_pending`].
     fn restore_playlist(&self, playlist: &RescuedPlaylist) -> SqliteResult<()> {
         let id = self.create_playlist(&playlist.name)?;
 
@@ -181,7 +163,8 @@ impl Database {
         )?;
 
         for (position, path) in playlist.track_paths.iter().enumerate() {
-            stmt.execute(rusqlite::params![id, path, position as i64, 0])?;
+            let position = i64::try_from(position).unwrap_or(i64::MAX);
+            stmt.execute(rusqlite::params![id, path, position, 0])?;
         }
         if let Some(cover) = &playlist.cover_path {
             stmt.execute(rusqlite::params![id, cover, -1_i64, 1])?;
@@ -189,9 +172,32 @@ impl Database {
         Ok(())
     }
 
-    /// Resolves staged membership against the track rows a scan has just
-    /// produced. Paths the scan did not find stay pending, so a playlist whose
-    /// files are temporarily unavailable is not quietly emptied.
+    fn rescue_ratings(&self) -> SqliteResult<Vec<(String, i64)>> {
+        let Ok(mut stmt) = self
+            .conn
+            .prepare("SELECT path, rating FROM tracks WHERE rating IS NOT NULL")
+        else {
+            return Ok(Vec::new());
+        };
+        stmt.query_map([], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect()
+    }
+
+    fn stage_ratings(&self, ratings: &[(String, i64)]) -> SqliteResult<()> {
+        if ratings.is_empty() {
+            return Ok(());
+        }
+        let tx = self.conn.unchecked_transaction()?;
+        {
+            let mut stmt = tx
+                .prepare("INSERT OR REPLACE INTO pending_ratings (path, rating) VALUES (?1, ?2)")?;
+            for (path, rating) in ratings {
+                stmt.execute(rusqlite::params![path, rating])?;
+            }
+        }
+        tx.commit()
+    }
+
     pub(crate) fn relink_pending(&self) -> SqliteResult<()> {
         let tx = self.conn.unchecked_transaction()?;
 
@@ -222,6 +228,20 @@ impl Database {
         tx.execute(
             "DELETE FROM pending_playlist_tracks
              WHERE path IN (SELECT path FROM tracks)",
+            [],
+        )?;
+
+        tx.execute(
+            "UPDATE tracks SET rating = (
+                 SELECT r.rating FROM pending_ratings r WHERE r.path = tracks.path
+             )
+             WHERE rating IS NULL
+               AND EXISTS (SELECT 1 FROM pending_ratings r WHERE r.path = tracks.path)",
+            [],
+        )?;
+
+        tx.execute(
+            "DELETE FROM pending_ratings WHERE path IN (SELECT path FROM tracks)",
             [],
         )?;
 

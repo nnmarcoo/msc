@@ -7,17 +7,10 @@ use std::{
 use thiserror::Error;
 use walkdir::WalkDir;
 
-use crate::{Album, Playlist, Track, album, db::Database};
+use crate::{Album, Playlist, Track, album, db::Database, track};
 
 const AUDIO_EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "ogg", "m4a", "aac"];
 
-/// The library, held in memory and backed by SQLite.
-///
-/// Scanning costs roughly four hundred times what loading costs, so the
-/// database exists to avoid re-parsing tags at every launch — not to answer
-/// queries. Everything is read once into `tracks` at startup (~1 ms, ~0.1 MB
-/// for a few hundred tracks); lookups go through the index maps, and mutations
-/// write through to disk so the two copies never diverge.
 pub struct Library {
     tracks: Vec<Track>,
     by_id: HashMap<i64, usize>,
@@ -49,7 +42,6 @@ impl Library {
         Ok(library)
     }
 
-    /// Pulls the whole library into memory and rebuilds the derived state.
     fn reload(&mut self) -> Result<(), LibraryError> {
         self.tracks = self.db.all_tracks()?;
         self.root = self.db.get_meta("root")?.map(PathBuf::from);
@@ -89,15 +81,11 @@ impl Library {
     }
 }
 
-/// Reads. All in-memory; no I/O, no fallible paths.
 impl Library {
-    /// Every known track, including ones whose files are currently absent.
-    /// Use [`Self::available`] to skip those.
     pub fn tracks(&self) -> &[Track] {
         &self.tracks
     }
 
-    /// Tracks whose files were present at the last scan.
     pub fn available(&self) -> impl Iterator<Item = &Track> {
         self.tracks.iter().filter(|t| !t.missing())
     }
@@ -126,8 +114,6 @@ impl Library {
         self.playlists.iter().find(|p| p.id == id)
     }
 
-    /// Resolves a playlist's membership to tracks, skipping ids that no longer
-    /// resolve. Order is preserved.
     pub fn playlist_tracks(&self, id: i64) -> impl Iterator<Item = &Track> {
         self.playlist(id)
             .into_iter()
@@ -143,20 +129,14 @@ impl Library {
     }
 }
 
-/// Scanning.
 impl Library {
-    /// Walks `root`, parses tags in parallel, and replaces the in-memory state.
-    ///
-    /// Tracks whose files have disappeared are flagged rather than deleted:
-    /// playlist membership is user-authored and unrecoverable, so an unplugged
-    /// drive must not quietly empty a playlist.
     pub fn scan(&mut self, root: &Path) -> Result<(), LibraryError> {
         let files: Vec<PathBuf> = WalkDir::new(root)
             .follow_links(false)
             .into_iter()
             .flatten()
             .filter(|e| e.file_type().is_file() && is_audio(e.path()))
-            .map(|e| e.into_path())
+            .map(walkdir::DirEntry::into_path)
             .collect();
 
         let tracks: Vec<Track> = files
@@ -167,14 +147,11 @@ impl Library {
         self.db.mark_all_missing()?;
         self.db.upsert_tracks(&tracks)?;
         self.db.set_meta("root", &root.to_string_lossy())?;
-        // Membership rescued from an older schema can only be resolved once the
-        // tracks it references exist again.
         self.db.relink_pending()?;
 
         self.reload()
     }
 
-    /// Rescans the existing root.
     pub fn rescan(&mut self) -> Result<(), LibraryError> {
         let root = self.root.clone().ok_or(LibraryError::RootNotSet)?;
         self.scan(&root)
@@ -186,8 +163,6 @@ impl Library {
     }
 }
 
-/// Mutations. Each writes through to SQLite, then updates the in-memory copy,
-/// so callers never need to invalidate anything.
 impl Library {
     pub fn create_playlist(&mut self, name: &str) -> Result<i64, LibraryError> {
         let id = self.db.create_playlist(name)?;
@@ -211,7 +186,7 @@ impl Library {
     pub fn rename_playlist(&mut self, id: i64, name: &str) -> Result<(), LibraryError> {
         self.db.rename_playlist(id, name)?;
         if let Some(p) = self.playlists.iter_mut().find(|p| p.id == id) {
-            p.name = name.to_owned();
+            name.clone_into(&mut p.name);
         }
         self.playlists.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(())
@@ -230,8 +205,11 @@ impl Library {
         if playlist.track_ids.contains(&track_id) {
             return Ok(());
         }
-        self.db
-            .add_track_to_playlist(playlist_id, track_id, playlist.track_ids.len() as i64)?;
+        self.db.add_track_to_playlist(
+            playlist_id,
+            track_id,
+            i64::try_from(playlist.track_ids.len()).unwrap_or(i64::MAX),
+        )?;
         playlist.track_ids.push(track_id);
         Ok(())
     }
@@ -258,6 +236,21 @@ impl Library {
             p.cover_track_id = track_id;
         }
         Ok(())
+    }
+
+    pub fn set_rating(&mut self, track_id: i64, rating: Option<u8>) -> Result<(), LibraryError> {
+        let rating = rating.filter(|&stars| track::stars_in_range(stars));
+        self.db.set_rating(track_id, rating)?;
+        if let Some(&index) = self.by_id.get(&track_id) {
+            self.tracks[index].rating = rating;
+        }
+        Ok(())
+    }
+
+    pub fn rated(&self, min_stars: u8) -> impl Iterator<Item = &Track> {
+        self.tracks
+            .iter()
+            .filter(move |t| t.rating().is_some_and(|r| r >= min_stars))
     }
 }
 

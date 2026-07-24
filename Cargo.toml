@@ -1,11 +1,23 @@
 [workspace]
-# gui and tui are being rewritten against the new core; excluded until they are.
-members = ["core"]
+members = ["core", "gui"]
 resolver = "2"
 
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+authors = ["Marco Todorov"]
+license = "GPL-3.0-only"
+repository = "https://github.com/nnmarcoo/verse"
+rust-version = "1.88"
+
 [profile.release]
-panic = "abort"
 codegen-units = 1
 lto = true
 opt-level = 3
 strip = true
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3

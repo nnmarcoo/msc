@@ -1,3 +1,9 @@
+//! A single audio file and the metadata read from its tags.
+//!
+//! Ratings are owned by the user rather than the file: they are seeded from
+//! whatever the tags contain the first time a file is scanned, then never
+//! overwritten by a later rescan.
+
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
@@ -7,6 +13,9 @@ use lofty::{
     probe::Probe,
     tag::Accessor,
 };
+
+pub const MIN_STARS: u8 = 1;
+pub const MAX_STARS: u8 = 5;
 
 #[derive(Debug, Clone)]
 pub struct Track {
@@ -30,6 +39,8 @@ pub struct Track {
     pub(crate) sample_rate: Option<u32>,
     pub(crate) bit_depth: Option<u8>,
     pub(crate) channels: Option<u8>,
+
+    pub(crate) rating: Option<u8>,
 }
 
 impl Track {
@@ -54,20 +65,25 @@ impl Track {
             comment,
         ) = if let Some(tag) = file.primary_tag().or_else(|| file.first_tag()) {
             (
-                tag.title().map(|s| s.into()),
-                tag.artist().map(|s| s.into()),
-                tag.album().map(|s| s.into()),
+                tag.title().map(std::convert::Into::into),
+                tag.artist().map(std::convert::Into::into),
+                tag.album().map(std::convert::Into::into),
                 tag.get_string(&lofty::tag::ItemKey::AlbumArtist)
-                    .map(|s| s.into()),
-                tag.genre().map(|s| s.into()),
+                    .map(std::convert::Into::into),
+                tag.genre().map(std::convert::Into::into),
                 tag.year(),
                 tag.track(),
                 tag.disk(),
-                tag.comment().map(|s| s.into()),
+                tag.comment().map(std::convert::Into::into),
             )
         } else {
             (None, None, None, None, None, None, None, None, None)
         };
+
+        let rating = file
+            .primary_tag()
+            .or_else(|| file.first_tag())
+            .and_then(rating_from_tag);
 
         Ok(Track {
             id: None,
@@ -87,6 +103,7 @@ impl Track {
             sample_rate,
             bit_depth,
             channels,
+            rating,
         })
     }
 
@@ -157,6 +174,54 @@ impl Track {
     pub fn channels(&self) -> Option<u8> {
         self.channels
     }
+
+    pub fn rating(&self) -> Option<u8> {
+        self.rating
+    }
+}
+
+pub fn stars_in_range(stars: u8) -> bool {
+    (MIN_STARS..=MAX_STARS).contains(&stars)
+}
+
+fn rating_from_tag(tag: &lofty::tag::Tag) -> Option<u8> {
+    use lofty::tag::{ItemKey, ItemValue};
+
+    tag.items()
+        .filter(|item| item.key() == &ItemKey::Popularimeter)
+        .find_map(|item| match item.value() {
+            ItemValue::Binary(bytes) => stars_from_id3_popm(bytes),
+            ItemValue::Text(text) | ItemValue::Locator(text) => {
+                stars_from_numeric_rating(text.trim().parse::<f32>().ok()?)
+            }
+        })
+}
+
+fn stars_from_id3_popm(popm: &[u8]) -> Option<u8> {
+    let email_terminator = popm.iter().position(|&b| b == 0)?;
+    let byte = *popm.get(email_terminator + 1)?;
+
+    Some(match byte {
+        0 => return None,
+        1..=31 => 1,
+        32..=95 => 2,
+        96..=159 => 3,
+        160..=223 => 4,
+        _ => 5,
+    })
+}
+
+fn stars_from_numeric_rating(value: f32) -> Option<u8> {
+    const PERCENT_PER_STAR: f32 = 20.0;
+
+    let stars = if value <= f32::from(MAX_STARS) {
+        value
+    } else {
+        value / PERCENT_PER_STAR
+    };
+
+    let stars = stars.round();
+    (stars >= f32::from(MIN_STARS) && stars <= f32::from(MAX_STARS)).then_some(stars as u8)
 }
 
 #[derive(Debug, Error)]

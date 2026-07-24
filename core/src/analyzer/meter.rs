@@ -1,6 +1,5 @@
 use kira::Frame;
 
-/// Peak and RMS levels for one publish interval.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct Levels {
     pub peak_left: f32,
@@ -9,12 +8,6 @@ pub struct Levels {
     pub rms_right: f32,
 }
 
-/// Per-sample level metering.
-///
-/// Peak is the largest absolute sample seen; RMS is the root mean square over
-/// the same window. Both accumulate cheaply on every frame and are drained when
-/// the spectrum completes a block, which keeps the two halves of a `VisData`
-/// covering the same span of audio.
 #[derive(Default)]
 pub(super) struct Meter {
     peak_left: f32,
@@ -34,7 +27,6 @@ impl Meter {
         self.frames += 1;
     }
 
-    /// Returns the levels for the accumulated window and starts a new one.
     pub(super) fn take(&mut self) -> Levels {
         let levels = if self.frames == 0 {
             Levels::default()

@@ -1,6 +1,9 @@
+use std::path::PathBuf;
+
 use iced::Theme;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+
+pub const VOLUME_DEFAULT: f32 = 0.5;
 
 pub const ALL_THEMES: &[Theme] = &[
     Theme::Light,
@@ -27,47 +30,10 @@ pub const ALL_THEMES: &[Theme] = &[
     Theme::Ferra,
 ];
 
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum PresetIndicator {
-    Numbers,
-    Dots,
-}
-
-impl Default for PresetIndicator {
-    fn default() -> Self {
-        PresetIndicator::Numbers
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum LayoutAxis {
-    Horizontal,
-    Vertical,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum LayoutNode {
-    Pane {
-        pane_type: String,
-    },
-    Split {
-        axis: LayoutAxis,
-        ratio: f32,
-        a: Box<LayoutNode>,
-        b: Box<LayoutNode>,
-    },
-}
-
 #[derive(Debug, Clone)]
 pub struct Config {
     pub theme: Theme,
     pub rounded: bool,
-    pub preset_indicator: PresetIndicator,
-    pub layouts: Vec<LayoutNode>,
-    pub current_layout: usize,
     pub volume: f32,
 }
 
@@ -76,35 +42,27 @@ impl Default for Config {
         Self {
             theme: Theme::KanagawaDragon,
             rounded: true,
-            preset_indicator: PresetIndicator::Numbers,
-            layouts: vec![],
-            current_layout: 0,
-            volume: 0.5,
+            volume: VOLUME_DEFAULT,
         }
     }
 }
 
 #[derive(Serialize, Deserialize)]
 struct ConfigFile {
+    #[serde(default)]
     theme: String,
     #[serde(default = "default_true")]
     rounded: bool,
-    #[serde(default)]
-    preset_indicator: PresetIndicator,
-    #[serde(default)]
-    layouts: Vec<LayoutNode>,
-    #[serde(default)]
-    current_layout: usize,
     #[serde(default = "default_volume")]
     volume: f32,
 }
 
-fn default_volume() -> f32 {
-    0.5
-}
-
 fn default_true() -> bool {
     true
+}
+
+fn default_volume() -> f32 {
+    VOLUME_DEFAULT
 }
 
 impl From<&Config> for ConfigFile {
@@ -112,9 +70,6 @@ impl From<&Config> for ConfigFile {
         Self {
             theme: c.theme.to_string(),
             rounded: c.rounded,
-            preset_indicator: c.preset_indicator,
-            layouts: c.layouts.clone(),
-            current_layout: c.current_layout,
             volume: c.volume,
         }
     }
@@ -125,9 +80,6 @@ impl From<ConfigFile> for Config {
         Self {
             theme: theme_from_str(&f.theme),
             rounded: f.rounded,
-            preset_indicator: f.preset_indicator,
-            layouts: f.layouts,
-            current_layout: f.current_layout,
             volume: f.volume.clamp(0.0, 1.0),
         }
     }
@@ -142,7 +94,7 @@ fn theme_from_str(s: &str) -> Theme {
 }
 
 fn config_path() -> Option<PathBuf> {
-    dirs::config_dir().map(|d| d.join("verse").join("gui.toml"))
+    dirs::config_dir().map(|d| d.join("verse").join("config.toml"))
 }
 
 impl Config {
@@ -150,9 +102,8 @@ impl Config {
         let Some(path) = config_path() else {
             return Self::default();
         };
-        let text = match std::fs::read_to_string(&path) {
-            Ok(t) => t,
-            Err(_) => return Self::default(),
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            return Self::default();
         };
         toml::from_str::<ConfigFile>(&text)
             .map(Into::into)
@@ -163,15 +114,17 @@ impl Config {
         let Some(path) = config_path() else {
             return;
         };
-        if let Some(parent) = path.parent() {
-            if let Err(e) = std::fs::create_dir_all(parent) {
-                eprintln!("verse: could not create config dir: {e}");
-                return;
-            }
+        if let Some(parent) = path.parent()
+            && let Err(e) = std::fs::create_dir_all(parent)
+        {
+            eprintln!("verse: could not create config dir: {e}");
+            return;
         }
         match toml::to_string_pretty(&ConfigFile::from(self)) {
             Ok(text) => {
-                let _ = std::fs::write(&path, text);
+                if let Err(e) = std::fs::write(&path, text) {
+                    eprintln!("verse: failed to write config: {e}");
+                }
             }
             Err(e) => eprintln!("verse: failed to serialize config: {e}"),
         }

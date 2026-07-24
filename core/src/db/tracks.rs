@@ -1,3 +1,9 @@
+//! Track persistence.
+//!
+//! `rating` is user-authored and must outlive whatever the file's tags say, so
+//! it appears in [`TAG_DERIVED_COLUMNS`] only on insert. A rescan refreshes the
+//! tag-derived columns and leaves the rating untouched.
+
 use crate::Track;
 use rusqlite::{Result as SqliteResult, Row, params};
 use std::path::PathBuf;
@@ -6,7 +12,24 @@ use super::Database;
 
 const COLUMNS: &str = "id, path, title, track_artist, album, album_artist,
      genre, year, track_number, disc_number, comment,
-     duration, bit_rate, sample_rate, bit_depth, channels, missing";
+     duration, bit_rate, sample_rate, bit_depth, channels, missing, rating";
+
+const TAG_DERIVED_COLUMNS: &[&str] = &[
+    "title",
+    "track_artist",
+    "album",
+    "album_artist",
+    "genre",
+    "year",
+    "track_number",
+    "disc_number",
+    "comment",
+    "duration",
+    "bit_rate",
+    "sample_rate",
+    "bit_depth",
+    "channels",
+];
 
 fn row_to_track(row: &Row) -> SqliteResult<Track> {
     Ok(Track {
@@ -27,12 +50,11 @@ fn row_to_track(row: &Row) -> SqliteResult<Track> {
         sample_rate: row.get("sample_rate")?,
         bit_depth: row.get("bit_depth")?,
         channels: row.get("channels")?,
+        rating: row.get::<_, Option<i64>>("rating")?.map(|r| r as u8),
     })
 }
 
 impl Database {
-    /// The only bulk read: everything, once, at startup. Missing tracks are
-    /// included — hiding them is a presentation decision made by `Library`.
     pub(crate) fn all_tracks(&self) -> SqliteResult<Vec<Track>> {
         let mut stmt = self
             .conn
@@ -40,39 +62,29 @@ impl Database {
         stmt.query_map([], row_to_track)?.collect()
     }
 
-    /// One prepared statement reused across the batch. This is the only hot
-    /// write path in the crate — scanning is by far the slowest operation.
     pub(crate) fn upsert_tracks(&self, tracks: &[Track]) -> SqliteResult<()> {
         if tracks.is_empty() {
             return Ok(());
         }
 
+        let refreshed = TAG_DERIVED_COLUMNS
+            .iter()
+            .map(|column| format!("{column} = excluded.{column}"))
+            .collect::<Vec<_>>()
+            .join(", ");
+
         let tx = self.conn.unchecked_transaction()?;
         {
-            let mut stmt = tx.prepare(
+            let mut stmt = tx.prepare(&format!(
                 "INSERT INTO tracks (
                      path, title, track_artist, album, album_artist, genre,
                      year, track_number, disc_number, comment,
-                     duration, bit_rate, sample_rate, bit_depth, channels, missing
+                     duration, bit_rate, sample_rate, bit_depth, channels, missing,
+                     rating
                  ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
-                           ?11, ?12, ?13, ?14, ?15, 0)
-                 ON CONFLICT(path) DO UPDATE SET
-                     title        = excluded.title,
-                     track_artist = excluded.track_artist,
-                     album        = excluded.album,
-                     album_artist = excluded.album_artist,
-                     genre        = excluded.genre,
-                     year         = excluded.year,
-                     track_number = excluded.track_number,
-                     disc_number  = excluded.disc_number,
-                     comment      = excluded.comment,
-                     duration     = excluded.duration,
-                     bit_rate     = excluded.bit_rate,
-                     sample_rate  = excluded.sample_rate,
-                     bit_depth    = excluded.bit_depth,
-                     channels     = excluded.channels,
-                     missing      = 0",
-            )?;
+                           ?11, ?12, ?13, ?14, ?15, 0, ?16)
+                 ON CONFLICT(path) DO UPDATE SET {refreshed}, missing = 0"
+            ))?;
 
             for track in tracks {
                 stmt.execute(params![
@@ -91,18 +103,23 @@ impl Database {
                     track.sample_rate,
                     track.bit_depth,
                     track.channels,
+                    track.rating,
                 ])?;
             }
         }
         tx.commit()
     }
 
-    /// Flags every track absent ahead of a scan; the upsert clears the flag for
-    /// each file it finds again. Rows are never deleted — playlist membership
-    /// is user-authored and cannot be re-derived, so an unplugged drive must not
-    /// silently empty a playlist.
     pub(crate) fn mark_all_missing(&self) -> SqliteResult<()> {
         self.conn.execute("UPDATE tracks SET missing = 1", [])?;
+        Ok(())
+    }
+
+    pub(crate) fn set_rating(&self, track_id: i64, rating: Option<u8>) -> SqliteResult<()> {
+        self.conn.execute(
+            "UPDATE tracks SET rating = ?1 WHERE id = ?2",
+            params![rating.map(i64::from), track_id],
+        )?;
         Ok(())
     }
 }

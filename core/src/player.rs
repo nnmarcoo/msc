@@ -8,11 +8,6 @@ use crate::{
     backend::{Backend, BackendState, PlaybackError},
 };
 
-/// Playback, and the order things play in.
-///
-/// Owns no library state. The methods that need to turn a track id into a file
-/// take `&Library` explicitly, which keeps the two independent and makes the
-/// dependency visible at every call site.
 pub struct Player {
     backend: Backend,
     queue: Queue,
@@ -66,7 +61,6 @@ impl Player {
         self.backend.pause();
     }
 
-    /// Resumes if paused, otherwise starts the current track.
     pub fn play(&mut self, library: &Library) -> Result<(), PlaybackError> {
         match self.backend.state() {
             BackendState::Playing => Ok(()),
@@ -91,8 +85,6 @@ impl Player {
         self.backend.stop();
     }
 
-    /// Advances the queue when the current track has played out. Call this on a
-    /// timer; it is a no-op unless the backend has finished.
     pub fn update(&mut self, library: &Library) -> Result<(), PlaybackError> {
         if self.backend.state() == BackendState::Finished {
             self.next(library)?;
@@ -101,18 +93,15 @@ impl Player {
     }
 
     pub fn next(&mut self, library: &Library) -> Result<(), PlaybackError> {
-        match self.queue.advance() {
-            Some(track_id) => self.start(library, track_id),
-            None => {
-                self.backend.stop();
-                Ok(())
-            }
+        if let Some(track_id) = self.queue.advance() {
+            self.start(library, track_id)
+        } else {
+            self.backend.stop();
+            Ok(())
         }
     }
 
     pub fn previous(&mut self, library: &Library) -> Result<(), PlaybackError> {
-        // Restart the current track when it is already well underway, matching
-        // what a "previous" button conventionally does.
         const RESTART_THRESHOLD: f64 = 3.0;
         if self.position() > RESTART_THRESHOLD {
             self.backend.seek(0.0);
@@ -132,29 +121,20 @@ impl Player {
         }
     }
 
-    /// Plays a track, skipping ahead if it cannot be played.
-    ///
-    /// A missing file or an unreadable one advances the queue rather than
-    /// stalling it, so one bad entry cannot wedge playback. The bound stops a
-    /// queue full of missing tracks from recursing without end.
     fn start(&mut self, library: &Library, track_id: i64) -> Result<(), PlaybackError> {
         let mut track_id = track_id;
 
-        for _ in 0..MAX_SKIPS {
+        loop {
             match library.track(track_id) {
-                Some(track) if !track.missing() => {
-                    match self.backend.load_and_play(track.path()) {
-                        Ok(()) => return Ok(()),
-                        // Tagged as present but unreadable now — treat it the
-                        // same as missing and move on.
-                        Err(PlaybackError::Load(_)) => {}
-                        Err(err) => return Err(err),
-                    }
-                }
+                Some(track) if !track.missing() => match self.backend.load_and_play(track.path()) {
+                    Ok(()) => return Ok(()),
+                    Err(PlaybackError::Load(_)) => {}
+                    Err(err) => return Err(err),
+                },
                 _ => {}
             }
 
-            match self.queue.advance() {
+            match self.queue.skip() {
                 Some(next) => track_id = next,
                 None => break,
             }
@@ -165,15 +145,10 @@ impl Player {
     }
 }
 
-/// Enough to step over a stretch of missing files without letting a fully
-/// unplayable queue spin.
-const MAX_SKIPS: usize = 128;
-
-/// Queue manipulation. These only reorder ids, so they need no library.
 impl Player {
     pub fn play_now(&mut self, library: &Library, track_id: i64) -> Result<(), PlaybackError> {
-        self.queue.push_next(track_id);
-        self.next(library)
+        self.queue.jump_to(track_id);
+        self.start(library, track_id)
     }
 
     pub fn enqueue(&mut self, track_id: i64) {
@@ -192,7 +167,6 @@ impl Player {
         self.queue.extend_next(track_ids);
     }
 
-    /// Replaces the queue and starts playing.
     pub fn replace_queue(
         &mut self,
         library: &Library,

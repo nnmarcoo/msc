@@ -18,14 +18,9 @@ pub(crate) enum BackendState {
     Idle,
     Playing,
     Paused,
-    /// The sound played to its end; the queue should advance.
     Finished,
 }
 
-/// Owns the audio device and the currently loaded sound.
-///
-/// Deliberately knows nothing about tracks or queues — it takes a path and
-/// plays it.
 pub(crate) struct Backend {
     manager: AudioManager,
     sound: Option<StreamingSoundHandle<FromFileError>>,
@@ -76,7 +71,6 @@ impl Backend {
         if let Some(sound) = &mut self.sound
             && sound.state() == PlaybackState::Playing
         {
-            // Brief fade; an instant pause clicks.
             sound.pause(Tween {
                 start_time: StartTime::Immediate,
                 duration: Duration::from_millis(500),
@@ -110,7 +104,6 @@ impl Backend {
         self.volume
     }
 
-    /// Maps a linear 0..1 control to decibels, which is what the ear reads.
     fn volume_db(&self) -> f32 {
         if self.volume <= 0.0 {
             -60.0
@@ -132,7 +125,9 @@ impl Backend {
     }
 
     pub(crate) fn position(&self) -> f64 {
-        self.sound.as_ref().map_or(0.0, |s| s.position())
+        self.sound
+            .as_ref()
+            .map_or(0.0, kira::sound::streaming::StreamingSoundHandle::position)
     }
 
     pub(crate) fn vis_data(&self) -> VisData {

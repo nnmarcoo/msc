@@ -15,7 +15,6 @@ use spectrum::Spectrum;
 pub use meter::Levels;
 pub use spectrum::NUM_BINS;
 
-/// A snapshot of the audio for display.
 #[derive(Clone, Copy, Debug, Default)]
 pub struct VisData {
     bins: [f32; NUM_BINS],
@@ -23,17 +22,11 @@ pub struct VisData {
 }
 
 impl VisData {
-    /// Log-spaced spectrum magnitudes, normalised to 0..1.
     pub fn bins(&self) -> &[f32; NUM_BINS] {
         &self.bins
     }
 }
 
-/// Reader half of the analyzer's triple buffer.
-///
-/// The audio thread publishes without ever blocking. The mutex guards only the
-/// reader handle — which `triple_buffer` needs `&mut` for — and is uncontended
-/// in practice, since a single consumer polls it.
 pub struct VisReader {
     output: Mutex<Output<VisData>>,
 }
@@ -47,7 +40,6 @@ impl VisReader {
     }
 }
 
-/// Installed on kira's main track; hands back the reader the UI polls.
 pub(crate) struct AnalyzerBuilder {
     input: Input<VisData>,
 }
@@ -70,12 +62,6 @@ impl EffectBuilder for AnalyzerBuilder {
     }
 }
 
-/// Taps the audio stream to produce visualisation data.
-///
-/// Metering and spectrum analysis are independent — see [`meter`] and
-/// [`spectrum`]. This type only feeds them and publishes the combined result,
-/// once per FFT block so that both halves describe the same span of audio and
-/// the triple buffer is not written at sample rate.
 struct Analyzer {
     input: Input<VisData>,
     meter: Meter,

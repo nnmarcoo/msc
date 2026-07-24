@@ -2,11 +2,7 @@ use rusqlite::{Result as SqliteResult, params};
 
 use super::Database;
 
-/// Persistence for playlists. Reads happen once at startup via
-/// [`Database::all_playlists`]; everything else here is write-through, keeping
-/// the on-disk state in step with `Library`'s in-memory copy.
 impl Database {
-    /// `(id, name, cover_track_id)` plus ordered membership, in one pass each.
     pub(crate) fn all_playlists(&self) -> SqliteResult<Vec<(i64, String, Option<i64>)>> {
         let mut stmt = self
             .conn
@@ -15,7 +11,6 @@ impl Database {
             .collect()
     }
 
-    /// Membership as `(playlist_id, track_id)` in playlist order.
     pub(crate) fn all_playlist_tracks(&self) -> SqliteResult<Vec<(i64, i64)>> {
         let mut stmt = self.conn.prepare(
             "SELECT playlist_id, track_id FROM playlist_tracks
