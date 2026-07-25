@@ -569,6 +569,40 @@ mod tests {
     }
 
     #[test]
+    fn ratio_drag_moves_boundary_by_cursor_delta() {
+        for span in [1200.0, 768.0, 400.0] {
+            for delta in [1.0, 17.0, -23.0] {
+                let mut l = two_pane();
+                let path = SplitPath(vec![]);
+
+                let before = match l.root {
+                    Node::Split {
+                        split: Split::Ratio { ratio },
+                        ..
+                    } => ratio * span,
+                    _ => panic!(),
+                };
+
+                l.drag_divider(&path, delta, span);
+
+                let after = match l.root {
+                    Node::Split {
+                        split: Split::Ratio { ratio },
+                        ..
+                    } => ratio * span,
+                    _ => panic!(),
+                };
+
+                assert!(
+                    (after - before - delta).abs() < 0.01,
+                    "span {span}, delta {delta}: boundary moved {} not {delta}",
+                    after - before
+                );
+            }
+        }
+    }
+
+    #[test]
     fn ratio_drag_and_clamp() {
         let mut l = two_pane();
         let path = SplitPath(vec![]);

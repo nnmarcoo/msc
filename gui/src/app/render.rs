@@ -12,6 +12,20 @@
 //! the cursor delta — no on-screen rectangle needed. The seam is layered over
 //! the content with `stack` rather than inserted into the row/column, so it
 //! never steals flex space from the panes.
+//!
+//! Two things keep the seam aligned with the boundary it represents, and both
+//! are load-bearing. It is positioned by a single pixel-sized leading filler
+//! rather than by sharing a flex row with the panes, since a fixed-width seam
+//! in that row would shrink the pool the proportional fillers divide. And its
+//! boundary is derived from the same truncated `FillPortion` values handed to
+//! the flex layout, never from `ratio` directly — `FillPortion` takes a u16, so
+//! the panes' real boundary is quantised, and computing the seam from the exact
+//! ratio leaves the two disagreeing by a fraction of a pixel that shifts as the
+//! ratio changes.
+//!
+//! The seam also reports its own split's extent when grabbed. Converting cursor
+//! pixels to a ratio against the window's span instead makes a nested divider
+//! lag the cursor and accumulate drift.
 
 use iced::widget::{Space, column, container, mouse_area, responsive, row, stack};
 use iced::{Element, Length, mouse};
@@ -103,7 +117,7 @@ fn divider_overlay<'a>(path: SplitPath, axis: Axis, split: Split) -> Element<'a,
             (leading_extent(split, span) - DIVIDER / 2.0).clamp(0.0, (span - DIVIDER).max(0.0));
 
         let filler_a = filler(axis, Length::Fixed(lead));
-        let seam = divider(path.clone(), axis);
+        let seam = divider(path.clone(), axis, span);
 
         match axis {
             Axis::Vertical => row![filler_a, seam].into(),
@@ -123,7 +137,22 @@ fn leading_extent(split: Split, span: f32) -> f32 {
             side: Side::B,
             pixels,
         } => span - pixels,
-        Split::Ratio { ratio } => span * ratio,
+        Split::Ratio { .. } => {
+            let a = f32::from(portion(split, Side::A));
+            let total = a + f32::from(portion(split, Side::B));
+            if total == 0.0 {
+                span / 2.0
+            } else {
+                span * a / total
+            }
+        }
+    }
+}
+
+fn portion(split: Split, side: Side) -> u16 {
+    match side_length(split, side) {
+        Length::FillPortion(portion) => portion,
+        _ => 0,
     }
 }
 
@@ -134,7 +163,7 @@ fn filler<'a>(axis: Axis, length: Length) -> Element<'a, Message> {
     }
 }
 
-fn divider<'a>(path: SplitPath, axis: Axis) -> Element<'a, Message> {
+fn divider<'a>(path: SplitPath, axis: Axis, span: f32) -> Element<'a, Message> {
     let (width, height) = match axis {
         Axis::Vertical => (Length::Fixed(DIVIDER), Length::Fill),
         Axis::Horizontal => (Length::Fill, Length::Fixed(DIVIDER)),
@@ -157,7 +186,7 @@ fn divider<'a>(path: SplitPath, axis: Axis) -> Element<'a, Message> {
             .center_y(height),
     )
     .interaction(resize_cursor(axis))
-    .on_press(Message::DividerGrabbed(path))
+    .on_press(Message::DividerGrabbed(path, span))
     .into()
 }
 
@@ -197,15 +226,41 @@ mod tests {
         lead + DIVIDER / 2.0
     }
 
+    fn pane_boundary(split: Split, span: f32) -> f32 {
+        let a = f32::from(portion(split, Side::A));
+        let total = a + f32::from(portion(split, Side::B));
+        span * a / total
+    }
+
     #[test]
     fn seam_tracks_boundary_across_ratios() {
         for ratio in [0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95] {
             let split = Split::Ratio { ratio };
-            let boundary = SPAN * ratio;
+            let boundary = pane_boundary(split, SPAN);
             let seam = seam_center(split, SPAN);
             assert!(
                 (seam - boundary).abs() < 0.01,
                 "ratio {ratio}: seam {seam} vs boundary {boundary}"
+            );
+        }
+    }
+
+    #[test]
+    fn seam_matches_panes_at_awkward_ratios() {
+        for ratio in [
+            0.4998,
+            0.500_781_24,
+            0.3337,
+            0.6663,
+            0.736_979_07,
+            0.123_456,
+        ] {
+            let split = Split::Ratio { ratio };
+            let boundary = pane_boundary(split, SPAN);
+            let seam = seam_center(split, SPAN);
+            assert!(
+                (seam - boundary).abs() < 0.01,
+                "ratio {ratio}: seam {seam} vs pane boundary {boundary}"
             );
         }
     }

@@ -31,7 +31,6 @@ pub struct App {
     edit_mode: bool,
     drag: Option<DividerDrag>,
     pane_drag: Option<PaneDrag>,
-    window: iced::Size,
 
     scanning: bool,
     seeking: Option<f32>,
@@ -42,6 +41,7 @@ struct DividerDrag {
     path: SplitPath,
     axis: Axis,
     last: f32,
+    span: f32,
 }
 
 struct PaneDrag {
@@ -90,7 +90,7 @@ pub enum Message {
     ClosePane(PaneId),
     SetPaneKind(PaneId, PaneKind),
     ToggleLock(PaneId, iced::Size),
-    DividerGrabbed(SplitPath),
+    DividerGrabbed(SplitPath, f32),
     PaneGrabbed(PaneId),
     DropHovered(DropTarget),
     DropHoverEnded(DropTarget),
@@ -129,7 +129,6 @@ impl App {
             edit_mode: false,
             drag: None,
             pane_drag: None,
-            window: iced::Size::new(1280.0, 720.0),
             scanning: false,
             seeking: None,
             status: None,
@@ -264,12 +263,13 @@ impl App {
                 }
                 self.persist_layouts();
             }
-            Message::DividerGrabbed(path) => {
+            Message::DividerGrabbed(path, span) => {
                 if let Some(axis) = self.layout().split_axis(&path) {
                     self.drag = Some(DividerDrag {
                         path,
                         axis,
                         last: f32::NAN,
+                        span,
                     });
                 }
             }
@@ -328,9 +328,6 @@ impl App {
             Event::Window(window::Event::CloseRequested) => {
                 self.persist_layouts();
                 return iced::exit();
-            }
-            Event::Window(window::Event::Resized(size)) => {
-                self.window = *size;
             }
             Event::Mouse(mouse::Event::CursorMoved { position }) if self.drag.is_some() => {
                 self.drag_divider_to(*position);
@@ -426,10 +423,7 @@ impl App {
         let delta = along - drag.last;
         drag.last = along;
 
-        let span = match drag.axis {
-            Axis::Vertical => self.window.width,
-            Axis::Horizontal => self.window.height,
-        };
+        let span = drag.span;
         let path = drag.path.clone();
         self.layout_mut().drag_divider(&path, delta, span);
     }
