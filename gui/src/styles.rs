@@ -1,4 +1,11 @@
 //! Shared widget styling: theme-derived colours and the global corner radius.
+//!
+//! The three divider styles carry meaning rather than decoration, so they are
+//! kept visually distinct. A seam drags the split's ratio when free and rewrites
+//! an adjacent pane's pixel lock when pinned; both do something, so both get a
+//! live colour, and pinned takes its own rather than a shade of free. Only the
+//! inert style — a seam that refuses drags outright — is muted, so that dulling
+//! reliably reads as "nothing will happen here".
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -50,7 +57,15 @@ pub fn divider_style(theme: &Theme) -> container::Style {
     }
 }
 
-pub fn divider_locked_style(theme: &Theme) -> container::Style {
+pub fn divider_pinned_style(theme: &Theme) -> container::Style {
+    let palette = theme.extended_palette();
+    container::Style {
+        background: Some(Background::Color(palette.success.base.color)),
+        ..Default::default()
+    }
+}
+
+pub fn divider_inert_style(theme: &Theme) -> container::Style {
     let palette = theme.extended_palette();
     container::Style {
         background: Some(Background::Color(

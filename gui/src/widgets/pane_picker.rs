@@ -11,6 +11,10 @@
 //! diffed into a `Tree`. Item presses travel back as [`Op`]s through a local
 //! `Shell` and are translated into the caller's message, so the widget stays
 //! generic over `Message`.
+//!
+//! The trigger has two widths, since the edit overlay measures it before laying
+//! out: [`PanePicker::label_width`] with the pane's title, and
+//! [`PanePicker::compact_width`] once it drops the label for its icon.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -105,7 +109,6 @@ impl<Message> PanePicker<Message> {
         estimated + TRIGGER_PADDING_H * 2.0
     }
 
-    /// The trigger's width once it drops the label for its icon.
     pub fn compact_width() -> f32 {
         COMPACT_TRIGGER_WIDTH
     }

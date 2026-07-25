@@ -26,6 +26,25 @@
 //! The seam also reports its own split's extent when grabbed. Converting cursor
 //! pixels to a ratio against the window's span instead makes a nested divider
 //! lag the cursor and accumulate drift.
+//!
+//! What a drag does depends on where the nearest lock sits relative to the seam,
+//! which [`DividerState`] names. When the child on either side is a locked leaf,
+//! the seam's position *is* that pane's locked extent, so dragging rewrites the
+//! lock in pixels and the seam is `Pinned`. When neither neighbour is a locked
+//! leaf but a side is nonetheless rigid — a subtree whose every child along this
+//! axis is locked, so it cannot absorb a resize — there is no single lock to
+//! rewrite and no sensible way to redistribute the delta among descendants, so
+//! the seam is `Inert` and ignores drags. Otherwise it is `Free` and moves the
+//! ratio. A side holding a mix of locked and free children is not rigid: the
+//! free child absorbs the resize, so its parent seam stays `Free`.
+//!
+//! The distinction is invisible on screen, because it depends on tree depth
+//! rather than on anything the pane grid shows: the seam beside a locked pane is
+//! draggable, while the seam beside a rigid *group* containing that same pane is
+//! not. The three states are therefore drawn in three different colours, and the
+//! disabled colour is reserved for `Inert` alone. `Pinned` and `Inert` once
+//! shared it while only `Inert` refused drags, which left a seam that looked
+//! dead and moved anyway.
 
 use iced::widget::{Space, column, container, mouse_area, responsive, row, stack};
 use iced::{Element, Length, mouse};
@@ -132,20 +151,13 @@ fn render_node<'a>(
                 return content;
             }
 
-            let adjacent = adjacent_lock(a, *axis, layout).is_some()
+            let pinned = adjacent_lock(a, *axis, layout).is_some()
                 || adjacent_lock(b, *axis, layout).is_some();
-            let inert = !adjacent && (fixed_a.is_some() || fixed_b.is_some());
+            let seam_state = DividerState::pick(pinned, fixed_a.is_some() || fixed_b.is_some());
             let lead = fixed_a
                 .map(Lead::Fixed)
                 .or_else(|| fixed_b.map(Lead::FromEnd));
-            let seam = divider_overlay(
-                SplitPath(path.clone()),
-                *axis,
-                *split,
-                lead,
-                inert,
-                adjacent,
-            );
+            let seam = divider_overlay(SplitPath(path.clone()), *axis, *split, lead, seam_state);
             stack![content, seam].into()
         }
     }
@@ -166,6 +178,35 @@ impl Lead {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum DividerState {
+    Free,
+    Pinned,
+    Inert,
+}
+
+impl DividerState {
+    fn pick(pinned: bool, has_fixed_side: bool) -> Self {
+        match (pinned, has_fixed_side) {
+            (true, _) => Self::Pinned,
+            (false, true) => Self::Inert,
+            (false, false) => Self::Free,
+        }
+    }
+
+    fn is_draggable(self) -> bool {
+        self != Self::Inert
+    }
+
+    fn style(self) -> fn(&iced::Theme) -> iced::widget::container::Style {
+        match self {
+            Self::Free => crate::styles::divider_style,
+            Self::Pinned => crate::styles::divider_pinned_style,
+            Self::Inert => crate::styles::divider_inert_style,
+        }
+    }
+}
+
 fn adjacent_lock(child: &Node, axis: Axis, layout: &Layout) -> Option<f32> {
     match child {
         Node::Leaf { id } => layout.locks(*id).along(axis),
@@ -178,8 +219,7 @@ fn divider_overlay<'a>(
     axis: Axis,
     split: Split,
     lead: Option<Lead>,
-    inert: bool,
-    locked: bool,
+    state: DividerState,
 ) -> Element<'a, Message> {
     responsive(move |size| {
         let span = match axis {
@@ -194,7 +234,7 @@ fn divider_overlay<'a>(
         let lead = (boundary - DIVIDER / 2.0).clamp(0.0, (span - DIVIDER).max(0.0));
 
         let filler_a = filler(axis, Length::Fixed(lead));
-        let seam = divider(path.clone(), axis, span, inert, locked);
+        let seam = divider(path.clone(), axis, span, state);
 
         match axis {
             Axis::Vertical => row![filler_a, seam].into(),
@@ -232,8 +272,7 @@ fn divider<'a>(
     path: SplitPath,
     axis: Axis,
     span: f32,
-    inert: bool,
-    locked: bool,
+    state: DividerState,
 ) -> Element<'a, Message> {
     let (width, height) = match axis {
         Axis::Vertical => (Length::Fixed(DIVIDER), Length::Fill),
@@ -247,11 +286,7 @@ fn divider<'a>(
     let line = container(Space::new())
         .width(line_width)
         .height(line_height)
-        .style(if inert || locked {
-            crate::styles::divider_locked_style
-        } else {
-            crate::styles::divider_style
-        });
+        .style(state.style());
 
     let seam = container(line)
         .width(width)
@@ -259,7 +294,7 @@ fn divider<'a>(
         .center_x(width)
         .center_y(height);
 
-    if inert {
+    if !state.is_draggable() {
         return seam.into();
     }
 
@@ -439,6 +474,63 @@ mod tests {
 
     fn unlocked() -> [Locks; 2] {
         [Locks::default(), Locks::default()]
+    }
+
+    #[test]
+    fn only_an_undraggable_seam_wears_the_disabled_style() {
+        for state in [
+            DividerState::Free,
+            DividerState::Pinned,
+            DividerState::Inert,
+        ] {
+            let disabled = std::ptr::fn_addr_eq(
+                state.style(),
+                crate::styles::divider_inert_style as fn(&iced::Theme) -> container::Style,
+            );
+            assert_eq!(
+                disabled,
+                !state.is_draggable(),
+                "{state:?} draws disabled: {disabled}, but draggable: {}",
+                state.is_draggable()
+            );
+        }
+    }
+
+    #[test]
+    fn a_pinned_seam_is_draggable_because_it_resizes_the_lock() {
+        assert_eq!(DividerState::pick(true, true), DividerState::Pinned);
+        assert_eq!(DividerState::pick(true, false), DividerState::Pinned);
+        assert!(DividerState::Pinned.is_draggable());
+    }
+
+    #[test]
+    fn a_nested_lock_with_no_adjacent_lock_is_inert() {
+        assert_eq!(DividerState::pick(false, true), DividerState::Inert);
+        assert!(!DividerState::Inert.is_draggable());
+    }
+
+    #[test]
+    fn an_unlocked_seam_is_free() {
+        assert_eq!(DividerState::pick(false, false), DividerState::Free);
+        assert!(DividerState::Free.is_draggable());
+    }
+
+    #[test]
+    fn the_three_states_draw_differently() {
+        let theme = iced::Theme::Dark;
+        let colour = |state: DividerState| {
+            state.style()(&theme)
+                .background
+                .expect("a seam always paints a line")
+        };
+        let (free, pinned, inert) = (
+            colour(DividerState::Free),
+            colour(DividerState::Pinned),
+            colour(DividerState::Inert),
+        );
+        assert_ne!(free, pinned);
+        assert_ne!(free, inert);
+        assert_ne!(pinned, inert);
     }
 
     #[test]

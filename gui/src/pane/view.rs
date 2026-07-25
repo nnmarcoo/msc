@@ -8,6 +8,24 @@
 //! its content in `responsive` so the closure knows the pane's own size, then a
 //! `mouse_area` reports the cursor's fractional position as a [`DropZone`]. The
 //! target pane paints a highlight over the zone that a drop would land in.
+//!
+//! The edit controls are authored once in visual order and each [`ControlForm`]
+//! lays that same sequence out unchanged, so the position a control occupies is
+//! learnable across forms: the grab handle sits nearest the pane's top-right
+//! anchor and close is always the far end. A narrowing pane loses the picker's
+//! text label before it loses the row itself, and only a pane too narrow for
+//! five icons in a line falls back to the stack. Width alone decides, since a
+//! row that fits is preferable at any height.
+//!
+//! The stack is taller than the shortest pane the layout allows, so a pane at
+//! that floor overflows its controls rather than changing shape a third time.
+//!
+//! Splitting follows the pane's long axis — a wide pane divides into left and
+//! right halves, a tall one into top and bottom, and a square one vertically.
+//! That guesses wrong for some intents, so the icon and tooltip both show the
+//! axis the current shape would pick and the outcome is visible before the
+//! press; a wrong guess costs one click on the new pane's close button, which
+//! collapses the split again.
 
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::svg::Handle;
@@ -245,12 +263,6 @@ fn edit_controls<'a>(
     .into()
 }
 
-/// How the controls arrange themselves in the space the pane gives them.
-///
-/// The row is preferred at both widths: rather than change shape as soon as the
-/// labelled picker stops fitting, the picker collapses to its icon and the row
-/// survives down to [`ControlForm::compact_width`]. Only a pane too narrow for
-/// five icons in a line falls back to the stack.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ControlForm {
     Labelled,
@@ -262,7 +274,6 @@ const BUTTON: f32 = ICON_SIZE + PAD * 2.0;
 const GAP: f32 = PAD / 2.0;
 const CHROME: f32 = PAD + PAD * 2.0;
 
-/// Controls in the overlay, of which all but the kind picker are square.
 const CONTROLS: f32 = 5.0;
 
 impl ControlForm {
@@ -276,13 +287,10 @@ impl ControlForm {
         }
     }
 
-    /// Whether the picker shows its icon alone rather than the pane's title.
     fn is_compact(self) -> bool {
         self != Self::Labelled
     }
 
-    /// The picker carries a text label in this form, so it is measured
-    /// separately from the square buttons beside it.
     fn labelled_width(kind: PaneKind) -> f32 {
         Self::row_width(PanePicker::<Message>::label_width(kind))
     }
@@ -300,10 +308,6 @@ impl ControlForm {
     }
 }
 
-/// The axis a split would use: the pane's long one, so a wide pane divides
-/// into a left and right half and a tall one into a top and bottom half.
-///
-/// A square pane splits vertically.
 fn split_axis_for(pane_size: iced::Size) -> Axis {
     if pane_size.height > pane_size.width {
         Axis::Horizontal
@@ -319,8 +323,6 @@ fn split_icon_for(pane_size: iced::Size) -> &'static [u8] {
     }
 }
 
-/// The icon and tooltip track the axis the pane's current shape would pick, so
-/// the outcome is visible before the press.
 fn split_button<'a>(id: PaneId, pane_size: iced::Size) -> Element<'a, Message> {
     let axis = split_axis_for(pane_size);
     let label = match axis {
@@ -438,7 +440,6 @@ mod tests {
         );
     }
 
-    /// Losing the label should cost the row its label, not its shape.
     #[test]
     fn narrow_pane_compacts_the_picker_before_stacking() {
         let width = ControlForm::labelled_width(KIND) - 1.0;
@@ -527,8 +528,6 @@ mod tests {
         }
     }
 
-    /// Only the labelled threshold depends on the pane's title, so every kind
-    /// compacts and stacks at exactly the same widths.
     #[test]
     fn the_compact_thresholds_are_kind_independent() {
         let compact = ControlForm::compact_width();
@@ -546,9 +545,6 @@ mod tests {
         }
     }
 
-    /// The stack is taller than the shortest pane the layout allows, so at the
-    /// extreme it overflows rather than changing shape again. Pinned so the
-    /// margin is visible if a control is ever added.
     #[test]
     fn the_vertical_stack_overflows_only_the_smallest_panes() {
         let needed = ControlForm::vertical_height();
