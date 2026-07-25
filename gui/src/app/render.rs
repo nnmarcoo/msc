@@ -46,7 +46,14 @@ pub fn view<'a>(
     pane: &dyn Fn(PaneId, PaneKind, bool, iced::Size) -> Element<'a, Message>,
     window: iced::Size,
 ) -> Element<'a, Message> {
-    let tree = render_node(&layout.root, &mut Vec::new(), layout, edit_mode, pane, window);
+    let tree = render_node(
+        &layout.root,
+        &mut Vec::new(),
+        layout,
+        edit_mode,
+        pane,
+        window,
+    );
 
     match dragging {
         Some(axis) => mouse_area(tree).interaction(resize_cursor(axis)).into(),
@@ -518,7 +525,10 @@ mod tests {
         let row = layout_of(Axis::Vertical, [wide(240.0), Locks::default()]);
         for span in [1600.0, 1000.0, 600.0, 320.0] {
             assert_eq!(leaf_length(&row, Side::A), Length::Fixed(240.0));
-            assert!((seam_center(&row, span) - 240.0).abs() < 0.01, "span {span}");
+            assert!(
+                (seam_center(&row, span) - 240.0).abs() < 0.01,
+                "span {span}"
+            );
         }
     }
 
@@ -644,14 +654,24 @@ mod tests {
     fn a_split_with_a_free_side_needs_no_budget() {
         let row = layout_of(Axis::Vertical, [wide(240.0), Locks::default()]);
         let (_, a, b) = root_split(&row);
-        assert_eq!(budget(fixed_extent(a, Axis::Vertical, &row), fixed_extent(b, Axis::Vertical, &row)), None);
+        assert_eq!(
+            budget(
+                fixed_extent(a, Axis::Vertical, &row),
+                fixed_extent(b, Axis::Vertical, &row)
+            ),
+            None
+        );
     }
 
     #[test]
     fn a_fully_locked_split_is_capped_at_its_total() {
         let row = layout_of(Axis::Vertical, [wide(200.0), wide(300.0)]);
         let (_, a, b) = root_split(&row);
-        let budget = budget(fixed_extent(a, Axis::Vertical, &row), fixed_extent(b, Axis::Vertical, &row)).expect("both sides locked");
+        let budget = budget(
+            fixed_extent(a, Axis::Vertical, &row),
+            fixed_extent(b, Axis::Vertical, &row),
+        )
+        .expect("both sides locked");
         assert!((budget - 500.0).abs() < 0.01, "{}", budget);
     }
 
@@ -659,8 +679,20 @@ mod tests {
     fn a_budget_only_covers_its_own_axis() {
         let row = layout_of(Axis::Vertical, [wide(200.0), wide(300.0)]);
         let (_, a, b) = root_split(&row);
-        assert!(budget(fixed_extent(a, Axis::Vertical, &row), fixed_extent(b, Axis::Vertical, &row)).is_some());
-        assert_eq!(budget(fixed_extent(a, Axis::Horizontal, &row), fixed_extent(b, Axis::Horizontal, &row)), None);
+        assert!(
+            budget(
+                fixed_extent(a, Axis::Vertical, &row),
+                fixed_extent(b, Axis::Vertical, &row)
+            )
+            .is_some()
+        );
+        assert_eq!(
+            budget(
+                fixed_extent(a, Axis::Horizontal, &row),
+                fixed_extent(b, Axis::Horizontal, &row)
+            ),
+            None
+        );
     }
 
     #[test]
@@ -669,7 +701,15 @@ mod tests {
         let (split, a, b) = root_split(&row);
         let window = iced::Size::new(1000.0, 600.0);
 
-        let span = nested_span(a, fixed_extent(a, Axis::Vertical, &row), fixed_extent(b, Axis::Vertical, &row), Axis::Vertical, split, Side::A, window);
+        let span = nested_span(
+            a,
+            fixed_extent(a, Axis::Vertical, &row),
+            fixed_extent(b, Axis::Vertical, &row),
+            Axis::Vertical,
+            split,
+            Side::A,
+            window,
+        );
         assert!(
             (span.width - 1000.0).abs() < 0.01,
             "leaf got {} as its span; expected the split's full 1000",
@@ -684,7 +724,15 @@ mod tests {
         let outer = Split { ratio: 0.4 };
         let window = iced::Size::new(1000.0, 600.0);
 
-        let span = nested_span(&inner, fixed_extent(&inner, Axis::Vertical, &layout), fixed_extent(&leaf(0), Axis::Vertical, &layout), Axis::Vertical, outer, Side::B, window);
+        let span = nested_span(
+            &inner,
+            fixed_extent(&inner, Axis::Vertical, &layout),
+            fixed_extent(&leaf(0), Axis::Vertical, &layout),
+            Axis::Vertical,
+            outer,
+            Side::B,
+            window,
+        );
         assert!(
             (span.width - 600.0).abs() < 0.01,
             "width narrowed to {} instead of the 0.6 share",
@@ -704,10 +752,25 @@ mod tests {
         let outer = Split { ratio: 0.6 };
         let inner_node = split_node(Axis::Horizontal, Split::default(), leaf(1), leaf(2));
 
-        let inner_span =
-            nested_span(&inner_node, fixed_extent(&inner_node, Axis::Vertical, &layout), fixed_extent(&leaf(0), Axis::Vertical, &layout), Axis::Vertical, outer, Side::B, window);
-        assert!((inner_span.width - 400.0).abs() < 0.01, "{}", inner_span.width);
-        assert!((inner_span.height - 600.0).abs() < 0.01, "{}", inner_span.height);
+        let inner_span = nested_span(
+            &inner_node,
+            fixed_extent(&inner_node, Axis::Vertical, &layout),
+            fixed_extent(&leaf(0), Axis::Vertical, &layout),
+            Axis::Vertical,
+            outer,
+            Side::B,
+            window,
+        );
+        assert!(
+            (inner_span.width - 400.0).abs() < 0.01,
+            "{}",
+            inner_span.width
+        );
+        assert!(
+            (inner_span.height - 600.0).abs() < 0.01,
+            "{}",
+            inner_span.height
+        );
 
         let leaf_span = nested_span(
             &leaf(1),
@@ -736,7 +799,15 @@ mod tests {
         let (split, a, b) = root_split(&row);
         let window = iced::Size::new(1000.0, 600.0);
 
-        let span = nested_span(a, fixed_extent(a, Axis::Vertical, &row), fixed_extent(b, Axis::Vertical, &row), Axis::Vertical, split, Side::A, window);
+        let span = nested_span(
+            a,
+            fixed_extent(a, Axis::Vertical, &row),
+            fixed_extent(b, Axis::Vertical, &row),
+            Axis::Vertical,
+            split,
+            Side::A,
+            window,
+        );
         assert!(
             (span.width - 1000.0).abs() < 0.01,
             "locked leaf got {} as its span; a share against it would be {:.2}, not 0.32",
@@ -776,7 +847,15 @@ mod tests {
 
         let (split, a, b) = root_split(&layout);
         let window = iced::Size::new(1000.0, 600.0);
-        let span = nested_span(b, fixed_extent(b, Axis::Vertical, &layout), fixed_extent(a, Axis::Vertical, &layout), Axis::Vertical, split, Side::B, window);
+        let span = nested_span(
+            b,
+            fixed_extent(b, Axis::Vertical, &layout),
+            fixed_extent(a, Axis::Vertical, &layout),
+            Axis::Vertical,
+            split,
+            Side::B,
+            window,
+        );
 
         assert!(
             (span.width - 320.0).abs() < 0.01,

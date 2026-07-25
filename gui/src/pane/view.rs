@@ -218,29 +218,18 @@ fn edit_controls<'a>(
     span: iced::Size,
 ) -> Element<'a, Message> {
     let form = ControlForm::pick(pane_size, kind);
-    let compact = form != ControlForm::Horizontal;
 
-    let outward = [
-        svg_button(ICON_CLOSE, "Close pane", Message::ClosePane(id)),
-        kind_picker(id, kind, compact),
-        svg_button(
-            ICON_SPLIT_HORIZONTAL,
-            "Split horizontally",
-            Message::SplitPane(id, Axis::Horizontal),
-        ),
-        svg_button(
-            ICON_SPLIT_VERTICAL,
-            "Split vertically",
-            Message::SplitPane(id, Axis::Vertical),
-        ),
-        lock_button(id, locks, pane_size, span),
+    let buttons = [
         grab_handle(id),
+        lock_button(id, locks, pane_size, span),
+        kind_picker(id, kind, form.is_compact()),
+        split_button(id, pane_size),
+        svg_button(ICON_CLOSE, "Close pane", Message::ClosePane(id)),
     ];
 
     let controls: Element<'a, Message> = match form {
-        ControlForm::Horizontal => row(reversed(outward)).spacing(PAD / 2.0).into(),
-        ControlForm::Vertical => column(outward).spacing(PAD / 2.0).into(),
-        ControlForm::Grid => grid_3x2(outward),
+        ControlForm::Labelled | ControlForm::Compact => row(buttons).spacing(GAP).into(),
+        ControlForm::Vertical => column(buttons).spacing(GAP).into(),
     };
 
     container(
@@ -256,57 +245,93 @@ fn edit_controls<'a>(
     .into()
 }
 
+/// How the controls arrange themselves in the space the pane gives them.
+///
+/// The row is preferred at both widths: rather than change shape as soon as the
+/// labelled picker stops fitting, the picker collapses to its icon and the row
+/// survives down to [`ControlForm::compact_width`]. Only a pane too narrow for
+/// five icons in a line falls back to the stack.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ControlForm {
-    Horizontal,
+    Labelled,
+    Compact,
     Vertical,
-    Grid,
 }
 
 const BUTTON: f32 = ICON_SIZE + PAD * 2.0;
 const GAP: f32 = PAD / 2.0;
 const CHROME: f32 = PAD + PAD * 2.0;
 
+/// Controls in the overlay, of which all but the kind picker are square.
+const CONTROLS: f32 = 5.0;
+
 impl ControlForm {
     fn pick(pane: iced::Size, kind: PaneKind) -> Self {
-        if pane.width >= Self::horizontal_width(kind) {
-            Self::Horizontal
-        } else if pane.height >= Self::vertical_height() {
-            Self::Vertical
+        if pane.width >= Self::labelled_width(kind) {
+            Self::Labelled
+        } else if pane.width >= Self::compact_width() {
+            Self::Compact
         } else {
-            Self::Grid
+            Self::Vertical
         }
     }
 
-    fn horizontal_width(kind: PaneKind) -> f32 {
-        5.0 * BUTTON + PanePicker::<Message>::label_width(kind) + 5.0 * GAP + CHROME
+    /// Whether the picker shows its icon alone rather than the pane's title.
+    fn is_compact(self) -> bool {
+        self != Self::Labelled
+    }
+
+    /// The picker carries a text label in this form, so it is measured
+    /// separately from the square buttons beside it.
+    fn labelled_width(kind: PaneKind) -> f32 {
+        Self::row_width(PanePicker::<Message>::label_width(kind))
+    }
+
+    fn compact_width() -> f32 {
+        Self::row_width(PanePicker::<Message>::compact_width())
+    }
+
+    fn row_width(picker: f32) -> f32 {
+        (CONTROLS - 1.0) * BUTTON + picker + (CONTROLS - 1.0) * GAP + CHROME
     }
 
     fn vertical_height() -> f32 {
-        6.0 * BUTTON + 5.0 * GAP + CHROME
+        CONTROLS * BUTTON + (CONTROLS - 1.0) * GAP + CHROME
     }
 }
 
-fn reversed(buttons: [Element<'_, Message>; 6]) -> [Element<'_, Message>; 6] {
-    let mut buttons = buttons;
-    buttons.reverse();
-    buttons
+/// The axis a split would use: the pane's long one, so a wide pane divides
+/// into a left and right half and a tall one into a top and bottom half.
+///
+/// A square pane splits vertically.
+fn split_axis_for(pane_size: iced::Size) -> Axis {
+    if pane_size.height > pane_size.width {
+        Axis::Horizontal
+    } else {
+        Axis::Vertical
+    }
 }
 
-fn grid_3x2<'a>(buttons: [Element<'a, Message>; 6]) -> Element<'a, Message> {
-    let mut rows = column![].spacing(GAP);
-    let mut pending: Vec<Element<'a, Message>> = Vec::with_capacity(3);
-
-    for button in buttons {
-        pending.push(button);
-        if pending.len() == 3 {
-            let mut line = std::mem::replace(&mut pending, Vec::with_capacity(3));
-            line.reverse();
-            rows = rows.push(row(line).spacing(GAP));
-        }
+fn split_icon_for(pane_size: iced::Size) -> &'static [u8] {
+    match split_axis_for(pane_size) {
+        Axis::Horizontal => ICON_SPLIT_HORIZONTAL,
+        Axis::Vertical => ICON_SPLIT_VERTICAL,
     }
+}
 
-    rows.into()
+/// The icon and tooltip track the axis the pane's current shape would pick, so
+/// the outcome is visible before the press.
+fn split_button<'a>(id: PaneId, pane_size: iced::Size) -> Element<'a, Message> {
+    let axis = split_axis_for(pane_size);
+    let label = match axis {
+        Axis::Horizontal => "Split into top and bottom",
+        Axis::Vertical => "Split into left and right",
+    };
+    svg_button(
+        split_icon_for(pane_size),
+        label,
+        Message::SplitPane(id, axis),
+    )
 }
 
 fn lock_button<'a>(
@@ -396,70 +421,141 @@ mod tests {
     const KIND: PaneKind = PaneKind::Library;
 
     #[test]
-    fn wide_pane_uses_horizontal() {
-        let width = ControlForm::horizontal_width(KIND);
+    fn wide_pane_keeps_the_label() {
+        let width = ControlForm::labelled_width(KIND);
         assert_eq!(
             ControlForm::pick(Size::new(width, 400.0), KIND),
-            ControlForm::Horizontal
+            ControlForm::Labelled
         );
     }
 
     #[test]
-    fn wide_but_short_pane_still_uses_horizontal() {
-        let width = ControlForm::horizontal_width(KIND);
+    fn wide_but_short_pane_still_uses_a_row() {
+        let width = ControlForm::labelled_width(KIND);
         assert_eq!(
             ControlForm::pick(Size::new(width, 40.0), KIND),
-            ControlForm::Horizontal
+            ControlForm::Labelled
+        );
+    }
+
+    /// Losing the label should cost the row its label, not its shape.
+    #[test]
+    fn narrow_pane_compacts_the_picker_before_stacking() {
+        let width = ControlForm::labelled_width(KIND) - 1.0;
+        assert_eq!(
+            ControlForm::pick(Size::new(width, 400.0), KIND),
+            ControlForm::Compact
         );
     }
 
     #[test]
-    fn narrow_but_tall_pane_uses_vertical() {
-        let width = ControlForm::horizontal_width(KIND) - 1.0;
-        let height = ControlForm::vertical_height();
+    fn a_compact_row_is_still_a_row_when_the_pane_is_short() {
+        let width = ControlForm::compact_width();
         assert_eq!(
-            ControlForm::pick(Size::new(width, height), KIND),
+            ControlForm::pick(Size::new(width, 40.0), KIND),
+            ControlForm::Compact
+        );
+    }
+
+    #[test]
+    fn too_narrow_for_five_icons_falls_back_to_vertical() {
+        let width = ControlForm::compact_width() - 1.0;
+        assert_eq!(
+            ControlForm::pick(Size::new(width, 400.0), KIND),
             ControlForm::Vertical
         );
     }
 
     #[test]
-    fn narrow_and_short_pane_uses_grid() {
-        let width = ControlForm::horizontal_width(KIND) - 1.0;
-        let height = ControlForm::vertical_height() - 1.0;
+    fn smallest_allowed_pane_uses_vertical() {
+        let min = crate::layout::MIN_PANE;
         assert_eq!(
-            ControlForm::pick(Size::new(width, height), KIND),
-            ControlForm::Grid
+            ControlForm::pick(Size::new(min, min), KIND),
+            ControlForm::Vertical
         );
     }
 
     #[test]
-    fn smallest_allowed_pane_uses_grid() {
-        let min = crate::layout::MIN_PANE;
-        assert_eq!(
-            ControlForm::pick(Size::new(min, min), KIND),
-            ControlForm::Grid
-        );
+    fn compacting_is_the_only_form_that_keeps_the_label() {
+        assert!(!ControlForm::Labelled.is_compact());
+        assert!(ControlForm::Compact.is_compact());
+        assert!(ControlForm::Vertical.is_compact());
+    }
+
+    #[test]
+    fn compact_row_is_narrower_than_any_labelled_one() {
+        let compact = ControlForm::compact_width();
+        for kind in PaneKind::ALL {
+            assert!(
+                compact <= ControlForm::labelled_width(kind),
+                "{kind:?} labelled row was narrower than the compact one"
+            );
+        }
     }
 
     #[test]
     fn longer_label_needs_more_width() {
         assert!(
-            ControlForm::horizontal_width(PaneKind::NowPlaying)
-                > ControlForm::horizontal_width(PaneKind::Empty)
+            ControlForm::labelled_width(PaneKind::NowPlaying)
+                > ControlForm::labelled_width(PaneKind::Empty)
         );
     }
 
     #[test]
-    fn vertical_height_is_kind_independent() {
-        let height = ControlForm::vertical_height();
-        for kind in PaneKind::ALL {
-            let width = ControlForm::horizontal_width(kind) - 1.0;
+    fn split_follows_the_long_axis() {
+        assert_eq!(split_axis_for(Size::new(400.0, 100.0)), Axis::Vertical);
+        assert_eq!(split_axis_for(Size::new(100.0, 400.0)), Axis::Horizontal);
+    }
+
+    #[test]
+    fn square_pane_splits_vertically() {
+        assert_eq!(split_axis_for(Size::new(200.0, 200.0)), Axis::Vertical);
+    }
+
+    #[test]
+    fn split_icon_matches_the_axis_it_would_pick() {
+        for size in [Size::new(400.0, 100.0), Size::new(100.0, 400.0)] {
+            let expected = match split_axis_for(size) {
+                Axis::Vertical => ICON_SPLIT_VERTICAL,
+                Axis::Horizontal => ICON_SPLIT_HORIZONTAL,
+            };
             assert_eq!(
-                ControlForm::pick(Size::new(width, height), kind),
-                ControlForm::Vertical,
-                "{kind:?} did not take the stack at its exact height"
+                split_icon_for(size),
+                expected,
+                "{size:?} showed an icon for the other axis"
             );
         }
+    }
+
+    /// Only the labelled threshold depends on the pane's title, so every kind
+    /// compacts and stacks at exactly the same widths.
+    #[test]
+    fn the_compact_thresholds_are_kind_independent() {
+        let compact = ControlForm::compact_width();
+        for kind in PaneKind::ALL {
+            assert_eq!(
+                ControlForm::pick(Size::new(compact, 400.0), kind),
+                ControlForm::Compact,
+                "{kind:?} did not take the compact row at its exact width"
+            );
+            assert_eq!(
+                ControlForm::pick(Size::new(compact - 1.0, 400.0), kind),
+                ControlForm::Vertical,
+                "{kind:?} did not stack just below the compact width"
+            );
+        }
+    }
+
+    /// The stack is taller than the shortest pane the layout allows, so at the
+    /// extreme it overflows rather than changing shape again. Pinned so the
+    /// margin is visible if a control is ever added.
+    #[test]
+    fn the_vertical_stack_overflows_only_the_smallest_panes() {
+        let needed = ControlForm::vertical_height();
+        assert!(needed > crate::layout::MIN_PANE);
+        assert!(
+            needed <= 2.0 * crate::layout::MIN_PANE,
+            "the stack needs {needed}px, more than two minimum panes tall"
+        );
     }
 }

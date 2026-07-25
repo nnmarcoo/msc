@@ -296,7 +296,11 @@ impl Layout {
         Self {
             name: name.into(),
             root: Node::leaf(id),
-            panes: vec![PaneEntry { id, kind, locks: Locks::default() }],
+            panes: vec![PaneEntry {
+                id,
+                kind,
+                locks: Locks::default(),
+            }],
         }
     }
 
@@ -323,7 +327,11 @@ impl Layout {
         if !self.root.split_leaf(target, axis, new_id) {
             return None;
         }
-        self.panes.push(PaneEntry { id: new_id, kind, locks: Locks::default() });
+        self.panes.push(PaneEntry {
+            id: new_id,
+            kind,
+            locks: Locks::default(),
+        });
         Some(new_id)
     }
 
@@ -709,7 +717,11 @@ mod tests {
         l.lock(PaneId(0), Axis::Vertical, square(300.0));
         l.lock(PaneId(1), Axis::Vertical, square(200.0));
         assert_eq!(l.locks(PaneId(0)).width, Some(300.0));
-        assert_eq!(l.locks(PaneId(1)).width, Some(200.0), "second lock clobbered the first");
+        assert_eq!(
+            l.locks(PaneId(1)).width,
+            Some(200.0),
+            "second lock clobbered the first"
+        );
     }
 
     #[test]
@@ -984,7 +996,10 @@ mod tests {
         assert_eq!(l.locks(PaneId(0)).height, Some(180.0));
 
         l.cycle_lock(PaneId(0), alone(pane));
-        assert!(!l.locks(PaneId(0)).any(), "cycle did not return to unlocked");
+        assert!(
+            !l.locks(PaneId(0)).any(),
+            "cycle did not return to unlocked"
+        );
     }
 
     #[test]

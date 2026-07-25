@@ -105,9 +105,14 @@ impl<Message> PanePicker<Message> {
         estimated + TRIGGER_PADDING_H * 2.0
     }
 
+    /// The trigger's width once it drops the label for its icon.
+    pub fn compact_width() -> f32 {
+        COMPACT_TRIGGER_WIDTH
+    }
+
     fn trigger_width(&self) -> f32 {
         if self.compact {
-            COMPACT_TRIGGER_WIDTH
+            Self::compact_width()
         } else {
             Self::label_width(self.current)
         }

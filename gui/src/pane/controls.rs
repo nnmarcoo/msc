@@ -169,7 +169,10 @@ mod tests {
     #[test]
     fn floor_size_fits_the_smallest_allowed_pane() {
         let needed = ICON_MIN + Metrics::button_padding() * 2.0 + PAD * 2.0;
-        assert!(needed <= MIN_PANE, "floor needs {needed}, pane is {MIN_PANE}");
+        assert!(
+            needed <= MIN_PANE,
+            "floor needs {needed}, pane is {MIN_PANE}"
+        );
     }
 
     #[test]
