@@ -11,6 +11,7 @@
 //! change rather than a rework.
 #![allow(dead_code)]
 
+pub mod controls;
 pub mod library;
 pub mod queue;
 pub mod view;
@@ -50,6 +51,7 @@ pub enum PaneKind {
     Folders,
     Queue,
     NowPlaying,
+    Controls,
     History,
     Lyrics,
     TrackInfo,
@@ -60,7 +62,7 @@ pub enum PaneKind {
 }
 
 impl PaneKind {
-    pub const ALL: [PaneKind; 14] = [
+    pub const ALL: [PaneKind; 15] = [
         PaneKind::Library,
         PaneKind::Albums,
         PaneKind::Artists,
@@ -68,6 +70,7 @@ impl PaneKind {
         PaneKind::Folders,
         PaneKind::Queue,
         PaneKind::NowPlaying,
+        PaneKind::Controls,
         PaneKind::History,
         PaneKind::Lyrics,
         PaneKind::TrackInfo,
@@ -86,6 +89,7 @@ impl PaneKind {
             PaneKind::Folders => "Folders",
             PaneKind::Queue => "Queue",
             PaneKind::NowPlaying => "Now Playing",
+            PaneKind::Controls => "Controls",
             PaneKind::History => "History",
             PaneKind::Lyrics => "Lyrics",
             PaneKind::TrackInfo => "Track Info",
@@ -103,7 +107,9 @@ impl PaneKind {
             | PaneKind::Artists
             | PaneKind::Playlists
             | PaneKind::Folders => PaneCategory::Browse,
-            PaneKind::Queue | PaneKind::NowPlaying | PaneKind::History => PaneCategory::Playback,
+            PaneKind::Queue | PaneKind::NowPlaying | PaneKind::Controls | PaneKind::History => {
+                PaneCategory::Playback
+            }
             PaneKind::Lyrics | PaneKind::TrackInfo | PaneKind::Visualiser => PaneCategory::Detail,
             PaneKind::Equaliser | PaneKind::Settings | PaneKind::Empty => PaneCategory::Tools,
         }
@@ -117,7 +123,8 @@ impl PaneKind {
             PaneKind::Playlists => "mixes sets collections",
             PaneKind::Folders => "files directories browse disk",
             PaneKind::Queue => "up next playlist upcoming",
-            PaneKind::NowPlaying => "current track player transport",
+            PaneKind::NowPlaying => "current track player",
+            PaneKind::Controls => "transport play pause next previous skip",
             PaneKind::History => "recent played log past",
             PaneKind::Lyrics => "words text karaoke",
             PaneKind::TrackInfo => "metadata tags details properties",
@@ -177,6 +184,7 @@ impl PaneState {
             | PaneKind::Playlists
             | PaneKind::Folders
             | PaneKind::NowPlaying
+            | PaneKind::Controls
             | PaneKind::History
             | PaneKind::Lyrics
             | PaneKind::TrackInfo

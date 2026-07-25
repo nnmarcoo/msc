@@ -19,7 +19,7 @@ use iced::{Element, Length};
 
 use crate::app::{DropTarget, Message};
 use crate::layout::{Axis, DropZone, PaneId};
-use crate::pane::PaneKind;
+use crate::pane::{PaneKind, controls};
 use crate::styles::{self, LABEL_FONT_SIZE, PAD, TOOLTIP_DELAY};
 use crate::widgets::pane_picker::PanePicker;
 
@@ -40,18 +40,26 @@ pub struct DragContext {
     pub drop_zone: Option<DropZone>,
 }
 
+/// Playback state copied out of the player once per frame, so pane rendering
+/// stays a pure function of plain data.
+#[derive(Clone, Copy, Default)]
+pub struct Playback {
+    pub is_playing: bool,
+}
+
 pub fn view<'a>(
     id: PaneId,
     kind: PaneKind,
     locked: bool,
     edit_mode: bool,
     drag: DragContext,
+    playback: Playback,
 ) -> Element<'a, Message> {
     if !edit_mode {
-        return content(kind);
+        return content(kind, playback);
     }
 
-    let mut layers = stack![content(kind)];
+    let mut layers = stack![content(kind, playback)];
 
     if let Some(zone) = drag.drop_zone {
         layers = layers.push(zone_highlight(zone));
@@ -66,11 +74,14 @@ pub fn view<'a>(
     layers.into()
 }
 
-fn content<'a>(kind: PaneKind) -> Element<'a, Message> {
-    container(text(kind.title()).size(18))
-        .center_x(Length::Fill)
-        .center_y(Length::Fill)
-        .into()
+fn content<'a>(kind: PaneKind, playback: Playback) -> Element<'a, Message> {
+    match kind {
+        PaneKind::Controls => controls::view(playback.is_playing),
+        _ => container(text(kind.title()).size(18))
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into(),
+    }
 }
 
 pub fn root_edge_band(

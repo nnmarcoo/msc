@@ -454,6 +454,9 @@ impl App {
         let dragging = self.drag.as_ref().map(|drag| drag.axis);
         let pane_drag = self.pane_drag.as_ref();
         let over = pane_drag.and_then(PaneDrag::over);
+        let playback = pane_view::Playback {
+            is_playing: self.player.is_playing(),
+        };
 
         let panes = render::view(layout, edit_mode, dragging, &|id, kind, edit| {
             let drag = pane_view::DragContext {
@@ -463,7 +466,7 @@ impl App {
                     _ => None,
                 },
             };
-            pane_view::view(id, kind, layout.is_locked(id), edit, drag)
+            pane_view::view(id, kind, layout.is_locked(id), edit, drag, playback)
         });
 
         let body = if pane_drag.is_some() {
