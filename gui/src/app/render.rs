@@ -13,7 +13,7 @@
 //! the content with `stack` rather than inserted into the row/column, so it
 //! never steals flex space from the panes.
 
-use iced::widget::{Space, column, container, mouse_area, row, stack};
+use iced::widget::{Space, column, container, mouse_area, responsive, row, stack};
 use iced::{Element, Length, mouse};
 
 use crate::app::Message;
@@ -23,7 +23,7 @@ use crate::pane::PaneKind;
 const PORTION_SCALE: f32 = 1000.0;
 
 const DIVIDER: f32 = 6.0;
-const DIVIDER_LINE: f32 = 4.0;
+const DIVIDER_LINE: f32 = 3.0;
 
 pub fn view<'a>(
     layout: &'a Layout,
@@ -93,20 +93,37 @@ fn render_node<'a>(
 }
 
 fn divider_overlay<'a>(path: SplitPath, axis: Axis, split: Split) -> Element<'a, Message> {
-    let filler_a = filler(axis, shrink(side_length(split, Side::A), DIVIDER / 2.0));
-    let filler_b = filler(axis, shrink(side_length(split, Side::B), DIVIDER / 2.0));
-    let seam = divider(path, axis);
+    responsive(move |size| {
+        let span = match axis {
+            Axis::Vertical => size.width,
+            Axis::Horizontal => size.height,
+        };
 
-    match axis {
-        Axis::Vertical => row![filler_a, seam, filler_b].into(),
-        Axis::Horizontal => column![filler_a, seam, filler_b].into(),
-    }
+        let lead =
+            (leading_extent(split, span) - DIVIDER / 2.0).clamp(0.0, (span - DIVIDER).max(0.0));
+
+        let filler_a = filler(axis, Length::Fixed(lead));
+        let seam = divider(path.clone(), axis);
+
+        match axis {
+            Axis::Vertical => row![filler_a, seam].into(),
+            Axis::Horizontal => column![filler_a, seam].into(),
+        }
+    })
+    .into()
 }
 
-fn shrink(length: Length, by: f32) -> Length {
-    match length {
-        Length::Fixed(pixels) => Length::Fixed((pixels - by).max(0.0)),
-        other => other,
+fn leading_extent(split: Split, span: f32) -> f32 {
+    match split {
+        Split::Locked {
+            side: Side::A,
+            pixels,
+        } => pixels,
+        Split::Locked {
+            side: Side::B,
+            pixels,
+        } => span - pixels,
+        Split::Ratio { ratio } => span * ratio,
     }
 }
 
@@ -165,5 +182,68 @@ fn sized(element: Element<'_, Message>, axis: Axis, length: Length) -> Element<'
     match axis {
         Axis::Vertical => container(element).width(length).height(Length::Fill).into(),
         Axis::Horizontal => container(element).width(Length::Fill).height(length).into(),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const SPAN: f32 = 1200.0;
+
+    fn seam_center(split: Split, span: f32) -> f32 {
+        let lead =
+            (leading_extent(split, span) - DIVIDER / 2.0).clamp(0.0, (span - DIVIDER).max(0.0));
+        lead + DIVIDER / 2.0
+    }
+
+    #[test]
+    fn seam_tracks_boundary_across_ratios() {
+        for ratio in [0.05, 0.2, 0.35, 0.5, 0.65, 0.8, 0.95] {
+            let split = Split::Ratio { ratio };
+            let boundary = SPAN * ratio;
+            let seam = seam_center(split, SPAN);
+            assert!(
+                (seam - boundary).abs() < 0.01,
+                "ratio {ratio}: seam {seam} vs boundary {boundary}"
+            );
+        }
+    }
+
+    #[test]
+    fn seam_tracks_boundary_when_side_a_locked() {
+        let split = Split::Locked {
+            side: Side::A,
+            pixels: 240.0,
+        };
+        assert!((seam_center(split, SPAN) - 240.0).abs() < 0.01);
+    }
+
+    #[test]
+    fn seam_tracks_boundary_when_side_b_locked() {
+        let split = Split::Locked {
+            side: Side::B,
+            pixels: 240.0,
+        };
+        assert!((seam_center(split, SPAN) - (SPAN - 240.0)).abs() < 0.01);
+    }
+
+    #[test]
+    fn seam_stays_inside_span_at_extremes() {
+        for ratio in [0.0, 1.0] {
+            let split = Split::Ratio { ratio };
+            let lead =
+                (leading_extent(split, SPAN) - DIVIDER / 2.0).clamp(0.0, (SPAN - DIVIDER).max(0.0));
+            assert!(lead >= 0.0 && lead + DIVIDER <= SPAN, "ratio {ratio}");
+        }
+    }
+
+    #[test]
+    fn seam_handles_span_smaller_than_divider() {
+        let split = Split::Ratio { ratio: 0.5 };
+        let span = 4.0;
+        let lead =
+            (leading_extent(split, span) - DIVIDER / 2.0).clamp(0.0, (span - DIVIDER).max(0.0));
+        assert!(lead.is_finite() && lead >= 0.0);
     }
 }
