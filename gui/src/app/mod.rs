@@ -15,7 +15,7 @@ use iced::{Element, Event, Length, Subscription, Task, Theme, event, keyboard, w
 use verse_core::{Library, Player, Track};
 
 use crate::config::Config;
-use crate::layout::{Axis, DropZone, Layout, PaneId, SplitPath};
+use crate::layout::{Axis, DropZone, Layout, PaneId, PaneMetrics, SplitPath};
 use crate::pane::{PaneKind, PaneMessage, PaneStates, view as pane_view};
 use crate::styles;
 use crate::tasks;
@@ -35,6 +35,8 @@ pub struct App {
     scanning: bool,
     seeking: Option<f32>,
     status: Option<String>,
+
+    window: iced::Size,
 }
 
 struct DividerDrag {
@@ -89,7 +91,7 @@ pub enum Message {
     SplitPane(PaneId, Axis),
     ClosePane(PaneId),
     SetPaneKind(PaneId, PaneKind),
-    ToggleLock(PaneId, iced::Size),
+    CycleLock(PaneId, PaneMetrics),
     DividerGrabbed(SplitPath, f32),
     PaneGrabbed(PaneId),
     DropHovered(DropTarget),
@@ -132,6 +134,7 @@ impl App {
             scanning: false,
             seeking: None,
             status: None,
+            window: iced::Size::new(1280.0, 800.0),
         };
         app.sync_pane_states();
 
@@ -251,16 +254,8 @@ impl App {
                 self.pane_states.reset(id, kind);
                 self.persist_layouts();
             }
-            Message::ToggleLock(id, size) => {
-                if self.layout().is_locked(id) {
-                    self.layout_mut().unlock(id);
-                } else {
-                    let extent = match self.layout().parent_axis(id) {
-                        Some(Axis::Horizontal) => size.height,
-                        Some(Axis::Vertical) | None => size.width,
-                    };
-                    self.layout_mut().lock(id, extent);
-                }
+            Message::CycleLock(id, size) => {
+                self.layout_mut().cycle_lock(id, size);
                 self.persist_layouts();
             }
             Message::DividerGrabbed(path, span) => {
@@ -317,7 +312,7 @@ impl App {
             return Task::none();
         }
         self.scanning = true;
-        self.status = Some("Scanning…".into());
+        self.status = Some("Scanning...".into());
         tasks::scan(root)
     }
 
@@ -325,6 +320,7 @@ impl App {
         use iced::mouse;
 
         match event {
+            Event::Window(window::Event::Resized(size)) => self.window = *size,
             Event::Window(window::Event::CloseRequested) => {
                 self.persist_layouts();
                 return iced::exit();
@@ -458,7 +454,7 @@ impl App {
             is_playing: self.player.is_playing(),
         };
 
-        let panes = render::view(layout, edit_mode, dragging, &|id, kind, edit| {
+        let pane = move |id, kind, edit, span| {
             let drag = pane_view::DragContext {
                 active: pane_drag.is_some(),
                 drop_zone: match over {
@@ -466,8 +462,10 @@ impl App {
                     _ => None,
                 },
             };
-            pane_view::view(id, kind, layout.is_locked(id), edit, drag, playback)
-        });
+            pane_view::view(id, kind, layout.locks(id), edit, drag, playback, span)
+        };
+
+        let panes = render::view(layout, edit_mode, dragging, &pane, self.window);
 
         let body = if pane_drag.is_some() {
             let root_edge = match over {
@@ -488,7 +486,7 @@ impl App {
     pub fn title(&self) -> String {
         match self.player.current_track(&self.library) {
             Some(track) => format!(
-                "{} — {}",
+                "{} - {}",
                 track.title().unwrap_or("Unknown"),
                 track.track_artist().unwrap_or("Unknown Artist")
             ),

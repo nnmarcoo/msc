@@ -2,9 +2,9 @@
 //!
 //! Three types, each owning one concern:
 //!
-//! - [`Library`] — the music collection, held in memory and backed by SQLite.
-//! - [`Player`] — playback and the queue.
-//! - [`Track`] / [`Album`] / [`Playlist`] — what the library is made of.
+//! - [`Library`]: the music collection, held in memory and backed by SQLite.
+//! - [`Player`]: playback and the queue.
+//! - [`Track`], [`Album`], [`Playlist`]: what the library is made of.
 //!
 //! `Player` and `Library` are siblings, not nested. Playback methods that need
 //! to resolve a track id take `&Library` explicitly:

@@ -1,21 +1,42 @@
 //! Layout as plain data.
 //!
-//! Deliberately free of iced types: this tree is the single source of truth for
-//! how panes are arranged, and it is what gets serialised. The rendered widget
-//! is built from it every frame, never the reverse, so there is only ever one
-//! representation of the layout to keep correct.
+//! This tree is the single source of truth for how panes are arranged, and it
+//! is what gets serialised. The rendered widget is built from it every frame,
+//! never the reverse, so there is only ever one representation to keep correct.
 //!
-//! Sizing lives on each split, not on panes. A split divides its space between
-//! two children according to a [`Split`](Split): either a proportional ratio,
-//! or one side locked to a pixel size while the other takes the remainder. A
-//! locked side holds against window growth and yields only when the window is
-//! too small to fit everything.
+//! Splits size proportionally through `Split`; pixel locks live on the panes as
+//! `Locks`. That division matters. A split constrains only its own axis, but
+//! which axis a pane needs held depends on its shape. A queue is a vertical
+//! list that should keep its width, a timeline a horizontal strip that should
+//! keep its height. Locks on the pane express either, wherever the pane sits.
+//! A locked dimension holds against window resize; the unlocked one stays
+//! proportional, and `MIN_SHARE` keeps a proportion from collapsing a pane out
+//! of view.
+//!
+//! `cycle_lock` advances a pane through unlocked, width, height, both. Width
+//! leads because the common case is a vertical list that should keep it.
+//! Holding both suits a transport strip needing a fixed height and a floor on
+//! width; locks yield under pressure, so a rigid pane cannot wedge the layout.
+//!
+//! Releasing an axis hands the pane back to a split's ratio, and that ratio
+//! still describes wherever the boundary sat before the lock, so `record_ratio`
+//! rewrites it to the share the pane was actually drawn at, keeping the release
+//! invisible. Two rules make that correct. A share of 1.0 means the pane fills
+//! its container along that axis, so the boundary belongs to an ancestor that
+//! already describes it and nothing should be written. And `governing_split`
+//! returns the split *nearest* the pane rather than the topmost match, because
+//! an outer split divides whole groups: writing one pane's share into it would
+//! move neighbours the user never touched. The search still climbs past splits
+//! on the other axis, since a pane's width and height are usually governed by
+//! two different ancestors.
 
 use serde::{Deserialize, Serialize};
 
 use crate::pane::PaneKind;
 
 pub const MIN_PANE: f32 = 80.0;
+
+const MIN_SHARE: f32 = 0.05;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct PaneId(pub u32);
@@ -66,25 +87,48 @@ impl DropZone {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PaneMetrics {
+    pub pane: iced::Size,
+    pub span: iced::Size,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Default, Serialize, Deserialize)]
+pub struct Locks {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub width: Option<f32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub height: Option<f32>,
+}
+
+impl Locks {
+    pub fn along(self, axis: Axis) -> Option<f32> {
+        match axis {
+            Axis::Vertical => self.width,
+            Axis::Horizontal => self.height,
+        }
+    }
+
+    pub fn set_along(&mut self, axis: Axis, pixels: Option<f32>) {
+        match axis {
+            Axis::Vertical => self.width = pixels,
+            Axis::Horizontal => self.height = pixels,
+        }
+    }
+
+    pub fn any(self) -> bool {
+        self.width.is_some() || self.height.is_some()
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "lowercase")]
-pub enum Split {
-    Ratio { ratio: f32 },
-    Locked { side: Side, pixels: f32 },
+pub struct Split {
+    pub ratio: f32,
 }
 
 impl Default for Split {
     fn default() -> Self {
-        Self::Ratio { ratio: 0.5 }
-    }
-}
-
-impl Split {
-    pub fn locked_side(self) -> Option<Side> {
-        match self {
-            Self::Locked { side, .. } => Some(side),
-            Self::Ratio { .. } => None,
-        }
+        Self { ratio: 0.5 }
     }
 }
 
@@ -189,53 +233,40 @@ impl Node {
         }
     }
 
-    fn parent_of(&self, target: PaneId) -> Option<(Split, Side)> {
-        match self {
-            Self::Leaf { .. } => None,
-            Self::Split { split, a, b, .. } => {
-                if matches!(**a, Self::Leaf { id } if id == target) {
-                    return Some((*split, Side::A));
-                }
-                if matches!(**b, Self::Leaf { id } if id == target) {
-                    return Some((*split, Side::B));
-                }
-                a.parent_of(target).or_else(|| b.parent_of(target))
-            }
+    fn governing_split(&mut self, target: PaneId, axis: Axis) -> Option<(&mut Split, Side)> {
+        let Self::Split {
+            axis: inner,
+            split,
+            a,
+            b,
+        } = self
+        else {
+            return None;
+        };
+
+        let side = if a.contains(target) {
+            Side::A
+        } else if b.contains(target) {
+            Side::B
+        } else {
+            return None;
+        };
+
+        let nearer = match side {
+            Side::A => a.governing_split(target, axis),
+            Side::B => b.governing_split(target, axis),
+        };
+        if nearer.is_some() {
+            return nearer;
         }
+
+        (*inner == axis).then_some((split, side))
     }
 
-    fn parent_axis_of(&self, target: PaneId) -> Option<Axis> {
+    fn contains(&self, target: PaneId) -> bool {
         match self {
-            Self::Leaf { .. } => None,
-            Self::Split { axis, a, b, .. } => {
-                if matches!(**a, Self::Leaf { id } if id == target)
-                    || matches!(**b, Self::Leaf { id } if id == target)
-                {
-                    return Some(*axis);
-                }
-                a.parent_axis_of(target)
-                    .or_else(|| b.parent_axis_of(target))
-            }
-        }
-    }
-
-    fn with_parent(&mut self, target: PaneId, f: &mut dyn FnMut(&mut Split, Side)) -> bool {
-        match self {
-            Self::Leaf { .. } => false,
-            Self::Split { split, a, b, .. } => {
-                let side = if matches!(**a, Self::Leaf { id } if id == target) {
-                    Some(Side::A)
-                } else if matches!(**b, Self::Leaf { id } if id == target) {
-                    Some(Side::B)
-                } else {
-                    None
-                };
-                if let Some(side) = side {
-                    f(split, side);
-                    return true;
-                }
-                a.with_parent(target, f) || b.with_parent(target, f)
-            }
+            Self::Leaf { id } => *id == target,
+            Self::Split { a, b, .. } => a.contains(target) || b.contains(target),
         }
     }
 }
@@ -251,6 +282,12 @@ pub struct Layout {
 pub struct PaneEntry {
     pub id: PaneId,
     pub kind: PaneKind,
+    #[serde(default, skip_serializing_if = "is_unlocked")]
+    pub locks: Locks,
+}
+
+fn is_unlocked(locks: &Locks) -> bool {
+    !locks.any()
 }
 
 impl Layout {
@@ -259,7 +296,7 @@ impl Layout {
         Self {
             name: name.into(),
             root: Node::leaf(id),
-            panes: vec![PaneEntry { id, kind }],
+            panes: vec![PaneEntry { id, kind, locks: Locks::default() }],
         }
     }
 
@@ -286,7 +323,7 @@ impl Layout {
         if !self.root.split_leaf(target, axis, new_id) {
             return None;
         }
-        self.panes.push(PaneEntry { id: new_id, kind });
+        self.panes.push(PaneEntry { id: new_id, kind, locks: Locks::default() });
         Some(new_id)
     }
 
@@ -368,29 +405,87 @@ impl Layout {
         false
     }
 
-    pub fn is_locked(&self, id: PaneId) -> bool {
-        self.root
-            .parent_of(id)
-            .is_some_and(|(split, side)| split.locked_side() == Some(side))
+    pub fn locks(&self, id: PaneId) -> Locks {
+        self.entry(id).map(|entry| entry.locks).unwrap_or_default()
     }
 
-    pub fn parent_axis(&self, id: PaneId) -> Option<Axis> {
-        self.root.parent_axis_of(id)
+    pub fn is_locked(&self, id: PaneId, axis: Axis) -> bool {
+        self.locks(id).along(axis).is_some()
     }
 
-    pub fn lock(&mut self, id: PaneId, pixels: f32) {
-        self.root.with_parent(id, &mut |split, side| {
-            *split = Split::Locked {
-                side,
-                pixels: pixels.max(MIN_PANE),
-            };
-        });
+    #[cfg(test)]
+    pub fn lock(&mut self, id: PaneId, axis: Axis, size: iced::Size) {
+        let extent = match axis {
+            Axis::Vertical => size.width,
+            Axis::Horizontal => size.height,
+        };
+        if let Some(entry) = self.entry_mut(id) {
+            entry.locks.set_along(axis, Some(extent.max(MIN_PANE)));
+        }
     }
 
-    pub fn unlock(&mut self, id: PaneId) {
-        self.root.with_parent(id, &mut |split, _side| {
-            *split = Split::Ratio { ratio: 0.5 };
-        });
+    #[cfg(test)]
+    pub fn unlock(&mut self, id: PaneId, axis: Axis) {
+        if let Some(entry) = self.entry_mut(id) {
+            entry.locks.set_along(axis, None);
+        }
+    }
+
+    pub fn cycle_lock(&mut self, id: PaneId, size: PaneMetrics) {
+        let width = || Some(size.pane.width.max(MIN_PANE));
+        let height = || Some(size.pane.height.max(MIN_PANE));
+
+        let locks = self.locks(id);
+        let next = match (locks.width, locks.height) {
+            (None, None) => Locks {
+                width: width(),
+                height: None,
+            },
+            (Some(_), None) => Locks {
+                width: None,
+                height: height(),
+            },
+            (None, Some(held)) => Locks {
+                width: width(),
+                height: Some(held),
+            },
+            (Some(_), Some(_)) => Locks::default(),
+        };
+
+        for axis in [Axis::Vertical, Axis::Horizontal] {
+            if locks.along(axis).is_some() && next.along(axis).is_none() {
+                self.record_ratio(id, axis, size);
+            }
+        }
+
+        if let Some(entry) = self.entry_mut(id) {
+            entry.locks = next;
+        }
+    }
+
+    fn record_ratio(&mut self, id: PaneId, axis: Axis, metrics: PaneMetrics) {
+        let (extent, span) = match axis {
+            Axis::Vertical => (metrics.pane.width, metrics.span.width),
+            Axis::Horizontal => (metrics.pane.height, metrics.span.height),
+        };
+        if span <= 0.0 || extent <= 0.0 {
+            return;
+        }
+
+        let share = extent / span;
+        if share >= 1.0 {
+            return;
+        }
+
+        let Some((split, side)) = self.root.governing_split(id, axis) else {
+            return;
+        };
+
+        let share = share.clamp(MIN_SHARE, 1.0 - MIN_SHARE);
+        split.ratio = match side {
+            Side::A => share,
+            Side::B => 1.0 - share,
+        };
     }
 
     pub fn split_axis(&self, path: &SplitPath) -> Option<Axis> {
@@ -411,19 +506,58 @@ impl Layout {
     }
 
     pub fn drag_divider(&mut self, path: &SplitPath, delta: f32, span: f32) {
-        let Some(split) = self.split_at_mut(path) else {
+        let Some(axis) = self.split_axis(path) else {
             return;
         };
-        match split {
-            Split::Locked { side, pixels } => {
-                let signed = if *side == Side::A { delta } else { -delta };
-                *pixels = (*pixels + signed).clamp(MIN_PANE, span - MIN_PANE);
-            }
-            Split::Ratio { ratio } => {
-                let bounded = span.max(1.0);
-                *ratio = (*ratio + delta / bounded).clamp(0.05, 0.95);
-            }
+
+        let limit = (span - MIN_PANE).max(MIN_PANE);
+        let mut pinned = false;
+
+        for (side, direction) in [(Side::A, 1.0), (Side::B, -1.0)] {
+            let Some(id) = self.pinned_pane(path, side, axis) else {
+                continue;
+            };
+            let Some(entry) = self.entry_mut(id) else {
+                continue;
+            };
+            let current = entry.locks.along(axis).unwrap_or_default();
+            let resized = (current + delta * direction).clamp(MIN_PANE, limit);
+            entry.locks.set_along(axis, Some(resized));
+            pinned = true;
         }
+
+        if !pinned && let Some(split) = self.split_at_mut(path) {
+            let bounded = span.max(1.0);
+            split.ratio = (split.ratio + delta / bounded).clamp(MIN_SHARE, 1.0 - MIN_SHARE);
+        }
+    }
+
+    fn pinned_pane(&self, path: &SplitPath, side: Side, axis: Axis) -> Option<PaneId> {
+        let Node::Split { a, b, .. } = self.node_at(path)? else {
+            return None;
+        };
+        let child = match side {
+            Side::A => a,
+            Side::B => b,
+        };
+        let Node::Leaf { id } = **child else {
+            return None;
+        };
+        self.is_locked(id, axis).then_some(id)
+    }
+
+    fn node_at(&self, path: &SplitPath) -> Option<&Node> {
+        let mut node = &self.root;
+        for step in &path.0 {
+            let Node::Split { a, b, .. } = node else {
+                return None;
+            };
+            node = match step {
+                Side::A => a,
+                Side::B => b,
+            };
+        }
+        Some(node)
     }
 
     fn split_at_mut(&mut self, path: &SplitPath) -> Option<&mut Split> {
@@ -452,6 +586,7 @@ impl Layout {
                 self.panes.push(PaneEntry {
                     id,
                     kind: PaneKind::Empty,
+                    locks: Locks::default(),
                 });
             }
         }
@@ -479,7 +614,7 @@ pub fn default_presets() -> Vec<Layout> {
         name: "Browsing".into(),
         root: Node::Split {
             axis: Axis::Vertical,
-            split: Split::Ratio { ratio: 0.62 },
+            split: Split { ratio: 0.62 },
             a: Box::new(Node::leaf(PaneId(0))),
             b: Box::new(Node::leaf(PaneId(1))),
         },
@@ -487,10 +622,15 @@ pub fn default_presets() -> Vec<Layout> {
             PaneEntry {
                 id: PaneId(0),
                 kind: PaneKind::Library,
+                locks: Locks::default(),
             },
             PaneEntry {
                 id: PaneId(1),
                 kind: PaneKind::Queue,
+                locks: Locks {
+                    width: Some(320.0),
+                    height: None,
+                },
             },
         ],
     };
@@ -502,12 +642,31 @@ pub fn default_presets() -> Vec<Layout> {
 mod tests {
     use super::*;
 
+    fn size(width: f32, height: f32) -> iced::Size {
+        iced::Size::new(width, height)
+    }
+
+    fn alone(pane: iced::Size) -> PaneMetrics {
+        PaneMetrics { pane, span: pane }
+    }
+
+    fn square(extent: f32) -> iced::Size {
+        size(extent, extent)
+    }
+
+    fn split_of(layout: &Layout) -> Split {
+        match &layout.root {
+            Node::Split { split, .. } => *split,
+            Node::Leaf { .. } => panic!("expected a split at the root"),
+        }
+    }
+
     fn two_pane() -> Layout {
         Layout {
             name: "t".into(),
             root: Node::Split {
                 axis: Axis::Vertical,
-                split: Split::Ratio { ratio: 0.5 },
+                split: Split::default(),
                 a: Box::new(Node::leaf(PaneId(0))),
                 b: Box::new(Node::leaf(PaneId(1))),
             },
@@ -515,57 +674,423 @@ mod tests {
                 PaneEntry {
                     id: PaneId(0),
                     kind: PaneKind::Empty,
+                    locks: Locks::default(),
                 },
                 PaneEntry {
                     id: PaneId(1),
                     kind: PaneKind::Empty,
+                    locks: Locks::default(),
                 },
             ],
         }
     }
 
     #[test]
-    fn lock_side_a_then_drag_sets_pixels() {
+    fn locking_width_leaves_height_free() {
         let mut l = two_pane();
-        l.lock(PaneId(0), 240.0);
-        assert!(l.is_locked(PaneId(0)));
+        l.lock(PaneId(1), Axis::Vertical, size(320.0, 500.0));
+        let locks = l.locks(PaneId(1));
+        assert_eq!(locks.width, Some(320.0));
+        assert_eq!(locks.height, None, "locking width pinned the height too");
+    }
 
-        let path = SplitPath(vec![]);
-        l.drag_divider(&path, 50.0, 1000.0);
-        match l.root {
-            Node::Split {
-                split:
-                    Split::Locked {
-                        side: Side::A,
-                        pixels,
-                    },
-                ..
-            } => {
-                assert!((pixels - 290.0).abs() < 0.01, "got {pixels}");
+    #[test]
+    fn locking_height_leaves_width_free() {
+        let mut l = two_pane();
+        l.lock(PaneId(0), Axis::Horizontal, size(900.0, 120.0));
+        let locks = l.locks(PaneId(0));
+        assert_eq!(locks.height, Some(120.0));
+        assert_eq!(locks.width, None, "locking height pinned the width too");
+    }
+
+    #[test]
+    fn each_pane_locks_independently() {
+        let mut l = two_pane();
+        l.lock(PaneId(0), Axis::Vertical, square(300.0));
+        l.lock(PaneId(1), Axis::Vertical, square(200.0));
+        assert_eq!(l.locks(PaneId(0)).width, Some(300.0));
+        assert_eq!(l.locks(PaneId(1)).width, Some(200.0), "second lock clobbered the first");
+    }
+
+    #[test]
+    fn unlocking_one_axis_leaves_the_other() {
+        let mut l = two_pane();
+        l.lock(PaneId(0), Axis::Vertical, size(300.0, 200.0));
+        l.lock(PaneId(0), Axis::Horizontal, size(300.0, 200.0));
+        l.unlock(PaneId(0), Axis::Vertical);
+        assert_eq!(l.locks(PaneId(0)).width, None);
+        assert_eq!(l.locks(PaneId(0)).height, Some(200.0));
+    }
+
+    #[test]
+    fn releasing_a_lock_keeps_the_pane_where_it_was() {
+        let mut l = two_pane();
+        let metrics = PaneMetrics {
+            pane: size(300.0, 400.0),
+            span: size(1000.0, 400.0),
+        };
+        l.cycle_lock(PaneId(0), metrics); // -> width
+        l.cycle_lock(PaneId(0), metrics); // -> height, width released
+
+        assert!(
+            (split_of(&l).ratio - 0.3).abs() < 0.01,
+            "ratio {} does not match the 0.3 share the pane held",
+            split_of(&l).ratio
+        );
+    }
+
+    #[test]
+    fn releasing_a_lock_on_side_b_records_the_complement() {
+        let mut l = two_pane();
+        let metrics = PaneMetrics {
+            pane: size(250.0, 400.0),
+            span: size(1000.0, 400.0),
+        };
+        l.cycle_lock(PaneId(1), metrics);
+        l.cycle_lock(PaneId(1), metrics);
+
+        assert!(
+            (split_of(&l).ratio - 0.75).abs() < 0.01,
+            "ratio {} should leave side B a 0.25 share",
+            split_of(&l).ratio
+        );
+    }
+
+    #[test]
+    fn releasing_an_axis_owned_by_an_ancestor_still_records() {
+        let mut l = three_pane();
+        let metrics = PaneMetrics {
+            pane: size(400.0, 150.0),
+            span: size(1000.0, 600.0),
+        };
+
+        l.cycle_lock(PaneId(1), metrics);
+        l.cycle_lock(PaneId(1), metrics);
+
+        let Node::Split { split, .. } = &l.root else {
+            panic!("expected a split at the root");
+        };
+        assert!(
+            (split.ratio - 0.6).abs() < 0.01,
+            "root ratio {} does not leave pane 1 the 0.4 share it held",
+            split.ratio
+        );
+    }
+
+    #[test]
+    fn no_transition_in_the_cycle_moves_a_nested_pane() {
+        let mut l = three_pane();
+        let metrics = PaneMetrics {
+            pane: size(400.0, 150.0),
+            span: size(1000.0, 600.0),
+        };
+
+        for step in 0..8 {
+            l.cycle_lock(PaneId(1), metrics);
+
+            let locks = l.locks(PaneId(1));
+            if locks.width.is_none() {
+                let Node::Split { split, .. } = &l.root else {
+                    panic!()
+                };
+                assert!(
+                    (split.ratio - 0.6).abs() < 0.01,
+                    "step {step}: width ratio drifted to {}",
+                    split.ratio
+                );
             }
-            _ => panic!("expected locked A"),
         }
     }
 
     #[test]
-    fn lock_side_b_drag_moves_correct_direction() {
+    fn a_recorded_ratio_reproduces_the_panes_width() {
         let mut l = two_pane();
-        l.lock(PaneId(1), 200.0);
-        let path = SplitPath(vec![]);
-        l.drag_divider(&path, 60.0, 1000.0);
-        match l.root {
-            Node::Split {
-                split:
-                    Split::Locked {
-                        side: Side::B,
-                        pixels,
-                    },
-                ..
-            } => {
-                assert!((pixels - 140.0).abs() < 0.01, "got {pixels}");
-            }
-            _ => panic!("expected locked B"),
+        let span = 1000.0;
+        let pane = 320.0;
+
+        l.cycle_lock(
+            PaneId(0),
+            PaneMetrics {
+                pane: size(pane, 400.0),
+                span: size(span, 400.0),
+            },
+        );
+        l.cycle_lock(
+            PaneId(0),
+            PaneMetrics {
+                pane: size(pane, 400.0),
+                span: size(span, 400.0),
+            },
+        );
+
+        let restored = split_of(&l).ratio * span;
+        assert!(
+            (restored - pane).abs() < 1.0,
+            "released pane would render at {restored}, not the {pane} it held"
+        );
+    }
+
+    #[test]
+    fn cycling_into_free_records_both_axes() {
+        let mut l = three_pane();
+        let metrics = PaneMetrics {
+            pane: size(400.0, 150.0),
+            span: size(1000.0, 600.0),
+        };
+
+        l.cycle_lock(PaneId(1), metrics);
+        l.cycle_lock(PaneId(1), metrics);
+        l.cycle_lock(PaneId(1), metrics);
+        assert!(l.locks(PaneId(1)).width.is_some() && l.locks(PaneId(1)).height.is_some());
+
+        l.cycle_lock(PaneId(1), metrics);
+        assert!(!l.locks(PaneId(1)).any(), "expected free");
+
+        let Node::Split { split, b, .. } = &l.root else {
+            panic!("expected a split at the root");
+        };
+        assert!(
+            (split.ratio - 0.6).abs() < 0.01,
+            "width ratio {} does not leave pane 1 a 0.4 share",
+            split.ratio
+        );
+
+        let Node::Split { split: inner, .. } = &**b else {
+            panic!("expected a nested split");
+        };
+        assert!(
+            (inner.ratio - 0.25).abs() < 0.01,
+            "height ratio {} does not leave pane 1 a 0.25 share",
+            inner.ratio
+        );
+    }
+
+    #[test]
+    fn releasing_an_ungoverned_axis_leaves_the_other_alone() {
+        let mut l = two_pane();
+        let metrics = PaneMetrics {
+            pane: size(300.0, 600.0),
+            span: size(1000.0, 600.0),
+        };
+
+        l.cycle_lock(PaneId(0), metrics); // width
+        l.cycle_lock(PaneId(0), metrics); // height, width released
+        let after_width_release = split_of(&l).ratio;
+
+        l.cycle_lock(PaneId(0), metrics); // both
+        l.cycle_lock(PaneId(0), metrics); // free: releases width AND height
+
+        let ratio = split_of(&l).ratio;
+        assert!(
+            (ratio - 0.3).abs() < 0.01,
+            "width ratio {ratio} drifted from {after_width_release}; the height \
+             release should not touch a vertical split"
+        );
+    }
+
+    #[test]
+    fn a_nested_pane_freed_does_not_snap_to_the_clamp() {
+        let mut l = three_pane();
+        let metrics = PaneMetrics {
+            pane: size(500.0, 300.0),
+            span: size(500.0, 600.0),
+        };
+
+        l.cycle_lock(PaneId(1), metrics); // width
+        l.cycle_lock(PaneId(1), metrics); // height
+        l.cycle_lock(PaneId(1), metrics); // both
+        l.cycle_lock(PaneId(1), metrics); // free
+
+        let Node::Split { split, .. } = &l.root else {
+            panic!("expected a split at the root");
+        };
+        assert!(
+            (split.ratio - 0.5).abs() < 0.01,
+            "root ratio snapped to {}; pane 1 still occupies half the window",
+            split.ratio
+        );
+    }
+
+    #[test]
+    fn freeing_a_pane_in_a_three_pane_row_leaves_its_neighbours_alone() {
+        let mut l = two_pane();
+        l.split(PaneId(0), Axis::Vertical, PaneKind::Empty); // 0 -> (0|2)
+
+        let inner_before = match &l.root {
+            Node::Split { a, .. } => match &**a {
+                Node::Split { split, .. } => split.ratio,
+                Node::Leaf { .. } => panic!("expected a nested split"),
+            },
+            Node::Leaf { .. } => panic!("expected a split"),
+        };
+
+        let metrics = PaneMetrics {
+            pane: size(250.0, 600.0),
+            span: size(1000.0, 600.0),
+        };
+        l.cycle_lock(PaneId(1), metrics);
+        l.cycle_lock(PaneId(1), metrics);
+
+        let inner_after = match &l.root {
+            Node::Split { a, .. } => match &**a {
+                Node::Split { split, .. } => split.ratio,
+                Node::Leaf { .. } => panic!(),
+            },
+            Node::Leaf { .. } => panic!(),
+        };
+
+        assert!(
+            (inner_after - inner_before).abs() < f32::EPSILON,
+            "freeing pane 1 moved the 0|2 split from {inner_before} to {inner_after}"
+        );
+    }
+
+    #[test]
+    fn freeing_a_nested_pane_adjusts_its_own_split() {
+        let mut l = two_pane();
+        l.split(PaneId(0), Axis::Vertical, PaneKind::Empty); // ((0|2)|1)
+
+        let outer_before = split_of(&l).ratio;
+
+        let metrics = PaneMetrics {
+            pane: size(300.0, 600.0),
+            span: size(700.0, 600.0),
+        };
+        l.cycle_lock(PaneId(2), metrics);
+        l.cycle_lock(PaneId(2), metrics);
+
+        assert!(
+            (split_of(&l).ratio - outer_before).abs() < f32::EPSILON,
+            "freeing pane 2 moved the outer split from {outer_before} to {}",
+            split_of(&l).ratio
+        );
+    }
+
+    #[test]
+    fn cycle_lock_walks_the_four_states() {
+        let mut l = two_pane();
+        let pane = size(320.0, 180.0);
+
+        l.cycle_lock(PaneId(0), alone(pane));
+        assert_eq!(l.locks(PaneId(0)).width, Some(320.0));
+        assert_eq!(l.locks(PaneId(0)).height, None);
+
+        l.cycle_lock(PaneId(0), alone(pane));
+        assert_eq!(l.locks(PaneId(0)).width, None);
+        assert_eq!(l.locks(PaneId(0)).height, Some(180.0));
+
+        l.cycle_lock(PaneId(0), alone(pane));
+        assert_eq!(l.locks(PaneId(0)).width, Some(320.0));
+        assert_eq!(l.locks(PaneId(0)).height, Some(180.0));
+
+        l.cycle_lock(PaneId(0), alone(pane));
+        assert!(!l.locks(PaneId(0)).any(), "cycle did not return to unlocked");
+    }
+
+    #[test]
+    fn cycle_lock_returns_to_where_it_started() {
+        let mut l = two_pane();
+        let pane = size(320.0, 180.0);
+        for _ in 0..4 {
+            l.cycle_lock(PaneId(0), alone(pane));
         }
+        assert!(!l.locks(PaneId(0)).any());
+        for _ in 0..4 {
+            l.cycle_lock(PaneId(0), alone(pane));
+        }
+        assert!(!l.locks(PaneId(0)).any(), "cycle length is not four");
+    }
+
+    #[test]
+    fn cycling_to_both_keeps_the_height_already_held() {
+        let mut l = two_pane();
+        l.cycle_lock(PaneId(0), alone(size(320.0, 180.0)));
+        l.cycle_lock(PaneId(0), alone(size(320.0, 180.0)));
+        l.cycle_lock(PaneId(0), alone(size(999.0, 999.0)));
+        assert_eq!(l.locks(PaneId(0)).height, Some(180.0));
+    }
+
+    #[test]
+    fn dragging_sets_the_locked_width() {
+        let mut l = two_pane();
+        l.lock(PaneId(0), Axis::Vertical, square(240.0));
+        let path = SplitPath(vec![]);
+
+        l.drag_divider(&path, 70.0, 1000.0);
+        assert_eq!(l.locks(PaneId(0)).width, Some(310.0));
+
+        l.drag_divider(&path, -110.0, 1000.0);
+        assert_eq!(l.locks(PaneId(0)).width, Some(200.0));
+    }
+
+    #[test]
+    fn dragging_leaves_the_unlocked_axis_alone() {
+        let mut l = two_pane();
+        l.lock(PaneId(0), Axis::Vertical, size(240.0, 150.0));
+        l.drag_divider(&SplitPath(vec![]), 70.0, 1000.0);
+        assert_eq!(
+            l.locks(PaneId(0)).height,
+            None,
+            "a width drag created a height lock"
+        );
+    }
+
+    #[test]
+    fn dragging_a_locked_side_b_moves_the_opposite_way() {
+        let mut l = two_pane();
+        l.lock(PaneId(1), Axis::Vertical, square(200.0));
+        l.drag_divider(&SplitPath(vec![]), 60.0, 1000.0);
+        assert_eq!(l.locks(PaneId(1)).width, Some(140.0));
+    }
+
+    #[test]
+    fn dragging_a_locked_pane_leaves_the_ratio_alone() {
+        let mut l = two_pane();
+        let before = split_of(&l).ratio;
+        l.lock(PaneId(0), Axis::Vertical, square(240.0));
+        l.drag_divider(&SplitPath(vec![]), 75.0, 1000.0);
+        let after = split_of(&l).ratio;
+        assert!(
+            (after - before).abs() < f32::EPSILON,
+            "ratio drifted {before} -> {after} while locked"
+        );
+    }
+
+    #[test]
+    fn dragging_never_takes_a_locked_pane_below_min_pane() {
+        let mut l = two_pane();
+        l.lock(PaneId(0), Axis::Vertical, square(240.0));
+        l.drag_divider(&SplitPath(vec![]), -1000.0, 1000.0);
+        let width = l.locks(PaneId(0)).width.expect("still locked");
+        assert!(width >= MIN_PANE, "got {width}");
+    }
+
+    #[test]
+    fn unlocking_makes_the_divider_move_the_ratio_again() {
+        let mut l = two_pane();
+        l.lock(PaneId(0), Axis::Vertical, square(240.0));
+        l.unlock(PaneId(0), Axis::Vertical);
+        l.drag_divider(&SplitPath(vec![]), 100.0, 1000.0);
+        assert!((split_of(&l).ratio - 0.6).abs() < 0.01);
+    }
+
+    #[test]
+    fn locks_are_independent_across_nested_splits() {
+        let mut l = three_pane();
+        l.lock(PaneId(0), Axis::Vertical, square(240.0));
+        l.lock(PaneId(1), Axis::Vertical, square(150.0));
+        l.lock(PaneId(2), Axis::Horizontal, square(180.0));
+        assert_eq!(l.locks(PaneId(0)).width, Some(240.0));
+        assert_eq!(l.locks(PaneId(1)).width, Some(150.0));
+        assert_eq!(l.locks(PaneId(2)).height, Some(180.0));
+    }
+
+    #[test]
+    fn lock_never_records_less_than_min_pane() {
+        let mut l = two_pane();
+        l.lock(PaneId(0), Axis::Vertical, square(10.0));
+        let width = l.locks(PaneId(0)).width.expect("locked");
+        assert!(width >= MIN_PANE, "got {width}");
     }
 
     #[test]
@@ -575,23 +1100,9 @@ mod tests {
                 let mut l = two_pane();
                 let path = SplitPath(vec![]);
 
-                let before = match l.root {
-                    Node::Split {
-                        split: Split::Ratio { ratio },
-                        ..
-                    } => ratio * span,
-                    _ => panic!(),
-                };
-
+                let before = split_of(&l).ratio * span;
                 l.drag_divider(&path, delta, span);
-
-                let after = match l.root {
-                    Node::Split {
-                        split: Split::Ratio { ratio },
-                        ..
-                    } => ratio * span,
-                    _ => panic!(),
-                };
+                let after = split_of(&l).ratio * span;
 
                 assert!(
                     (after - before - delta).abs() < 0.01,
@@ -607,32 +1118,8 @@ mod tests {
         let mut l = two_pane();
         let path = SplitPath(vec![]);
         l.drag_divider(&path, 100.0, 1000.0);
-        match l.root {
-            Node::Split {
-                split: Split::Ratio { ratio },
-                ..
-            } => {
-                assert!((ratio - 0.6).abs() < 0.01, "got {ratio}");
-            }
-            _ => panic!(),
-        }
-    }
-
-    #[test]
-    fn min_pane_clamp_under_pressure() {
-        let mut l = two_pane();
-        l.lock(PaneId(0), 240.0);
-        let path = SplitPath(vec![]);
-        l.drag_divider(&path, -1000.0, 500.0);
-        match l.root {
-            Node::Split {
-                split: Split::Locked { pixels, .. },
-                ..
-            } => {
-                assert!(pixels >= MIN_PANE, "got {pixels}");
-            }
-            _ => panic!(),
-        }
+        let ratio = split_of(&l).ratio;
+        assert!((ratio - 0.6).abs() < 0.01, "got {ratio}");
     }
 
     #[test]
@@ -754,12 +1241,33 @@ mod tests {
     }
 
     #[test]
-    fn locked_survives_toml_round_trip() {
+    fn a_dragged_lock_size_survives_a_save_and_reload() {
         let mut l = two_pane();
-        l.lock(PaneId(0), 260.0);
+        l.lock(PaneId(0), Axis::Vertical, square(240.0));
+        l.drag_divider(&SplitPath(vec![]), 85.0, 1000.0);
+
+        let text = toml::to_string(&l).unwrap();
+        let back: Layout = toml::from_str(&text).unwrap();
+
+        assert_eq!(back.locks(PaneId(0)).width, Some(325.0));
+    }
+
+    #[test]
+    fn unlocked_survives_toml_round_trip() {
+        let l = two_pane();
         let s = toml::to_string(&l).unwrap();
         let back: Layout = toml::from_str(&s).unwrap();
         assert_eq!(l, back);
-        assert!(back.is_locked(PaneId(0)));
+        assert!(!back.locks(PaneId(0)).any());
+    }
+
+    #[test]
+    fn locked_survives_toml_round_trip() {
+        let mut l = two_pane();
+        l.lock(PaneId(0), Axis::Vertical, square(260.0));
+        let s = toml::to_string(&l).unwrap();
+        let back: Layout = toml::from_str(&s).unwrap();
+        assert_eq!(l, back);
+        assert_eq!(back.locks(PaneId(0)).width, Some(260.0));
     }
 }

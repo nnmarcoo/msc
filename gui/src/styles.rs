@@ -50,6 +50,16 @@ pub fn divider_style(theme: &Theme) -> container::Style {
     }
 }
 
+pub fn divider_locked_style(theme: &Theme) -> container::Style {
+    let palette = theme.extended_palette();
+    container::Style {
+        background: Some(Background::Color(
+            palette.background.strong.color.scale_alpha(0.6),
+        )),
+        ..Default::default()
+    }
+}
+
 pub fn drop_highlight_style(theme: &Theme) -> container::Style {
     let palette = theme.extended_palette();
     container::Style {

@@ -4,7 +4,7 @@
 //! overlay; pressing it opens a panel as a true iced `Overlay`, so the list
 //! escapes the pane's clip bounds and can be larger than the pane it belongs
 //! to. That is the whole reason this is a custom widget rather than a
-//! `stack!` layer — a pane can be 80px tall and still open a full list.
+//! `stack!` layer, so a pane can be 80px tall and still open a full list.
 //!
 //! The panel is rebuilt only when the query changes ([`State::built_for`]),
 //! because building it allocates an `Element` tree that then has to be

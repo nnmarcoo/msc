@@ -18,7 +18,7 @@ use iced::widget::{
 use iced::{Element, Length};
 
 use crate::app::{DropTarget, Message};
-use crate::layout::{Axis, DropZone, PaneId};
+use crate::layout::{Axis, DropZone, Locks, PaneId, PaneMetrics};
 use crate::pane::{PaneKind, controls};
 use crate::styles::{self, LABEL_FONT_SIZE, PAD, TOOLTIP_DELAY};
 use crate::widgets::pane_picker::PanePicker;
@@ -31,7 +31,9 @@ const ICON_SPLIT_VERTICAL: &[u8] = include_bytes!("../../../assets/icons/split_v
 const ICON_SPLIT_HORIZONTAL: &[u8] = include_bytes!("../../../assets/icons/split_horizontal.svg");
 const ICON_CLOSE: &[u8] = include_bytes!("../../../assets/icons/close.svg");
 const ICON_GRIP: &[u8] = include_bytes!("../../../assets/icons/grip.svg");
-const ICON_LOCK: &[u8] = include_bytes!("../../../assets/icons/lock.svg");
+const ICON_LOCK_WIDTH: &[u8] = include_bytes!("../../../assets/icons/lock_width.svg");
+const ICON_LOCK_HEIGHT: &[u8] = include_bytes!("../../../assets/icons/lock_height.svg");
+const ICON_LOCK_BOTH: &[u8] = include_bytes!("../../../assets/icons/lock_both.svg");
 const ICON_UNLOCK: &[u8] = include_bytes!("../../../assets/icons/unlock.svg");
 
 #[derive(Clone, Copy)]
@@ -40,8 +42,6 @@ pub struct DragContext {
     pub drop_zone: Option<DropZone>,
 }
 
-/// Playback state copied out of the player once per frame, so pane rendering
-/// stays a pure function of plain data.
 #[derive(Clone, Copy, Default)]
 pub struct Playback {
     pub is_playing: bool,
@@ -50,10 +50,11 @@ pub struct Playback {
 pub fn view<'a>(
     id: PaneId,
     kind: PaneKind,
-    locked: bool,
+    locks: Locks,
     edit_mode: bool,
     drag: DragContext,
     playback: Playback,
+    span: iced::Size,
 ) -> Element<'a, Message> {
     if !edit_mode {
         return content(kind, playback);
@@ -68,7 +69,7 @@ pub fn view<'a>(
     if drag.active {
         layers = layers.push(hover_sensor(id));
     } else {
-        layers = layers.push(edit_overlay(id, kind, locked));
+        layers = layers.push(edit_overlay(id, kind, locks, span));
     }
 
     layers.into()
@@ -200,15 +201,21 @@ fn zone_highlight<'a>(zone: DropZone) -> Element<'a, Message> {
         .into()
 }
 
-fn edit_overlay<'a>(id: PaneId, kind: PaneKind, locked: bool) -> Element<'a, Message> {
-    responsive(move |pane_size| edit_controls(id, kind, locked, pane_size)).into()
+fn edit_overlay<'a>(
+    id: PaneId,
+    kind: PaneKind,
+    locks: Locks,
+    span: iced::Size,
+) -> Element<'a, Message> {
+    responsive(move |pane_size| edit_controls(id, kind, locks, pane_size, span)).into()
 }
 
 fn edit_controls<'a>(
     id: PaneId,
     kind: PaneKind,
-    locked: bool,
+    locks: Locks,
     pane_size: iced::Size,
+    span: iced::Size,
 ) -> Element<'a, Message> {
     let form = ControlForm::pick(pane_size, kind);
     let compact = form != ControlForm::Horizontal;
@@ -226,11 +233,7 @@ fn edit_controls<'a>(
             "Split vertically",
             Message::SplitPane(id, Axis::Vertical),
         ),
-        svg_button(
-            if locked { ICON_LOCK } else { ICON_UNLOCK },
-            if locked { "Unlock pane" } else { "Lock pane" },
-            Message::ToggleLock(id, pane_size),
-        ),
+        lock_button(id, locks, pane_size, span),
         grab_handle(id),
     ];
 
@@ -304,6 +307,31 @@ fn grid_3x2<'a>(buttons: [Element<'a, Message>; 6]) -> Element<'a, Message> {
     }
 
     rows.into()
+}
+
+fn lock_button<'a>(
+    id: PaneId,
+    locks: Locks,
+    pane_size: iced::Size,
+    span: iced::Size,
+) -> Element<'a, Message> {
+    let (icon, label) = match (locks.width, locks.height) {
+        (None, None) => (ICON_UNLOCK, "Free"),
+        (Some(_), None) => (ICON_LOCK_WIDTH, "Width locked"),
+        (None, Some(_)) => (ICON_LOCK_HEIGHT, "Height locked"),
+        (Some(_), Some(_)) => (ICON_LOCK_BOTH, "Width and height locked"),
+    };
+    svg_button(
+        icon,
+        label,
+        Message::CycleLock(
+            id,
+            PaneMetrics {
+                pane: pane_size,
+                span,
+            },
+        ),
+    )
 }
 
 fn grab_handle<'a>(id: PaneId) -> Element<'a, Message> {
