@@ -24,8 +24,6 @@ use crate::styles::{self, LABEL_FONT_SIZE, PAD, TOOLTIP_DELAY};
 
 const ROOT_BAND: f32 = 24.0;
 
-/// Edit-mode control size, matching `LABEL_FONT_SIZE` so icons sit level with
-/// any text controls in the same bar.
 const ICON_SIZE: f32 = 14.0;
 
 const ICON_SPLIT_VERTICAL: &[u8] = include_bytes!("../../../assets/icons/split_vertical.svg");
@@ -260,7 +258,6 @@ fn kind_cycle<'a>(id: PaneId, kind: PaneKind) -> Element<'a, Message> {
     with_tooltip(control, "Change pane type")
 }
 
-/// A bare theme-tinted icon at the standard edit-control size.
 fn icon<'a>(bytes: &'static [u8]) -> Element<'a, Message> {
     svg(Handle::from_memory(bytes))
         .style(styles::svg_style)
@@ -269,7 +266,6 @@ fn icon<'a>(bytes: &'static [u8]) -> Element<'a, Message> {
         .into()
 }
 
-/// An icon wrapped in a hoverable, tooltipped button — the edit bar's standard control.
 fn svg_button<'a>(bytes: &'static [u8], label: &'a str, message: Message) -> Element<'a, Message> {
     let control = button(icon(bytes))
         .on_press(message)
@@ -278,7 +274,6 @@ fn svg_button<'a>(bytes: &'static [u8], label: &'a str, message: Message) -> Ele
     with_tooltip(control, label)
 }
 
-/// Attaches a delayed tooltip above `content`, styled as a floating panel.
 fn with_tooltip<'a>(
     content: impl Into<Element<'a, Message>>,
     label: &'a str,

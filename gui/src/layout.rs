@@ -374,9 +374,6 @@ impl Layout {
             .is_some_and(|(split, side)| split.locked_side() == Some(side))
     }
 
-    /// The axis of the split that `id` is a child of, if any. A vertical split
-    /// arranges its sides left/right (so locking pins a width); a horizontal
-    /// split arranges them top/bottom (locking pins a height).
     pub fn parent_axis(&self, id: PaneId) -> Option<Axis> {
         self.root.parent_axis_of(id)
     }

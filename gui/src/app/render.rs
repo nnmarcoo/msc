@@ -9,9 +9,11 @@
 //!
 //! In edit mode a thin draggable seam sits between a split's two children. It
 //! captures a press and reports drags to the app, which resizes the split from
-//! the cursor delta — no on-screen rectangle needed.
+//! the cursor delta — no on-screen rectangle needed. The seam is layered over
+//! the content with `stack` rather than inserted into the row/column, so it
+//! never steals flex space from the panes.
 
-use iced::widget::{column, container, mouse_area, row};
+use iced::widget::{Space, column, container, mouse_area, row, stack};
 use iced::{Element, Length, mouse};
 
 use crate::app::Message;
@@ -21,6 +23,7 @@ use crate::pane::PaneKind;
 const PORTION_SCALE: f32 = 1000.0;
 
 const DIVIDER: f32 = 6.0;
+const DIVIDER_LINE: f32 = 4.0;
 
 pub fn view<'a>(
     layout: &'a Layout,
@@ -74,19 +77,43 @@ fn render_node<'a>(
             );
             path.pop();
 
-            let divider = edit_mode.then(|| divider(here, *axis));
+            let content = match axis {
+                Axis::Vertical => row![child_a, child_b].into(),
+                Axis::Horizontal => column![child_a, child_b].into(),
+            };
 
-            match axis {
-                Axis::Vertical => match divider {
-                    Some(d) => row![child_a, d, child_b].into(),
-                    None => row![child_a, child_b].into(),
-                },
-                Axis::Horizontal => match divider {
-                    Some(d) => column![child_a, d, child_b].into(),
-                    None => column![child_a, child_b].into(),
-                },
+            if edit_mode {
+                let seam = divider_overlay(here, *axis, *split);
+                stack![content, seam].into()
+            } else {
+                content
             }
         }
+    }
+}
+
+fn divider_overlay<'a>(path: SplitPath, axis: Axis, split: Split) -> Element<'a, Message> {
+    let filler_a = filler(axis, shrink(side_length(split, Side::A), DIVIDER / 2.0));
+    let filler_b = filler(axis, shrink(side_length(split, Side::B), DIVIDER / 2.0));
+    let seam = divider(path, axis);
+
+    match axis {
+        Axis::Vertical => row![filler_a, seam, filler_b].into(),
+        Axis::Horizontal => column![filler_a, seam, filler_b].into(),
+    }
+}
+
+fn shrink(length: Length, by: f32) -> Length {
+    match length {
+        Length::Fixed(pixels) => Length::Fixed((pixels - by).max(0.0)),
+        other => other,
+    }
+}
+
+fn filler<'a>(axis: Axis, length: Length) -> Element<'a, Message> {
+    match axis {
+        Axis::Vertical => Space::new().width(length).height(Length::Fill).into(),
+        Axis::Horizontal => Space::new().width(Length::Fill).height(length).into(),
     }
 }
 
@@ -95,12 +122,22 @@ fn divider<'a>(path: SplitPath, axis: Axis) -> Element<'a, Message> {
         Axis::Vertical => (Length::Fixed(DIVIDER), Length::Fill),
         Axis::Horizontal => (Length::Fill, Length::Fixed(DIVIDER)),
     };
+    let (line_width, line_height) = match axis {
+        Axis::Vertical => (Length::Fixed(DIVIDER_LINE), Length::Fill),
+        Axis::Horizontal => (Length::Fill, Length::Fixed(DIVIDER_LINE)),
+    };
+
+    let line = container(Space::new())
+        .width(line_width)
+        .height(line_height)
+        .style(crate::styles::divider_style);
 
     mouse_area(
-        container(iced::widget::Space::new())
+        container(line)
             .width(width)
             .height(height)
-            .style(crate::styles::divider_style),
+            .center_x(width)
+            .center_y(height),
     )
     .interaction(resize_cursor(axis))
     .on_press(Message::DividerGrabbed(path))
