@@ -18,7 +18,7 @@ fn main() -> iced::Result {
     iced::application(move || App::new(config.clone()), App::update, App::view)
         .title(App::title)
         .window(window::Settings {
-            min_size: Some(Size::new(640.0, 360.0)),
+            min_size: Some(Size::new(200.0, 200.0)),
             ..Default::default()
         })
         .centered()
