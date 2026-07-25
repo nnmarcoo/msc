@@ -75,6 +75,24 @@ pub fn tooltip_style(theme: &Theme) -> container::Style {
     }
 }
 
+pub fn menu_container_style(theme: &Theme) -> container::Style {
+    let palette = theme.extended_palette();
+    container::Style {
+        text_color: Some(palette.background.base.text),
+        background: Some(Background::Color(palette.background.weak.color)),
+        border: Border {
+            color: palette.background.strong.color,
+            width: 1.0,
+            radius: radius().into(),
+        },
+        ..Default::default()
+    }
+}
+
+pub fn menu_item_hover_color(theme: &Theme) -> iced::Color {
+    theme.extended_palette().background.strong.color
+}
+
 pub fn icon_button_style_container(theme: &Theme) -> container::Style {
     let palette = theme.extended_palette();
     container::Style {

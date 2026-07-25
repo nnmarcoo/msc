@@ -21,6 +21,7 @@ use crate::app::{DropTarget, Message};
 use crate::layout::{Axis, DropZone, PaneId};
 use crate::pane::PaneKind;
 use crate::styles::{self, LABEL_FONT_SIZE, PAD, TOOLTIP_DELAY};
+use crate::widgets::pane_picker::PanePicker;
 
 const ROOT_BAND: f32 = 24.0;
 
@@ -32,7 +33,6 @@ const ICON_CLOSE: &[u8] = include_bytes!("../../../assets/icons/close.svg");
 const ICON_GRIP: &[u8] = include_bytes!("../../../assets/icons/grip.svg");
 const ICON_LOCK: &[u8] = include_bytes!("../../../assets/icons/lock.svg");
 const ICON_UNLOCK: &[u8] = include_bytes!("../../../assets/icons/unlock.svg");
-const ICON_CYCLE: &[u8] = include_bytes!("../../../assets/icons/cycle.svg");
 
 #[derive(Clone, Copy)]
 pub struct DragContext {
@@ -199,12 +199,16 @@ fn edit_controls<'a>(
     locked: bool,
     pane_size: iced::Size,
 ) -> Element<'a, Message> {
-    let controls = row![
-        grab_handle(id),
+    let form = ControlForm::pick(pane_size, kind);
+    let compact = form != ControlForm::Horizontal;
+
+    let outward = [
+        svg_button(ICON_CLOSE, "Close pane", Message::ClosePane(id)),
+        kind_picker(id, kind, compact),
         svg_button(
-            if locked { ICON_LOCK } else { ICON_UNLOCK },
-            if locked { "Unlock pane" } else { "Lock pane" },
-            Message::ToggleLock(id, pane_size),
+            ICON_SPLIT_HORIZONTAL,
+            "Split horizontally",
+            Message::SplitPane(id, Axis::Horizontal),
         ),
         svg_button(
             ICON_SPLIT_VERTICAL,
@@ -212,14 +216,18 @@ fn edit_controls<'a>(
             Message::SplitPane(id, Axis::Vertical),
         ),
         svg_button(
-            ICON_SPLIT_HORIZONTAL,
-            "Split horizontally",
-            Message::SplitPane(id, Axis::Horizontal),
+            if locked { ICON_LOCK } else { ICON_UNLOCK },
+            if locked { "Unlock pane" } else { "Lock pane" },
+            Message::ToggleLock(id, pane_size),
         ),
-        kind_cycle(id, kind),
-        svg_button(ICON_CLOSE, "Close pane", Message::ClosePane(id)),
-    ]
-    .spacing(PAD / 2.0);
+        grab_handle(id),
+    ];
+
+    let controls: Element<'a, Message> = match form {
+        ControlForm::Horizontal => row(reversed(outward)).spacing(PAD / 2.0).into(),
+        ControlForm::Vertical => column(outward).spacing(PAD / 2.0).into(),
+        ControlForm::Grid => grid_3x2(outward),
+    };
 
     container(
         container(controls)
@@ -234,6 +242,59 @@ fn edit_controls<'a>(
     .into()
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ControlForm {
+    Horizontal,
+    Vertical,
+    Grid,
+}
+
+const BUTTON: f32 = ICON_SIZE + PAD * 2.0;
+const GAP: f32 = PAD / 2.0;
+const CHROME: f32 = PAD + PAD * 2.0;
+
+impl ControlForm {
+    fn pick(pane: iced::Size, kind: PaneKind) -> Self {
+        if pane.width >= Self::horizontal_width(kind) {
+            Self::Horizontal
+        } else if pane.height >= Self::vertical_height() {
+            Self::Vertical
+        } else {
+            Self::Grid
+        }
+    }
+
+    fn horizontal_width(kind: PaneKind) -> f32 {
+        5.0 * BUTTON + PanePicker::<Message>::label_width(kind) + 5.0 * GAP + CHROME
+    }
+
+    fn vertical_height() -> f32 {
+        6.0 * BUTTON + 5.0 * GAP + CHROME
+    }
+}
+
+fn reversed(buttons: [Element<'_, Message>; 6]) -> [Element<'_, Message>; 6] {
+    let mut buttons = buttons;
+    buttons.reverse();
+    buttons
+}
+
+fn grid_3x2<'a>(buttons: [Element<'a, Message>; 6]) -> Element<'a, Message> {
+    let mut rows = column![].spacing(GAP);
+    let mut pending: Vec<Element<'a, Message>> = Vec::with_capacity(3);
+
+    for button in buttons {
+        pending.push(button);
+        if pending.len() == 3 {
+            let mut line = std::mem::replace(&mut pending, Vec::with_capacity(3));
+            line.reverse();
+            rows = rows.push(row(line).spacing(GAP));
+        }
+    }
+
+    rows.into()
+}
+
 fn grab_handle<'a>(id: PaneId) -> Element<'a, Message> {
     let handle = mouse_area(
         container(icon(ICON_GRIP))
@@ -245,17 +306,15 @@ fn grab_handle<'a>(id: PaneId) -> Element<'a, Message> {
     with_tooltip(handle, "Drag to move")
 }
 
-fn kind_cycle<'a>(id: PaneId, kind: PaneKind) -> Element<'a, Message> {
-    let next = next_kind(kind);
-    let control = button(
-        row![icon(ICON_CYCLE), text(kind.title()).size(LABEL_FONT_SIZE)]
-            .spacing(PAD / 2.0)
-            .align_y(Vertical::Center),
-    )
-    .on_press(Message::SetPaneKind(id, next))
-    .padding([2.0, PAD])
-    .style(styles::icon_button_style);
-    with_tooltip(control, "Change pane type")
+fn kind_picker<'a>(id: PaneId, kind: PaneKind, compact: bool) -> Element<'a, Message> {
+    let picker =
+        PanePicker::new(kind, move |picked| Message::SetPaneKind(id, picked)).compact(compact);
+    let label = if compact {
+        kind.title()
+    } else {
+        "Change pane type"
+    };
+    with_tooltip(picker, label)
 }
 
 fn icon<'a>(bytes: &'static [u8]) -> Element<'a, Message> {
@@ -290,8 +349,78 @@ fn with_tooltip<'a>(
     .into()
 }
 
-fn next_kind(kind: PaneKind) -> PaneKind {
-    let all = PaneKind::ALL;
-    let index = all.iter().position(|&k| k == kind).unwrap_or(0);
-    all[(index + 1) % all.len()]
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use iced::Size;
+
+    const KIND: PaneKind = PaneKind::Library;
+
+    #[test]
+    fn wide_pane_uses_horizontal() {
+        let width = ControlForm::horizontal_width(KIND);
+        assert_eq!(
+            ControlForm::pick(Size::new(width, 400.0), KIND),
+            ControlForm::Horizontal
+        );
+    }
+
+    #[test]
+    fn wide_but_short_pane_still_uses_horizontal() {
+        let width = ControlForm::horizontal_width(KIND);
+        assert_eq!(
+            ControlForm::pick(Size::new(width, 40.0), KIND),
+            ControlForm::Horizontal
+        );
+    }
+
+    #[test]
+    fn narrow_but_tall_pane_uses_vertical() {
+        let width = ControlForm::horizontal_width(KIND) - 1.0;
+        let height = ControlForm::vertical_height();
+        assert_eq!(
+            ControlForm::pick(Size::new(width, height), KIND),
+            ControlForm::Vertical
+        );
+    }
+
+    #[test]
+    fn narrow_and_short_pane_uses_grid() {
+        let width = ControlForm::horizontal_width(KIND) - 1.0;
+        let height = ControlForm::vertical_height() - 1.0;
+        assert_eq!(
+            ControlForm::pick(Size::new(width, height), KIND),
+            ControlForm::Grid
+        );
+    }
+
+    #[test]
+    fn smallest_allowed_pane_uses_grid() {
+        let min = crate::layout::MIN_PANE;
+        assert_eq!(
+            ControlForm::pick(Size::new(min, min), KIND),
+            ControlForm::Grid
+        );
+    }
+
+    #[test]
+    fn longer_label_needs_more_width() {
+        assert!(
+            ControlForm::horizontal_width(PaneKind::NowPlaying)
+                > ControlForm::horizontal_width(PaneKind::Empty)
+        );
+    }
+
+    #[test]
+    fn vertical_height_is_kind_independent() {
+        let height = ControlForm::vertical_height();
+        for kind in PaneKind::ALL {
+            let width = ControlForm::horizontal_width(kind) - 1.0;
+            assert_eq!(
+                ControlForm::pick(Size::new(width, height), kind),
+                ControlForm::Vertical,
+                "{kind:?} did not take the stack at its exact height"
+            );
+        }
+    }
 }
