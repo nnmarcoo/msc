@@ -1,18 +1,13 @@
 //! The timeline pane: what is playing, a seek bar, and the clocks.
 //!
-//! Three rows, tight against each other:
-//!
-//! ```text
-//! Song Title  Artist                 ***..
-//! ---------------o--------------------------
-//! 1:23                                4:56
-//! ```
+//! Three rows, tight against each other: the title, artist and rating; the seek
+//! rail; then the elapsed and total clocks at either end beneath it.
 //!
 //! The pane owns all three. [`crate::widgets::timeline`] is only the rail,
 //! because only the rail needs to map a pointer to a position along its width;
 //! everything on the rows above and below is a label or a
 //! [`crate::widgets::rating`], and composing them here keeps the stars a widget
-//! any other pane can use — a library row wanting to show a rating takes the
+//! any other pane can use, so a library row wanting to show a rating takes the
 //! same one rather than a reimplementation.
 //!
 //! The rows carry no spacing of their own. An earlier arrangement gave the rail
@@ -23,7 +18,7 @@
 //! nothing more.
 //!
 //! The rows group by what the reader is asking. Above the rail is what is
-//! playing — its name, and the rating that judges it. Below is where in it
+//! playing: its name, and the rating that judges it. Below is where in it
 //! playback has got to, elapsed and total at either end of the bar they measure,
 //! each sitting at the end of the rail it refers to.
 //!
@@ -39,7 +34,7 @@
 //!
 //! Title, artist, and rating come from the *playing* track rather than the
 //! queue's current one, so the rows always describe the audio actually coming
-//! out — the two diverge for as long as a queued track has yet to start. That
+//! out. The two diverge for as long as a queued track has yet to start. That
 //! also decides what a click on the stars rates: the track being heard.
 //!
 //! Position comes from the player each frame, except while a drag is in flight:

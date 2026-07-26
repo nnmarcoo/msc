@@ -1,10 +1,7 @@
 //! The volume pane: a mute button, a rail, and the level.
 //!
-//! One row, in the order the gesture is made:
-//!
-//! ```text
-//! [((•))  ------------o--------  70%
-//! ```
+//! One row, in the order the gesture is made: a mute button, the rail, and the
+//! level as a percentage.
 //!
 //! The pane owns the row. [`crate::widgets::volume`] is only the rail, because
 //! only the rail needs to map a pointer to a level along its width; the icon is
@@ -27,7 +24,7 @@
 //! this pane the level actually reaching the speakers, zero while muted. So the
 //! rail has one meaning rather than a level and a flag that can disagree, and
 //! dragging while muted unmutes. The pane is
-//! [`crate::pane::PaneState::Stateless`] for the same reason — two volume panes
+//! [`crate::pane::PaneState::Stateless`] for the same reason: two volume panes
 //! must agree about the volume, so there is nothing here to disagree about.
 
 use iced::widget::svg::Handle;

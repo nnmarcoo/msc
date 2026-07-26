@@ -1,59 +1,55 @@
 //! A virtualised list of queued tracks, reorderable by dragging.
 //!
-//! A custom widget for the same reason [`crate::widgets::track_list`] is one — a
-//! row is not worth an `Element` — but the reason it *had* to become one is the
-//! cursor. The queue was built as a `column` of per-row `mouse_area`s, and three
-//! separate bugs came out of that arrangement, all of them the same shape: rows
-//! were independent widgets publishing hover changes that raced each other.
+//! A custom widget partly because a row is not worth an `Element`, as in
+//! [`crate::widgets::track_list`], but mostly because of the cursor. The queue was
+//! once a `column` of per-row `mouse_area`s, and that arrangement produced three
+//! bugs of one shape: rows were independent widgets whose hover messages raced.
 //!
-//! - Moving the pointer *up* the list lost the highlight. iced delivers a
-//!   departure and an arrival in layout order rather than in the order they
-//!   happened, so the upper row's arrival was published first and the lower row's
-//!   departure second, clearing what had just been set.
-//! - Moving between two copies of one track lost it too, since an id cannot tell
-//!   "the pointer left me" from "the pointer moved to another copy of me".
-//! - Removing a track left no row hovered at all. The rows below shifted up under
-//!   a stationary cursor, and a row that was already hovered fires no `on_enter`,
-//!   so nothing announced the new arrival.
+//! Moving the pointer up the list lost the highlight, because iced delivers a
+//! departure and an arrival in layout order rather than in the order they
+//! happened, so the upper row's arrival landed first and the lower row's departure
+//! cleared it. Moving between two copies of one track lost it too, since a track id
+//! cannot tell "the pointer left me" from "the pointer moved to another copy of
+//! me". Removing a track left nothing hovered, because the rows below shifted up
+//! under a stationary cursor and a row already hovered fires no `on_enter`.
 //!
-//! Here there is one widget, one `hovered` row, and it is recomputed from the
-//! cursor's position by [`RowMetrics::row_at`] on every event. All three become
-//! unrepresentable rather than fixed: there is no second widget to race, the
-//! hovered row is an index and so unique per row, and a list that changes shape
-//! under the pointer is re-measured on the next event like any other.
+//! One widget keeps one `hovered` row, recomputed from the cursor by
+//! [`RowMetrics::row_at`] on every event. That makes all three unrepresentable
+//! rather than fixed: nothing races, the row is an index and so unique, and a list
+//! that changes shape is re-measured on the next event like any other.
 //!
-//! Virtualisation is [`crate::widgets::track_list`]'s, for the same reason and by
-//! the same means: the `viewport` iced passes to `draw` is the visible slice in
-//! content coordinates, so the rows worth drawing are two divisions.
+//! Virtualisation works as [`crate::widgets::track_list`] does. The `viewport`
+//! iced passes to `draw` is the visible slice in content coordinates, so the rows
+//! worth drawing are two divisions.
 //!
 //! # Dragging
 //!
 //! A press on a row's grip arms a drag and a move past [`DRAG_THRESHOLD`] starts
-//! it. Only the grip, so the rest of the row keeps its clicks; the threshold is
-//! what keeps a press on the grip that never travels from reordering anything.
+//! it. Only the grip, so the rest of the row keeps its clicks, and the threshold
+//! stops a press that never travels from reordering anything.
 //!
-//! The drag lives in this widget's state, and a press captures the pointer, so it
-//! keeps tracking wherever the cursor goes and releasing anywhere commits. That is
-//! the other thing being one widget buys: the old arrangement had to route moves
-//! through the app because a per-row `mouse_area` stops hearing about the pointer
-//! the moment it leaves that row, which needed two message kinds and a pane-level
-//! `RowKey` to keep straight.
+//! The drag lives in widget state and the press captures the pointer, so it keeps
+//! tracking wherever the cursor goes and a release anywhere commits. This is the
+//! other thing one widget buys. The old arrangement had to route moves through the
+//! app, since a per-row `mouse_area` stops hearing about the pointer once it
+//! leaves that row, which took two message kinds and a pane-level row key.
 //!
-//! `drop_at` counts gaps rather than rows, so it runs one past the last row —
-//! dropping below everything is a real destination that a row index cannot name.
-//! [`drop_target`] turns a gap into a destination, which is not the identity: the
-//! queue lifts the dragged track out before inserting it, so every gap below the
-//! lifted row means a position one lower.
+//! `drop_at` counts gaps rather than rows, so it runs one past the last row:
+//! dropping below everything is a real destination no row index can name.
+//! [`drop_target`] turns a gap into a destination, which is not the identity,
+//! because the queue lifts the dragged track out before inserting it and so every
+//! gap below the lifted row means a position one lower.
 //!
 //! # What the widget does not decide
 //!
-//! Hover is published as well as kept, because other panes highlight the same
-//! track; selection and the queue itself live on the app. The widget reports what
-//! the user did as an [`Op`] and never mutates anything, so a reorder here and one
-//! from a future keyboard shortcut cannot disagree.
+//! Hover is published as well as kept, since other panes highlight the same track.
+//! Selection and the queue itself live on the app. The widget reports what the user
+//! did as an [`Op`] and mutates nothing, so a reorder here and one from a future
+//! keyboard shortcut cannot disagree.
 //!
-//! Rows draw in layers — playing, selected, hovered, dragging — because a row can
-//! be several at once and a single ranked "state" would have to choose.
+//! Rows draw in layers, one each for playing, selected, hovered and dragging,
+//! because a row can be several at once and a single ranked state would have to
+//! choose between them.
 
 use iced::advanced::renderer::{self, Quad};
 use iced::advanced::text::Renderer as _;
@@ -311,9 +307,7 @@ impl<Message> Widget<Message, Theme, Renderer> for QueueList<'_, Message> {
         let state = tree.state.downcast_mut::<State>();
 
         match event {
-            Event::Mouse(
-                mouse::Event::CursorMoved { .. } | mouse::Event::WheelScrolled { .. },
-            ) => {
+            Event::Mouse(mouse::Event::CursorMoved { .. } | mouse::Event::WheelScrolled { .. }) => {
                 let Some(at) = cursor.position() else {
                     return;
                 };
@@ -337,7 +331,9 @@ impl<Message> Widget<Message, Theme, Renderer> for QueueList<'_, Message> {
                 let row = metrics.row_at(cursor);
                 if row != state.hovered {
                     state.hovered = row;
-                    let id = row.and_then(|index| self.rows.get(index)).and_then(|r| r.track.id());
+                    let id = row
+                        .and_then(|index| self.rows.get(index))
+                        .and_then(|r| r.track.id());
                     shell.publish((self.on_op)(Op::Hovered(id)));
                     shell.request_redraw();
                 }
@@ -455,7 +451,11 @@ impl<Message> Widget<Message, Theme, Renderer> for QueueList<'_, Message> {
                 );
             }
             if dragging {
-                fill_row(renderer, row, palette.background.strong.color.scale_alpha(0.9));
+                fill_row(
+                    renderer,
+                    row,
+                    palette.background.strong.color.scale_alpha(0.9),
+                );
             }
 
             draw_row(renderer, palette, metrics, index, entry, hovered);
@@ -524,8 +524,6 @@ fn draw_row(
         Slot::Upcoming => palette.background.base.text,
     };
 
-    // The position column: the grip once hovered, else the playing glyph or
-    // the queue number. One column for all three, so nothing reflows.
     let slot = metrics.grip_bounds(index);
     match (entry.slot, entry.upcoming) {
         (Slot::Upcoming, Some(_)) if hovered => {
@@ -653,13 +651,7 @@ fn fill(renderer: &mut Renderer, bounds: Rectangle, color: Color, corner: f32) {
     );
 }
 
-fn draw_icon(
-    renderer: &mut Renderer,
-    handle: &Handle,
-    cell: Rectangle,
-    size: f32,
-    color: Color,
-) {
+fn draw_icon(renderer: &mut Renderer, handle: &Handle, cell: Rectangle, size: f32, color: Color) {
     use iced::advanced::svg::Renderer as _;
 
     let bounds = Rectangle {
@@ -909,7 +901,11 @@ mod tests {
         };
 
         let range = visible_range(bounds, &viewport, 100);
-        assert!(range.len() <= 7, "drew {} rows for 5 rows of pane", range.len());
+        assert!(
+            range.len() <= 7,
+            "drew {} rows for 5 rows of pane",
+            range.len()
+        );
     }
 
     #[test]

@@ -21,8 +21,8 @@
 //! that floor overflows its controls rather than changing shape a third time.
 //!
 //! Two structs split what a pane draws from by how far it varies. [`Shared`]
-//! holds what is the same for every pane in the frame — the playback flags and
-//! [`Context`] — and [`Pane`] holds what identifies this one: its id, kind,
+//! holds what is the same for every pane in the frame, the playback flags and
+//! [`Context`], while [`Pane`] holds what identifies this one: its id, kind,
 //! locks, and its own [`PaneState`]. Both exist so that giving panes access to
 //! something new does not lengthen every signature between the app and the pane.
 //!
@@ -33,7 +33,7 @@
 //! a `Vec` because [`Shared`] is `Copy` and handed to every pane; the rows it
 //! points at live in the app's `view` for exactly as long as the frame does.
 //!
-//! Splitting follows the pane's long axis — a wide pane divides into left and
+//! Splitting follows the pane's long axis, so a wide pane divides into left and
 //! right halves, a tall one into top and bottom, and a square one vertically.
 //! That guesses wrong for some intents, so the icon and tooltip both show the
 //! axis the current shape would pick and the outcome is visible before the

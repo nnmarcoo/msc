@@ -312,8 +312,9 @@ mod tests {
         queue.history = [7, 8].into_iter().collect();
         queue.reorder(0, 1);
 
-        assert_eq!(queue.history().iter().copied().collect::<Vec<_>>(), vec![
-            7, 8
-        ]);
+        assert_eq!(
+            queue.history().iter().copied().collect::<Vec<_>>(),
+            vec![7, 8]
+        );
     }
 }

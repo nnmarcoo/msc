@@ -7,7 +7,7 @@
 //! The panel and its `Tree` live in [`State`] and are rebuilt only when the
 //! labels change (`built_for`). This is load-bearing, not an optimisation: a
 //! menu row keeps its hover flag in tree state, so building a fresh `Tree` each
-//! frame — as this first did — discards that flag every frame and the rows never
+//! frame, as this first did, discards that flag every frame and the rows never
 //! light up or register a press. Presses travel back through a local `Shell` as
 //! indices into the item list, which keeps the widget generic over `Message`
 //! without cloning the caller's messages on every frame.
@@ -27,7 +27,7 @@
 //! which row was hit, and a menu that swallowed the press outright would leave
 //! the selection describing wherever the last left-click landed. Forwarding it
 //! first lets a track list report the row, so the app can apply Explorer's rule
-//! — a right-click inside the selection keeps it, one outside replaces it —
+//! (a right-click inside the selection keeps it, one outside replaces it)
 //! before any entry is chosen. `on_open` is the alternative for content that
 //! cannot report a position itself.
 //!

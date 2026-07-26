@@ -1,14 +1,14 @@
 //! The seek bar: a scrubbable rail, and nothing else.
 //!
 //! A custom widget rather than a styled `slider` because a timeline answers two
-//! questions at once — where playback *is*, and where a click would take it —
+//! questions at once, where playback *is* and where a click would take it, and
 //! and a slider only draws the first. Hovering shows a ghost head at the cursor
 //! so a seek can be aimed before it is committed. A slider would also tie the
 //! hit target to the rail's thickness, and a 4px bar is not something anyone
 //! can hit.
 //!
 //! So the rail takes a band [`SEEK_REACH`] taller than itself on each side, and
-//! the widget is exactly that band — no reserved room for labels. Everything
+//! the widget is exactly that band, with no reserved room for labels. Everything
 //! around it, including both clocks, belongs to [`crate::pane::timeline`],
 //! which lays this out between its own rows. An earlier version drew the clocks
 //! here on lines of their own while the pane stacked labels outside them, and
@@ -19,7 +19,7 @@
 //! That makes the reach do double duty: it is both the margin a click may miss
 //! the rail by and the entire gap between the rail and the pane's rows, since
 //! the rows add no spacing of their own. Shrinking it therefore pulls the
-//! labels closer, and its floor is [`HEAD_RADIUS`] — below that the widget is
+//! labels closer, and its floor is [`HEAD_RADIUS`]: below that the widget is
 //! shorter than the playhead and clips it.
 //!
 //! `Op::Hovered` reports the position under the pointer so the pane can show
@@ -31,7 +31,7 @@
 //! The widget does not drive its own animation, and cannot. Requesting a redraw
 //! from `update` repaints the tree that already exists rather than re-running
 //! the app's `view`, so the rail redrew at full rate against whatever `position`
-//! it had last been handed — smooth frames, stale playhead. Motion here needs a
+//! it had last been handed, giving smooth frames and a stale playhead. Motion needs a
 //! new `position`, which only the app can supply, so the app's tick drives it.
 //! See [`crate::app`].
 //!
@@ -43,7 +43,7 @@
 //! drag becomes an audible stutter.
 //!
 //! A press captures the pointer, so a drag that wanders outside the widget
-//! keeps seeking — releasing anywhere commits. That is why `dragging` lives in
+//! keeps seeking, and releasing anywhere commits. That is why `dragging` lives in
 //! widget state rather than being inferred from the cursor being over the rail,
 //! and why the seek reach gates the press but never the drag.
 //!

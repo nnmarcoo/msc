@@ -4,7 +4,7 @@
 //! kept visually distinct. A seam drags the split's ratio when free and rewrites
 //! an adjacent pane's pixel lock when pinned; both do something, so both get a
 //! live colour, and pinned takes its own rather than a shade of free. Only the
-//! inert style — a seam that refuses drags outright — is muted, so that dulling
+//! inert style, a seam that refuses drags outright, is muted, so that dulling
 //! reliably reads as "nothing will happen here".
 
 use std::sync::OnceLock;

@@ -22,8 +22,8 @@
 //!
 //! `SubMenuOverlay::mouse_interaction` claims the cursor over both the fly-out
 //! and `panel_bounds`, the panel that owns it. iced returns the cursor to the
-//! layer beneath whenever an overlay answers `Interaction::None`, and — the part
-//! that is easy to miss — `overlay::Nested` consults *only* the innermost
+//! layer beneath whenever an overlay answers `Interaction::None`, and, in the part
+//! that is easy to miss, `overlay::Nested` consults *only* the innermost
 //! overlay, so while a fly-out is open the parent panel is never asked and must
 //! be answered for here. Without it, opening a submenu makes the panel's dead
 //! space start leaking hover to the pane underneath. See `docs/overlay-cursor.md`.

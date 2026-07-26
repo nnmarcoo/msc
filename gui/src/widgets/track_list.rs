@@ -1,7 +1,7 @@
 //! A virtualised list of tracks.
 //!
 //! This is a custom widget because a row is not worth an `Element`. Composing a
-//! `column` of containers builds — and diffs — one widget tree per track every
+//! `column` of containers builds, and diffs, one widget tree per track every
 //! frame, which a library of any size cannot afford. Here a row is drawn
 //! directly with `fill_quad` and `fill_text`, and [`Widget::layout`] reports the
 //! full height from a multiplication rather than by measuring children, so the
@@ -14,7 +14,8 @@
 //! `scrollable`; this widget never tracks an offset, which is what keeps the two
 //! from disagreeing about where the list is.
 //!
-//! Rows draw in three independent layers — playing, selected, hovered — because
+//! Rows draw in three independent layers, one each for playing, selected and
+//! hovered, because
 //! a track can be all three at once and a single "state" would have to rank
 //! them. The highlight spans the full row width rather than the text, so the
 //! whole strip is one target.
@@ -43,13 +44,13 @@
 //! [`Column::value`] borrows from the track wherever it can, so drawing a cell
 //! copies no text the track already owns; only `Duration`, which is formatted,
 //! allocates. `fill_text` wants an owned `String` regardless, so one allocation
-//! per visible cell survives — bounded by the viewport rather than the library,
+//! per visible cell survives, bounded by the viewport rather than the library,
 //! which is the property that matters here.
 //!
 //! Columns are shares of the row, except `Duration`, which is fixed: its content
 //! has a bounded width and a proportional share would leave it swimming in a
 //! wide pane. [`header`] is a separate widget so it can stay put while the list
-//! scrolls beneath it, and it is deliberately *not* wrapped in `responsive` —
+//! scrolls beneath it, and it is deliberately *not* wrapped in `responsive`:
 //! that reports `Length::Fill` on both axes, so in a column beside the list it
 //! would claim half the pane. It takes its width from its own layout bounds.
 //!

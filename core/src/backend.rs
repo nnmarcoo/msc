@@ -12,7 +12,7 @@
 //! has already filled, so audio decoded before the seek sits ahead of the new
 //! frames. Playing, that is inaudible because the buffer drains continuously;
 //! paused, nothing drains it. Re-issuing the seek on resume was tried and did
-//! not help — the stale frames are already queued and a second seek does not
+//! not help, since the stale frames are already queued and a second seek does not
 //! remove them. The fix has to drain that buffer, which kira does not expose.
 //!
 //! `pause` fades over 500ms to soften a deliberate pause, which is why
@@ -31,7 +31,7 @@
 //! watch app-side state instead, not poll this.
 //!
 //! Volume is a linear 0..`VOLUME_MAX` scale converted to dB by `VOLUME_SLOPE *
-//! log10`, so 1.0 is 0 dB — the file as mastered — and the range above it is
+//! log10`, so 1.0 is 0 dB, the file as mastered, and the range above it is
 //! real amplification, for boosting a quiet recording without reaching for the
 //! system mixer. Boosting can clip and kira does not limit for us; that is the
 //! listener's call and it is audible the moment it happens. `volume_db` is a

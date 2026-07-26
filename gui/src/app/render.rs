@@ -31,8 +31,8 @@
 //! which [`DividerState`] names. When the child on either side is a locked leaf,
 //! the seam's position *is* that pane's locked extent, so dragging rewrites the
 //! lock in pixels and the seam is `Pinned`. When neither neighbour is a locked
-//! leaf but a side is nonetheless rigid — a subtree whose every child along this
-//! axis is locked, so it cannot absorb a resize — there is no single lock to
+//! leaf but a side is nonetheless rigid, meaning a subtree whose every child along
+//! this axis is locked and so cannot absorb a resize, there is no single lock to
 //! rewrite and no sensible way to redistribute the delta among descendants, so
 //! the seam is `Inert` and ignores drags. Otherwise it is `Free` and moves the
 //! ratio. A side holding a mix of locked and free children is not rigid: the

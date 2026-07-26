@@ -11,8 +11,8 @@
 //! self-contained change rather than a rework.
 //!
 //! [`PaneState`] holds only what two panes of the same kind must be able to
-//! disagree about. Anything keyed on a track id — the search query, the
-//! selection, the hovered row — is shared across panes and lives in
+//! disagree about. Anything keyed on a track id, such as the search query, the
+//! selection or the hovered row, is shared across panes and lives in
 //! [`crate::tracks`] instead, which is why the library pane has no state here.
 //! The queue's history toggle and the timeline's remaining-time toggle both
 //! qualify: each is about how one pane draws itself and nothing else.

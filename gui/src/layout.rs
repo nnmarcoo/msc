@@ -15,7 +15,7 @@
 //!
 //! `MIN_PANE` is the floor every lock clamps to. It has to clear the tallest
 //! thing any pane must still draw in its smallest form, which is the transport
-//! controls at 40px — one icon at `ICON_MIN` plus padding — and it sits a little
+//! controls at 40px, one icon at `ICON_MIN` plus padding, and it sits a little
 //! above that so a pane at the floor is not exactly one icon tall.
 //!
 //! It cannot go much higher without stopping strips from being strips. A search

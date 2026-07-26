@@ -7,8 +7,8 @@
 //! about each other: neither reads the other's state, both read this.
 //!
 //! That split is the rule for where new state goes. Anything keyed on a track id
-//! belongs here; anything describing how one pane draws — its scroll offset, its
-//! column widths — belongs in that pane's own state, since two panes of the same
+//! belongs here; anything describing how one pane draws, such as its scroll offset
+//! or column widths, belongs in that pane's own state, since two panes of the same
 //! kind must be able to disagree about it.
 //!
 //! [`Selection`] holds track ids rather than row indices because the rows a pane
@@ -36,7 +36,7 @@
 //! `contains_fold` allocates nothing for the ASCII tags that are almost all of
 //! them: it compares case-insensitively in place. Lowercasing every field of
 //! every track instead, as this first did, allocated five strings per track per
-//! frame and cost more than the frame budget on a large library — the search
+//! frame and cost more than the frame budget on a large library, where the search
 //! alone was slower than drawing. Non-ASCII text still falls back to a real
 //! `to_lowercase`, so a query matches `Björk` the way it always did; only the
 //! rows that need Unicode folding pay for it.
@@ -59,7 +59,7 @@
 //! History is included only when asked for, since it grows without bound.
 //!
 //! `upcoming` is a row's index into the queue's upcoming deque, and `None` for
-//! the rows that have no place in it — history and the current track. It exists
+//! the rows that have no place in it, history and the current track. It exists
 //! because a row's position in the flattened list is *not* the index the queue
 //! removes by: `Queue::remove` indexes the upcoming deque alone, so passing it a
 //! flat index deleted whatever sat that far into the queue instead of the row
@@ -78,14 +78,11 @@
 //! is also why [`QueueRow`] carries the track rather than an index: position
 //! identifies a row, the id identifies the music.
 //!
-//! `hovered` is a track id and nothing more, which works only because both lists
-//! are single widgets that know which row the cursor is over. An arrangement of
-//! per-row `mouse_area`s cannot manage with an id: rows publish arrivals and
-//! departures that race in layout order, and an id cannot tell "the pointer left
-//! me" from "the pointer moved to another copy of me". That version needed a
-//! position-keyed hover to disambiguate, and invalidation everywhere the queue
-//! changed shape. Both went when the queue became
-//! [`crate::widgets::queue_list`]; see that module for what the arrangement cost.
+//! `hovered` can be a bare track id only because both lists are single widgets
+//! that know which row the cursor is over. Per-row widgets need more, since their
+//! arrivals and departures race in layout order and an id cannot tell "the pointer
+//! left me" from "the pointer moved to another copy of me". See
+//! [`crate::widgets::queue_list`].
 
 use std::collections::BTreeSet;
 
@@ -667,7 +664,6 @@ mod tests {
             "hover is keyed on the track, so both copies of 7 light up"
         );
     }
-
 
     #[test]
     fn hovering_a_track_lights_it_up_in_every_pane() {

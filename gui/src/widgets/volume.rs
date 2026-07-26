@@ -6,7 +6,7 @@
 //! A custom widget rather than iced's `slider` for the same reason the timeline
 //! is one: a 4px rail is not something anyone can hit, and a slider ties the hit
 //! target to the rail's thickness. So the rail takes a band [`REACH`] taller
-//! than itself on each side, and the widget is exactly that band — the readout
+//! than itself on each side, and the widget is exactly that band. The readout
 //! and the mute button beside it belong to [`crate::pane::volume`].
 //!
 //! Unlike the timeline this reports no hover position, and `Op::Set` applies on

@@ -4,7 +4,7 @@
 //! widget tree from it each frame. Pane messages carry the [`PaneId`] they
 //! belong to, so duplicate panes of the same kind stay independent.
 //!
-//! Track state — `search`, `selection`, `hovered` — is held here rather than per
+//! Track state (`search`, `selection`, `hovered`) is held here rather than per
 //! pane, because it is keyed on track ids that every pane showing tracks reads;
 //! see [`crate::tracks`]. [`RowClick`] names what a click's modifiers meant so
 //! that raw key state is interpreted once, in the widget.
@@ -13,7 +13,7 @@
 //! `refresh_visible` wherever the query or the library changes and nowhere
 //! else. Every pane listing tracks reads it, and `update` resolves row indices
 //! against it, so the filter runs once per change rather than once per pane per
-//! frame — which on a large library cost more than the frame budget by itself.
+//! frame, which on a large library cost more than the frame budget by itself.
 //!
 //! The cache holds ids rather than `&Track` because a `Vec<&Track>` on `App`
 //! would borrow from `App`. Panes resolve the ids against `library` when they
@@ -28,8 +28,8 @@
 //! A selection deliberately survives a query change: tracks filtered off screen
 //! stay selected, so clearing a search restores what was picked before it. Only
 //! a rescan calls `retain_listed`, where ids genuinely die. `RowRightClicked`
-//! applies Explorer's rule — a right-click inside the selection keeps it, one
-//! outside replaces it — so a menu never acts on rows that are out of sight.
+//! applies Explorer's rule, so that a right-click inside the selection keeps it
+//! and one outside replaces it, and a menu never acts on rows out of sight.
 //!
 //! The selection is a set, so `selected_in_order` resolves it against the
 //! visible rows before acting: queueing three rows plays them top to bottom.
@@ -47,7 +47,7 @@
 //! afterwards, and clearing `seeking` as the button came up made the rail snap
 //! back and then jump forward again. `settle_seek` clears it only once the
 //! player's own position agrees with the target to within `SEEK_SETTLED`, driven
-//! by `Tick` — a single check at release would run before the audio thread had
+//! by `Tick`. A single check at release would run before the audio thread had
 //! caught up. The tick keeps running while a seek is outstanding, since a scrub
 //! made while paused would otherwise have nothing to settle it.
 //!
@@ -375,7 +375,6 @@ impl App {
             self.seeking = None;
         }
     }
-
 
     fn context(&self) -> Context<'_> {
         Context {

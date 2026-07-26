@@ -1,40 +1,22 @@
-//! The queue pane: what has played, what is playing, what is next.
+//! The queue pane: a count-and-clear strip above a [`QueueList`].
 //!
-//! ```text
-//!  12 tracks · 47 min                       Clear
-//!  ┌─────────────────────────────────────────────┐
-//!  │ play  Blue Monday                           │
-//!  │       New Order              7:29           │
-//!  │  2    Bizarre Love Triangle                 │
-//!  │       New Order              4:22           │
-//!  │ grip  Temptation             5:22   close   │  ← hovered
-//!  │       New Order                             │
-//!  └─────────────────────────────────────────────┘
-//! ```
+//! The list is one widget, not a `column` of per-row ones, and it owns the rows,
+//! the hover, the remove control and the reorder drag. Rows as separate widgets
+//! produced three cursor bugs; see [`crate::widgets::queue_list`]. This pane is
+//! the strip and the routing beneath it.
 //!
-//! The list is [`QueueList`], one widget rather than a `column` of per-row ones.
-//! That is where the rows, the hover, the remove control and the reorder drag all
-//! live; this pane is the strip above it and the routing beneath it. The widget
-//! owns those things because a list whose rows were separate widgets produced
-//! three separate cursor bugs — see [`crate::widgets::queue_list`].
+//! `show_history` is per-pane state, since it describes how this pane draws rather
+//! than anything about a track, so two queue panes may disagree about it. Nothing
+//! toggles it yet and played tracks stay hidden.
 //!
-//! `show_history` is per-pane state: it is about how this pane draws rather than
-//! about any track, so two queue panes could disagree about it. Nothing toggles it
-//! yet and played tracks stay hidden. [`Message::ToggleHistory`] is the hook for
-//! whatever exposes it later, and it is also what keeps this pane's [`State`] from
-//! being empty, which [`crate::pane::PaneState`] needs a variant of.
+//! Everything else comes from [`Context`]. A row lights up because the track it
+//! holds is hovered or selected in any pane, so pointing at a library row lights
+//! the same track here, and every copy of a track lights together.
 //!
-//! Everything else comes from [`Context`]: the queue, and the shared hover and
-//! selection. A row lights up because the track it holds is hovered or selected
-//! *anywhere*, so pointing at a row in the library highlights the same track here
-//! without either pane knowing the other exists — and every copy of a track lights
-//! together, since the highlight answers "where does this song sit in the queue".
-//!
-//! Removal and reordering are by queue position rather than by track, since acting
-//! on "that track" would hit copies the user never pointed at. History and the
-//! playing row have no position in the upcoming deque, so the widget offers them
-//! neither a remove control nor a grip: a row that cannot be reordered has no
-//! index to reorder by, which makes the wrong index unrepresentable.
+//! Removal and reordering go by queue position, not by track: acting on "that
+//! track" would hit copies the user never pointed at. History and the playing row
+//! have no position in the upcoming deque, so the widget gives them neither a
+//! remove control nor a grip, which makes a wrong index unrepresentable.
 
 use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Element, Length};
