@@ -47,10 +47,12 @@
 //! deferral feel laggy before was not the deferral but the handoff back to the
 //! player afterwards; see `settle_seek` in [`crate::app`].
 //!
-//! With nothing playing the bar still draws, empty and inert, so switching
-//! tracks does not make the pane change shape. The stars go with the track, so
-//! they are hidden in that state rather than drawn as five empty outlines that
-//! would do nothing when clicked.
+//! With nothing playing the bar still draws, empty and inert, so switching tracks
+//! does not make the pane change shape. The title is blank rather than a
+//! placeholder, since a label naming the absence is noise next to a rail that
+//! already shows it, and an empty string holds the row's height either way. The
+//! stars go with the track, so they are hidden rather than drawn as five outlines
+//! that would do nothing when clicked.
 
 use iced::widget::{Space, button, column, container, row, text};
 use iced::{Element, Length};
@@ -63,7 +65,6 @@ use crate::widgets::timeline::{Op, Timeline, clock};
 
 const TITLE_FONT_SIZE: f32 = 13.0;
 const ROW_GAP: f32 = 6.0;
-const NO_TRACK: &str = "Nothing playing";
 
 #[derive(Debug, Default)]
 pub struct State {
@@ -138,7 +139,7 @@ pub fn view<'a>(
 }
 
 fn name(track: Option<&verse_core::Track>) -> Element<'_, AppMessage> {
-    let title = track.and_then(verse_core::Track::title).unwrap_or(NO_TRACK);
+    let title = track.and_then(verse_core::Track::title).unwrap_or_default();
 
     let mut line = row![
         text(title)
@@ -147,8 +148,8 @@ fn name(track: Option<&verse_core::Track>) -> Element<'_, AppMessage> {
                 weight: iced::font::Weight::Bold,
                 ..iced::Font::DEFAULT
             })
-            .style(move |theme: &iced::Theme| text::Style {
-                color: Some(shade(theme, track.is_some())),
+            .style(|theme: &iced::Theme| text::Style {
+                color: Some(shade(theme, true)),
             })
     ]
     .spacing(ROW_GAP)
