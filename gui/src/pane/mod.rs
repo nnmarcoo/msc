@@ -24,6 +24,7 @@ pub mod queue;
 pub mod search;
 pub mod timeline;
 pub mod view;
+pub mod volume;
 
 use std::collections::HashMap;
 
@@ -63,6 +64,7 @@ pub enum PaneKind {
     NowPlaying,
     Controls,
     Timeline,
+    Volume,
     History,
     Lyrics,
     TrackInfo,
@@ -73,7 +75,7 @@ pub enum PaneKind {
 }
 
 impl PaneKind {
-    pub const ALL: [PaneKind; 17] = [
+    pub const ALL: [PaneKind; 18] = [
         PaneKind::Library,
         PaneKind::Search,
         PaneKind::Albums,
@@ -84,6 +86,7 @@ impl PaneKind {
         PaneKind::NowPlaying,
         PaneKind::Controls,
         PaneKind::Timeline,
+        PaneKind::Volume,
         PaneKind::History,
         PaneKind::Lyrics,
         PaneKind::TrackInfo,
@@ -105,6 +108,7 @@ impl PaneKind {
             PaneKind::NowPlaying => "Now Playing",
             PaneKind::Controls => "Controls",
             PaneKind::Timeline => "Timeline",
+            PaneKind::Volume => "Volume",
             PaneKind::History => "History",
             PaneKind::Lyrics => "Lyrics",
             PaneKind::TrackInfo => "Track Info",
@@ -127,6 +131,7 @@ impl PaneKind {
             | PaneKind::NowPlaying
             | PaneKind::Controls
             | PaneKind::Timeline
+            | PaneKind::Volume
             | PaneKind::History => PaneCategory::Playback,
             PaneKind::Lyrics | PaneKind::TrackInfo | PaneKind::Visualiser => PaneCategory::Detail,
             PaneKind::Equaliser | PaneKind::Settings | PaneKind::Empty => PaneCategory::Tools,
@@ -145,6 +150,7 @@ impl PaneKind {
             PaneKind::NowPlaying => "current track player",
             PaneKind::Controls => "transport play pause next previous skip",
             PaneKind::Timeline => "seek bar scrub position progress elapsed",
+            PaneKind::Volume => "loudness level mute gain slider sound",
             PaneKind::History => "recent played log past",
             PaneKind::Lyrics => "words text karaoke",
             PaneKind::TrackInfo => "metadata tags details properties",
@@ -207,6 +213,7 @@ impl PaneState {
             | PaneKind::Folders
             | PaneKind::NowPlaying
             | PaneKind::Controls
+            | PaneKind::Volume
             | PaneKind::History
             | PaneKind::Lyrics
             | PaneKind::TrackInfo

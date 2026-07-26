@@ -34,7 +34,7 @@ mod track;
 
 pub use album::{Album, AlbumKey};
 pub use analyzer::{Levels, NUM_BINS, VisData, VisReader};
-pub use backend::PlaybackError;
+pub use backend::{PlaybackError, VOLUME_MAX};
 pub use library::{Library, LibraryError};
 pub use media::extract_artwork_bytes;
 pub use player::{Player, PlayerError};

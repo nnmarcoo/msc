@@ -11,3 +11,4 @@ pub mod rating;
 pub mod search_bar;
 pub mod timeline;
 pub mod track_list;
+pub mod volume;

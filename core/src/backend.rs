@@ -29,6 +29,13 @@
 //! and `stop` write commands the audio thread applies later, so `state` lags a
 //! moment behind. Anything that must react immediately to a transition has to
 //! watch app-side state instead, not poll this.
+//!
+//! Volume is a linear 0..`VOLUME_MAX` scale converted to dB by `VOLUME_SLOPE *
+//! log10`, so 1.0 is 0 dB — the file as mastered — and the range above it is
+//! real amplification, for boosting a quiet recording without reaching for the
+//! system mixer. Boosting can clip and kira does not limit for us; that is the
+//! listener's call and it is audible the moment it happens. `volume_db` is a
+//! free function so the curve is testable without an audio device.
 
 use std::{path::Path, sync::Arc, time::Duration};
 use thiserror::Error;
@@ -44,6 +51,10 @@ use kira::{
 };
 
 use crate::analyzer::{AnalyzerBuilder, VisData, VisReader};
+
+pub const VOLUME_MAX: f32 = 2.0;
+const VOLUME_SLOPE: f32 = 28.0;
+const SILENT_DB: f32 = -60.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum BackendState {
@@ -125,7 +136,7 @@ impl Backend {
     }
 
     pub(crate) fn set_volume(&mut self, volume: f32) {
-        self.volume = volume.clamp(0.0, 1.0);
+        self.volume = volume.clamp(0.0, VOLUME_MAX);
         let db = self.volume_db();
         if let Some(sound) = &mut self.sound {
             sound.set_volume(db, Tween::default());
@@ -137,11 +148,7 @@ impl Backend {
     }
 
     fn volume_db(&self) -> f32 {
-        if self.volume <= 0.0 {
-            -60.0
-        } else {
-            28.0 * self.volume.log10()
-        }
+        volume_db(self.volume)
     }
 
     pub(crate) fn state(&self) -> BackendState {
@@ -170,10 +177,77 @@ impl Backend {
     }
 }
 
+fn volume_db(volume: f32) -> f32 {
+    if volume <= 0.0 {
+        SILENT_DB
+    } else {
+        VOLUME_SLOPE * volume.log10()
+    }
+}
+
 #[derive(Debug, Error)]
 pub enum PlaybackError {
     #[error("Failed to load audio file: {0}")]
     Load(FromFileError),
     #[error("Failed to play audio: {0}")]
     Play(PlaySoundError<FromFileError>),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unity_is_the_file_as_mastered() {
+        assert!(
+            volume_db(1.0).abs() < 0.001,
+            "1.0 should be 0 dB, got {}",
+            volume_db(1.0)
+        );
+    }
+
+    #[test]
+    fn boosting_past_unity_amplifies() {
+        assert!(
+            volume_db(VOLUME_MAX) > 0.0,
+            "the top of the scale should be positive gain, got {}",
+            volume_db(VOLUME_MAX)
+        );
+    }
+
+    #[test]
+    fn quieter_than_unity_attenuates() {
+        assert!(volume_db(0.5) < 0.0);
+        assert!(volume_db(0.1) < volume_db(0.5));
+    }
+
+    #[test]
+    #[allow(clippy::float_cmp)]
+    fn silence_does_not_ask_for_negative_infinity() {
+        assert_eq!(volume_db(0.0), SILENT_DB);
+        assert!(volume_db(0.0).is_finite());
+    }
+
+    #[test]
+    fn the_curve_rises_across_the_whole_scale() {
+        let mut previous = volume_db(0.0);
+        for step in 1u8..=20 {
+            let level = f32::from(step) / 10.0;
+            let db = volume_db(level);
+            assert!(
+                db > previous,
+                "level {level} gave {db}, not above the previous {previous}"
+            );
+            previous = db;
+        }
+    }
+
+    #[test]
+    fn each_decade_of_the_scale_is_a_fixed_number_of_decibels() {
+        let decade = volume_db(1.0) - volume_db(0.1);
+        assert!(
+            (decade - VOLUME_SLOPE).abs() < 0.001,
+            "a tenfold change should be {VOLUME_SLOPE} dB, got {decade}"
+        );
+    }
 }

@@ -50,7 +50,9 @@ use iced::{Element, Length};
 
 use crate::app::{DropTarget, Message};
 use crate::layout::{Axis, DropZone, Locks, PaneId, PaneMetrics};
-use crate::pane::{PaneKind, PaneMessage, PaneState, controls, library, queue, search, timeline};
+use crate::pane::{
+    PaneKind, PaneMessage, PaneState, controls, library, queue, search, timeline, volume,
+};
 use crate::styles::{self, LABEL_FONT_SIZE, PAD, TOOLTIP_DELAY};
 use crate::tracks::Context;
 use crate::widgets::pane_picker::PanePicker;
@@ -78,6 +80,8 @@ pub struct DragContext {
 pub struct Playback {
     pub is_playing: bool,
     pub position: f32,
+    pub volume: f32,
+    pub muted: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -159,6 +163,7 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
                 },
             )
         }
+        PaneKind::Volume => volume::view(shared.playback.volume, shared.playback.muted),
         PaneKind::Search => search::view(shared.tracks, shared.visible.len()),
         _ => container(text(pane.kind.title()).size(18))
             .center_x(Length::Fill)

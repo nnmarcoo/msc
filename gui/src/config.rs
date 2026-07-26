@@ -1,5 +1,8 @@
 //! Persisted GUI settings (theme, volume, saved layouts). Split into an owned
 //! `Config` and a serialised `ConfigFile` so on-disk changes stay forgiving.
+//!
+//! `muted` is kept beside `volume` rather than folded into it as a zero, so
+//! unmuting knows what level to go back to across a restart.
 
 use std::path::PathBuf;
 
@@ -40,6 +43,7 @@ pub struct Config {
     pub theme: Theme,
     pub rounded: bool,
     pub volume: f32,
+    pub muted: bool,
     pub layouts: Vec<Layout>,
     pub active_layout: usize,
 }
@@ -50,6 +54,7 @@ impl Default for Config {
             theme: Theme::KanagawaDragon,
             rounded: true,
             volume: VOLUME_DEFAULT,
+            muted: false,
             layouts: default_presets(),
             active_layout: 0,
         }
@@ -64,6 +69,8 @@ struct ConfigFile {
     rounded: bool,
     #[serde(default = "default_volume")]
     volume: f32,
+    #[serde(default)]
+    muted: bool,
     #[serde(default)]
     layouts: Vec<Layout>,
     #[serde(default)]
@@ -84,6 +91,7 @@ impl From<&Config> for ConfigFile {
             theme: c.theme.to_string(),
             rounded: c.rounded,
             volume: c.volume,
+            muted: c.muted,
             layouts: c.layouts.clone(),
             active_layout: c.active_layout,
         }
@@ -102,7 +110,8 @@ impl From<ConfigFile> for Config {
         Self {
             theme: theme_from_str(&f.theme),
             rounded: f.rounded,
-            volume: f.volume.clamp(0.0, 1.0),
+            volume: f.volume.clamp(0.0, verse_core::VOLUME_MAX),
+            muted: f.muted,
             layouts,
             active_layout,
         }

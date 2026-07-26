@@ -51,6 +51,19 @@
 //! caught up. The tick keeps running while a seek is outstanding, since a scrub
 //! made while paused would otherwise have nothing to settle it.
 //!
+//! Volume lives in the config rather than being read back from the player, so
+//! `audible_volume` is the one place the mute is applied: it returns zero while
+//! muted, and that is both what the player is handed and what the volume panes
+//! draw. Nothing else has to remember to check the flag, and a level and a mute
+//! cannot disagree about what the listener hears. Naming a level unmutes, since
+//! a drag is the user saying what they want to hear.
+//!
+//! `config_dirty` exists because a volume drag names a new level on every
+//! pointer move, and saving each one rewrote the whole config file per frame.
+//! Changes mark it instead and a subscription flushes once a second while it is
+//! set, so an idle session does no disk work; `CloseRequested` flushes too, so a
+//! clean exit never loses the last second.
+//!
 //! `Tick` drives animation, and `TICK` is 16ms because of it. Position comes
 //! from `Player::position` when `view` runs, so a frame is only as fresh as the
 //! last `view`, and anything following playback moves at this rate. At 250ms the
@@ -74,6 +87,8 @@ mod render;
 const SEEK_SETTLED: f32 = 0.35;
 
 const TICK: Duration = Duration::from_millis(16);
+
+const CONFIG_FLUSH: Duration = Duration::from_secs(1);
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -110,6 +125,7 @@ pub struct App {
 
     scanning: bool,
     seeking: Option<f32>,
+    config_dirty: bool,
     status: Option<String>,
 
     window: iced::Size,
@@ -174,6 +190,7 @@ pub enum Message {
     Seek(f32),
     SeekReleased,
     Volume(f32),
+    ToggleMute,
     CycleLoop,
     Shuffle,
     PlayTrack(i64),
@@ -214,6 +231,8 @@ pub enum Message {
     Rescan,
     ScanFinished(Result<(), String>),
 
+    SaveConfig,
+
     Noop,
 }
 
@@ -223,7 +242,7 @@ impl App {
 
         let library = Library::open().expect("failed to open library");
         let mut player = Player::new().expect("failed to initialise audio");
-        player.set_volume(config.volume);
+        player.set_volume(if config.muted { 0.0 } else { config.volume });
 
         let mut layouts = config.layouts.clone();
         for layout in &mut layouts {
@@ -247,6 +266,7 @@ impl App {
             visible_ids: Vec::new(),
             scanning: false,
             seeking: None,
+            config_dirty: false,
             status: None,
             window: iced::Size::new(1280.0, 800.0),
         };
@@ -289,6 +309,7 @@ impl App {
         self.config.layouts = self.layouts.clone();
         self.config.active_layout = self.active_layout;
         self.config.save();
+        self.config_dirty = false;
     }
 
     fn visible(&self) -> Vec<&Track> {
@@ -314,6 +335,35 @@ impl App {
             .iter()
             .filter_map(|track| track.id())
             .collect();
+    }
+
+    fn set_volume(&mut self, volume: f32) {
+        let volume = volume.clamp(0.0, verse_core::VOLUME_MAX);
+        self.config.volume = volume;
+        self.config.muted = false;
+        self.player.set_volume(volume);
+        self.config_dirty = true;
+    }
+
+    fn toggle_mute(&mut self) {
+        self.config.muted = !self.config.muted;
+        self.player.set_volume(self.audible_volume());
+        self.config_dirty = true;
+    }
+
+    fn audible_volume(&self) -> f32 {
+        if self.config.muted {
+            0.0
+        } else {
+            self.config.volume
+        }
+    }
+
+    fn flush_config(&mut self) {
+        if self.config_dirty {
+            self.config.save();
+            self.config_dirty = false;
+        }
     }
 
     fn settle_seek(&mut self) {
@@ -424,11 +474,8 @@ impl App {
                     self.player.seek(f64::from(position));
                 }
             }
-            Message::Volume(volume) => {
-                self.player.set_volume(volume);
-                self.config.volume = volume;
-                self.config.save();
-            }
+            Message::Volume(volume) => self.set_volume(volume),
+            Message::ToggleMute => self.toggle_mute(),
             Message::CycleLoop => {
                 self.player.cycle_loop_mode();
             }
@@ -468,6 +515,7 @@ impl App {
             | Message::Seek(_)
             | Message::SeekReleased
             | Message::Volume(_)
+            | Message::ToggleMute
             | Message::CycleLoop
             | Message::Shuffle
             | Message::PlayTrack(_)
@@ -543,6 +591,8 @@ impl App {
             }
             Message::ScanFinished(result) => self.finish_scan(&result),
 
+            Message::SaveConfig => self.flush_config(),
+
             Message::Event(event) => return self.handle_event(&event),
             Message::Noop => {}
         }
@@ -590,6 +640,7 @@ impl App {
             Event::Window(window::Event::Resized(size)) => self.window = *size,
             Event::Window(window::Event::CloseRequested) => {
                 self.persist_layouts();
+                self.flush_config();
                 return iced::exit();
             }
             Event::Mouse(mouse::Event::CursorMoved { position }) if self.drag.is_some() => {
@@ -724,6 +775,8 @@ impl App {
                 position: self
                     .seeking
                     .unwrap_or_else(|| self.player.position() as f32),
+                volume: self.audible_volume(),
+                muted: self.config.muted,
             },
             tracks: self.context(),
             visible,
@@ -788,6 +841,9 @@ impl App {
         let mut subs = vec![events];
         if self.player.queue().current().is_some() {
             subs.push(every(TICK).map(|_| Message::Tick));
+        }
+        if self.config_dirty {
+            subs.push(every(CONFIG_FLUSH).map(|_| Message::SaveConfig));
         }
 
         Subscription::batch(subs)
