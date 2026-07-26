@@ -160,7 +160,14 @@ fn readout<'a>(level: f32) -> Element<'a, Message> {
         text(percent(level))
             .size(LABEL_FONT_SIZE)
             .style(|theme: &iced::Theme| text::Style {
-                color: Some(theme.extended_palette().background.base.text.scale_alpha(0.7)),
+                color: Some(
+                    theme
+                        .extended_palette()
+                        .background
+                        .base
+                        .text
+                        .scale_alpha(0.7),
+                ),
             })
             .align_x(iced::alignment::Horizontal::Right),
     )
@@ -214,7 +221,10 @@ mod tests {
     #[test]
     fn the_smallest_allowed_pane_still_shows_something() {
         let form = Form::pick(Size::new(MIN_PANE, MIN_PANE));
-        assert!(!form.shows_readout(), "80px cannot fit icon, rail, and 100%");
+        assert!(
+            !form.shows_readout(),
+            "80px cannot fit icon, rail, and 100%"
+        );
     }
 
     #[test]
