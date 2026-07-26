@@ -4,5 +4,10 @@
 //! layout bounds, or its own event handling. Plain composition belongs in the
 //! view code that uses it, not in this module.
 
+pub mod context_menu;
 pub mod menu;
 pub mod pane_picker;
+pub mod rating;
+pub mod search_bar;
+pub mod timeline;
+pub mod track_list;

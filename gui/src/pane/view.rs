@@ -20,6 +20,19 @@
 //! The stack is taller than the shortest pane the layout allows, so a pane at
 //! that floor overflows its controls rather than changing shape a third time.
 //!
+//! Two structs split what a pane draws from by how far it varies. [`Shared`]
+//! holds what is the same for every pane in the frame — the playback flags and
+//! [`Context`] — and [`Pane`] holds what identifies this one: its id, kind,
+//! locks, and its own [`PaneState`]. Both exist so that giving panes access to
+//! something new does not lengthen every signature between the app and the pane.
+//!
+//! `Shared::visible` is the filtered rows, computed once in [`crate::app`] and
+//! lent to every pane that lists tracks. Each pane calling `Context::visible`
+//! for itself re-ran the search once per pane per frame, which on a large
+//! library cost more than the frame budget on its own. It is a slice rather than
+//! a `Vec` because [`Shared`] is `Copy` and handed to every pane; the rows it
+//! points at live in the app's `view` for exactly as long as the frame does.
+//!
 //! Splitting follows the pane's long axis — a wide pane divides into left and
 //! right halves, a tall one into top and bottom, and a square one vertically.
 //! That guesses wrong for some intents, so the icon and tooltip both show the
@@ -37,8 +50,9 @@ use iced::{Element, Length};
 
 use crate::app::{DropTarget, Message};
 use crate::layout::{Axis, DropZone, Locks, PaneId, PaneMetrics};
-use crate::pane::{PaneKind, controls};
+use crate::pane::{PaneKind, PaneMessage, PaneState, controls, library, queue, search, timeline};
 use crate::styles::{self, LABEL_FONT_SIZE, PAD, TOOLTIP_DELAY};
+use crate::tracks::Context;
 use crate::widgets::pane_picker::PanePicker;
 
 const ROOT_BAND: f32 = 24.0;
@@ -63,40 +77,90 @@ pub struct DragContext {
 #[derive(Clone, Copy, Default)]
 pub struct Playback {
     pub is_playing: bool,
+    pub position: f32,
+}
+
+#[derive(Clone, Copy)]
+pub struct Shared<'a> {
+    pub playback: Playback,
+    pub tracks: Context<'a>,
+    pub visible: &'a [i64],
+}
+
+#[derive(Clone, Copy)]
+pub struct Pane<'a> {
+    pub id: PaneId,
+    pub kind: PaneKind,
+    pub locks: Locks,
+    pub state: Option<&'a PaneState>,
 }
 
 pub fn view<'a>(
-    id: PaneId,
-    kind: PaneKind,
-    locks: Locks,
+    pane: Pane<'a>,
     edit_mode: bool,
     drag: DragContext,
-    playback: Playback,
+    shared: Shared<'a>,
     span: iced::Size,
 ) -> Element<'a, Message> {
     if !edit_mode {
-        return content(kind, playback);
+        return content(pane, shared);
     }
 
-    let mut layers = stack![content(kind, playback)];
+    let mut layers = stack![content(pane, shared)];
 
     if let Some(zone) = drag.drop_zone {
         layers = layers.push(zone_highlight(zone));
     }
 
     if drag.active {
-        layers = layers.push(hover_sensor(id));
+        layers = layers.push(hover_sensor(pane.id));
     } else {
-        layers = layers.push(edit_overlay(id, kind, locks, span));
+        layers = layers.push(edit_overlay(pane.id, pane.kind, pane.locks, span));
     }
 
     layers.into()
 }
 
-fn content<'a>(kind: PaneKind, playback: Playback) -> Element<'a, Message> {
-    match kind {
-        PaneKind::Controls => controls::view(playback.is_playing),
-        _ => container(text(kind.title()).size(18))
+fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
+    match pane.kind {
+        PaneKind::Controls => controls::view(shared.playback.is_playing),
+        PaneKind::Library => library::view(shared.tracks, shared.visible),
+        PaneKind::Queue => {
+            let show_history = match pane.state {
+                Some(PaneState::Queue(state)) => state.show_history,
+                _ => false,
+            };
+            queue::view(shared.tracks, show_history)
+        }
+        PaneKind::Timeline => {
+            static EMPTY: timeline::State = timeline::State {
+                show_remaining: false,
+                hovered: None,
+            };
+            let state = match pane.state {
+                Some(PaneState::Timeline(state)) => state,
+                _ => &EMPTY,
+            };
+            timeline::view(
+                shared.tracks,
+                shared.playback.position,
+                state,
+                timeline::Bindings {
+                    toggle_remaining: Message::Pane(
+                        pane.id,
+                        PaneMessage::Timeline(timeline::Message::ToggleRemaining),
+                    ),
+                    on_hover: Box::new(move |at| {
+                        Message::Pane(
+                            pane.id,
+                            PaneMessage::Timeline(timeline::Message::Hovered(at)),
+                        )
+                    }),
+                },
+            )
+        }
+        PaneKind::Search => search::view(shared.tracks, shared.visible.len()),
+        _ => container(text(pane.kind.title()).size(18))
             .center_x(Length::Fill)
             .center_y(Length::Fill)
             .into(),
@@ -546,12 +610,20 @@ mod tests {
     }
 
     #[test]
-    fn the_vertical_stack_overflows_only_the_smallest_panes() {
+    fn the_vertical_stack_overflows_the_smallest_panes() {
         let needed = ControlForm::vertical_height();
-        assert!(needed > crate::layout::MIN_PANE);
         assert!(
-            needed <= 2.0 * crate::layout::MIN_PANE,
-            "the stack needs {needed}px, more than two minimum panes tall"
+            needed > crate::layout::MIN_PANE,
+            "the stack fits the floor now; escaping controls may be unnecessary"
+        );
+    }
+
+    #[test]
+    fn a_pane_tall_enough_for_content_still_may_not_fit_the_controls() {
+        let strip = 40.0;
+        assert!(
+            ControlForm::vertical_height() > strip,
+            "a {strip}px strip fits the control stack, so nothing escapes"
         );
     }
 }

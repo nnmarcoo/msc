@@ -8,6 +8,7 @@ mod layout;
 mod pane;
 mod styles;
 mod tasks;
+mod tracks;
 mod widgets;
 
 use app::App;

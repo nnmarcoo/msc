@@ -5,15 +5,24 @@
 //! not a downcast, so adding a kind fails to compile everywhere that must
 //! handle it instead of silently doing nothing at runtime.
 //!
-//! The per-kind state, messages, and dispatch are in place but not yet driven:
-//! panes currently render as labels while the layout mechanics are the focus.
-//! The scaffolding stays so that wiring real content later is a self-contained
-//! change rather than a rework.
+//! The per-kind state, messages, and dispatch are in place but not yet driven
+//! for most kinds: panes render as labels while the layout mechanics are the
+//! focus. The scaffolding stays so that wiring real content later is a
+//! self-contained change rather than a rework.
+//!
+//! [`PaneState`] holds only what two panes of the same kind must be able to
+//! disagree about. Anything keyed on a track id — the search query, the
+//! selection, the hovered row — is shared across panes and lives in
+//! [`crate::tracks`] instead, which is why the library pane has no state here.
+//! The queue's history toggle and the timeline's remaining-time toggle both
+//! qualify: each is about how one pane draws itself and nothing else.
 #![allow(dead_code)]
 
 pub mod controls;
 pub mod library;
 pub mod queue;
+pub mod search;
+pub mod timeline;
 pub mod view;
 
 use std::collections::HashMap;
@@ -45,6 +54,7 @@ impl PaneCategory {
 #[serde(rename_all = "snake_case")]
 pub enum PaneKind {
     Library,
+    Search,
     Albums,
     Artists,
     Playlists,
@@ -52,6 +62,7 @@ pub enum PaneKind {
     Queue,
     NowPlaying,
     Controls,
+    Timeline,
     History,
     Lyrics,
     TrackInfo,
@@ -62,8 +73,9 @@ pub enum PaneKind {
 }
 
 impl PaneKind {
-    pub const ALL: [PaneKind; 15] = [
+    pub const ALL: [PaneKind; 17] = [
         PaneKind::Library,
+        PaneKind::Search,
         PaneKind::Albums,
         PaneKind::Artists,
         PaneKind::Playlists,
@@ -71,6 +83,7 @@ impl PaneKind {
         PaneKind::Queue,
         PaneKind::NowPlaying,
         PaneKind::Controls,
+        PaneKind::Timeline,
         PaneKind::History,
         PaneKind::Lyrics,
         PaneKind::TrackInfo,
@@ -83,6 +96,7 @@ impl PaneKind {
     pub fn title(self) -> &'static str {
         match self {
             PaneKind::Library => "Library",
+            PaneKind::Search => "Search",
             PaneKind::Albums => "Albums",
             PaneKind::Artists => "Artists",
             PaneKind::Playlists => "Playlists",
@@ -90,6 +104,7 @@ impl PaneKind {
             PaneKind::Queue => "Queue",
             PaneKind::NowPlaying => "Now Playing",
             PaneKind::Controls => "Controls",
+            PaneKind::Timeline => "Timeline",
             PaneKind::History => "History",
             PaneKind::Lyrics => "Lyrics",
             PaneKind::TrackInfo => "Track Info",
@@ -103,13 +118,16 @@ impl PaneKind {
     pub fn category(self) -> PaneCategory {
         match self {
             PaneKind::Library
+            | PaneKind::Search
             | PaneKind::Albums
             | PaneKind::Artists
             | PaneKind::Playlists
             | PaneKind::Folders => PaneCategory::Browse,
-            PaneKind::Queue | PaneKind::NowPlaying | PaneKind::Controls | PaneKind::History => {
-                PaneCategory::Playback
-            }
+            PaneKind::Queue
+            | PaneKind::NowPlaying
+            | PaneKind::Controls
+            | PaneKind::Timeline
+            | PaneKind::History => PaneCategory::Playback,
             PaneKind::Lyrics | PaneKind::TrackInfo | PaneKind::Visualiser => PaneCategory::Detail,
             PaneKind::Equaliser | PaneKind::Settings | PaneKind::Empty => PaneCategory::Tools,
         }
@@ -118,6 +136,7 @@ impl PaneKind {
     pub fn keywords(self) -> &'static str {
         match self {
             PaneKind::Library => "songs tracks music collection",
+            PaneKind::Search => "filter find query lookup",
             PaneKind::Albums => "records releases discography",
             PaneKind::Artists => "bands performers musicians",
             PaneKind::Playlists => "mixes sets collections",
@@ -125,6 +144,7 @@ impl PaneKind {
             PaneKind::Queue => "up next playlist upcoming",
             PaneKind::NowPlaying => "current track player",
             PaneKind::Controls => "transport play pause next previous skip",
+            PaneKind::Timeline => "seek bar scrub position progress elapsed",
             PaneKind::History => "recent played log past",
             PaneKind::Lyrics => "words text karaoke",
             PaneKind::TrackInfo => "metadata tags details properties",
@@ -163,23 +183,25 @@ impl PaneKind {
 
 #[derive(Debug, Clone)]
 pub enum PaneMessage {
-    Library(library::Message),
     Queue(queue::Message),
+    Timeline(timeline::Message),
 }
 
 #[derive(Debug)]
 pub enum PaneState {
-    Library(library::State),
     Queue(queue::State),
+    Timeline(timeline::State),
     Stateless,
 }
 
 impl PaneState {
     fn for_kind(kind: PaneKind) -> Self {
         match kind {
-            PaneKind::Library => Self::Library(library::State::default()),
             PaneKind::Queue => Self::Queue(queue::State::default()),
-            PaneKind::Albums
+            PaneKind::Timeline => Self::Timeline(timeline::State::default()),
+            PaneKind::Library
+            | PaneKind::Search
+            | PaneKind::Albums
             | PaneKind::Artists
             | PaneKind::Playlists
             | PaneKind::Folders
@@ -230,11 +252,11 @@ impl PaneStates {
 
     pub fn update(&mut self, id: PaneId, message: PaneMessage) {
         match (self.get_mut(id), message) {
-            (Some(PaneState::Library(state)), PaneMessage::Library(message)) => {
-                library::update(state, message);
-            }
             (Some(PaneState::Queue(state)), PaneMessage::Queue(message)) => {
                 queue::update(state, &message);
+            }
+            (Some(PaneState::Timeline(state)), PaneMessage::Timeline(message)) => {
+                timeline::update(state, &message);
             }
             _ => {}
         }

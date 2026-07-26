@@ -14,6 +14,19 @@
 //! can disagree with a flipped fly-out: the row is drawn before any fly-out
 //! exists, and the side depends on the fly-out's measured width, which is not
 //! known until one is open. This is a known cosmetic limitation.
+//!
+//! `MenuItem::label` is a `Cow` because a row is authored two ways: from a
+//! `&'static str` in a fixed menu, and from a string built per frame in a
+//! context menu ("Queue 3 tracks"). Borrowing covers the first without an
+//! allocation, owning the second without leaking it.
+//!
+//! `SubMenuOverlay::mouse_interaction` claims the cursor over both the fly-out
+//! and `panel_bounds`, the panel that owns it. iced returns the cursor to the
+//! layer beneath whenever an overlay answers `Interaction::None`, and — the part
+//! that is easy to miss — `overlay::Nested` consults *only* the innermost
+//! overlay, so while a fly-out is open the parent panel is never asked and must
+//! be answered for here. Without it, opening a submenu makes the panel's dead
+//! space start leaking hover to the pane underneath. See `docs/overlay-cursor.md`.
 
 use iced::advanced::layout;
 use iced::advanced::renderer::{self, Quad};
@@ -36,7 +49,7 @@ const ITEM_PADDING_H: f32 = 8.0;
 const ITEM_TEXT_SIZE: f32 = 12.0;
 
 struct MenuItem<'a, Message> {
-    label: &'a str,
+    label: std::borrow::Cow<'a, str>,
     on_press: Message,
     marked: bool,
 }
@@ -136,7 +149,7 @@ impl<'a, Message: Clone + 'a> Widget<Message, Theme, Renderer> for MenuItem<'a, 
 
         renderer.fill_text(
             text::Text {
-                content: self.label.to_owned(),
+                content: self.label.clone().into_owned(),
                 bounds: Size::new(bounds.width - 2.0 * ITEM_PADDING_H, bounds.height),
                 size: ITEM_TEXT_SIZE.into(),
                 line_height: text::LineHeight::default(),
@@ -175,12 +188,12 @@ impl<'a, Message: Clone + 'a> From<MenuItem<'a, Message>> for Element<'a, Messag
 }
 
 pub fn menu_item<'a, Message: Clone + 'a>(
-    label: &'a str,
+    label: impl Into<std::borrow::Cow<'a, str>>,
     message: Message,
     marked: bool,
 ) -> Element<'a, Message> {
     MenuItem {
-        label,
+        label: label.into(),
         on_press: message,
         marked,
     }
@@ -389,7 +402,7 @@ impl<'a, Message: Clone + 'a> Widget<Message, Theme, Renderer> for SubMenuItem<'
         tree: &'b mut Tree,
         layout: Layout<'b>,
         _renderer: &Renderer,
-        _viewport: &Rectangle,
+        viewport: &Rectangle,
         translation: Vector,
     ) -> Option<overlay::Element<'b, Message, Theme, Renderer>> {
         if !tree.state.downcast_ref::<SubMenuState>().is_hovered {
@@ -409,6 +422,7 @@ impl<'a, Message: Clone + 'a> Widget<Message, Theme, Renderer> for SubMenuItem<'
                 width: bounds.width,
                 height: bounds.height,
             },
+            panel_bounds: *viewport + translation,
             side: self.side,
         })))
     }
@@ -436,6 +450,7 @@ struct SubMenuOverlay<'a, 'b, Message> {
     widget_state: &'b mut tree::State,
     menu: &'b mut Element<'a, Message, Theme, Renderer>,
     trigger_bounds: Rectangle,
+    panel_bounds: Rectangle,
     side: SubMenuSide,
 }
 
@@ -551,8 +566,20 @@ impl<Message: Clone> Overlay<Message, Theme, Renderer> for SubMenuOverlay<'_, '_
         renderer: &Renderer,
     ) -> mouse::Interaction {
         let viewport = layout.bounds();
-        self.menu
-            .as_widget()
-            .mouse_interaction(self.menu_tree, layout, cursor, &viewport, renderer)
+        let interaction = self.menu.as_widget().mouse_interaction(
+            self.menu_tree,
+            layout,
+            cursor,
+            &viewport,
+            renderer,
+        );
+
+        if interaction == mouse::Interaction::None
+            && (cursor.is_over(viewport) || cursor.is_over(self.panel_bounds))
+        {
+            return mouse::Interaction::Idle;
+        }
+
+        interaction
     }
 }

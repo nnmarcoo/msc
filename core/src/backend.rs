@@ -1,3 +1,35 @@
+//! The kira audio backend.
+//!
+//! `seek` works while paused and must leave playback paused. kira consumes
+//! `seek_to` on its decode thread, whose loop exits only on `Stopped` and so
+//! keeps reading commands through a pause; the position moves without a frame
+//! being played. An earlier version here resumed and re-paused around the seek
+//! to force the command through, which was unnecessary and audibly restarted
+//! playback on every scrub.
+//!
+//! A seek made while paused still replays roughly 0.37s of the old position on
+//! resume. kira's decode thread seeks but never drains the frame ringbuffer it
+//! has already filled, so audio decoded before the seek sits ahead of the new
+//! frames. Playing, that is inaudible because the buffer drains continuously;
+//! paused, nothing drains it. Re-issuing the seek on resume was tried and did
+//! not help — the stale frames are already queued and a second seek does not
+//! remove them. The fix has to drain that buffer, which kira does not expose.
+//!
+//! `pause` fades over 500ms to soften a deliberate pause, which is why
+//! `PlaybackState::Pausing` counts as paused wherever state is inspected: the
+//! sound is still draining for half a second after the call returns.
+//!
+//! `state` maps every kira variant explicitly rather than falling back to a
+//! catch-all. `Resuming` and `Stopping` are both audibly playing, but a `_ =>
+//! Idle` arm reported them as idle, so a caller polling for "is it playing"
+//! answered no during a fade. Listing every variant means a new one in kira
+//! fails to compile here instead of quietly becoming idle.
+//!
+//! None of these states change the instant a call returns: `pause`, `resume`,
+//! and `stop` write commands the audio thread applies later, so `state` lags a
+//! moment behind. Anything that must react immediately to a transition has to
+//! watch app-side state instead, not poll this.
+
 use std::{path::Path, sync::Arc, time::Duration};
 use thiserror::Error;
 
@@ -116,10 +148,13 @@ impl Backend {
         match &self.sound {
             None => BackendState::Idle,
             Some(sound) => match sound.state() {
-                PlaybackState::Playing => BackendState::Playing,
-                PlaybackState::Paused | PlaybackState::Pausing => BackendState::Paused,
+                PlaybackState::Playing | PlaybackState::Resuming | PlaybackState::Stopping => {
+                    BackendState::Playing
+                }
+                PlaybackState::Paused | PlaybackState::Pausing | PlaybackState::WaitingToResume => {
+                    BackendState::Paused
+                }
                 PlaybackState::Stopped => BackendState::Finished,
-                _ => BackendState::Idle,
             },
         }
     }

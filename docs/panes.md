@@ -275,6 +275,14 @@ and divider drags update the `Layout`, which is then re-rendered and persisted.
 - `pane/view.rs` — per-pane rendering, edit overlay, hover sensors, edge band.
 - `pane/mod.rs` — `PaneKind`, `PaneState`, `PaneStates` (content, mostly deferred).
 - `widgets/pane_picker.rs` — the change-kind trigger and its escaping overlay.
+- `widgets/menu.rs` — menu rows and hover-driven fly-out submenus.
+- `widgets/context_menu.rs` — right-click menus, as an escaping overlay.
+- `widgets/track_list.rs` — the virtualised track list.
+
+Every custom overlay above carries a cursor-claiming fallback in its
+`mouse_interaction`, without which hover falls through the panel to the pane
+underneath. See [`overlay-cursor.md`](overlay-cursor.md) — the mechanism is
+iced's, not this project's, and the nested-overlay half of it is easy to miss.
 
 ## Tests
 

@@ -13,6 +13,16 @@
 //! proportional, and `MIN_SHARE` keeps a proportion from collapsing a pane out
 //! of view.
 //!
+//! `MIN_PANE` is the floor every lock clamps to. It has to clear the tallest
+//! thing any pane must still draw in its smallest form, which is the transport
+//! controls at 40px — one icon at `ICON_MIN` plus padding — and it sits a little
+//! above that so a pane at the floor is not exactly one icon tall.
+//!
+//! It cannot go much higher without stopping strips from being strips. A search
+//! bar draws in about 34px and a timeline in less, so the original 80px left
+//! both locked to more than twice the height they use. Panes whose content wants
+//! more room ask for it; the floor only says what cannot be taken away.
+//!
 //! `cycle_lock` advances a pane through unlocked, width, height, both. Width
 //! leads because the common case is a vertical list that should keep it.
 //! Holding both suits a transport strip needing a fixed height and a floor on
@@ -34,7 +44,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::pane::PaneKind;
 
-pub const MIN_PANE: f32 = 80.0;
+pub const MIN_PANE: f32 = 50.0;
 
 const MIN_SHARE: f32 = 0.05;
 

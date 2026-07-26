@@ -3,8 +3,77 @@
 //! Layout lives in [`crate::layout::Layout`] as data; [`render`] builds the
 //! widget tree from it each frame. Pane messages carry the [`PaneId`] they
 //! belong to, so duplicate panes of the same kind stay independent.
+//!
+//! Track state — `search`, `selection`, `hovered` — is held here rather than per
+//! pane, because it is keyed on track ids that every pane showing tracks reads;
+//! see [`crate::tracks`]. [`RowClick`] names what a click's modifiers meant so
+//! that raw key state is interpreted once, in the widget.
+//!
+//! `visible_ids` caches the ids the query matches, refreshed by
+//! `refresh_visible` wherever the query or the library changes and nowhere
+//! else. Every pane listing tracks reads it, and `update` resolves row indices
+//! against it, so the filter runs once per change rather than once per pane per
+//! frame — which on a large library cost more than the frame budget by itself.
+//!
+//! The cache holds ids rather than `&Track` because a `Vec<&Track>` on `App`
+//! would borrow from `App`. Panes resolve the ids against `library` when they
+//! draw, which is a map lookup per visible row.
+//!
+//! A cached list is normally the thing to avoid here, since a row index only
+//! means anything against the list the click was made on. What makes it safe is
+//! that the query and the library are the filter's only two inputs: refreshing
+//! on both leaves nothing that can change without the cache knowing. Adding a
+//! third input to the filter means adding a `refresh_visible` call with it.
+//!
+//! A selection deliberately survives a query change: tracks filtered off screen
+//! stay selected, so clearing a search restores what was picked before it. Only
+//! a rescan calls `retain_listed`, where ids genuinely die. `RowRightClicked`
+//! applies Explorer's rule — a right-click inside the selection keeps it, one
+//! outside replaces it — so a menu never acts on rows that are out of sight.
+//!
+//! The selection is a set, so `selected_in_order` resolves it against the
+//! visible rows before acting: queueing three rows plays them top to bottom.
+//! Playing a set starts the first and queues the rest behind it, so "play" on a
+//! multi-track selection means the whole selection.
+//!
+//! `seeking` holds the position a scrub is aiming at, and the timeline draws
+//! from it in preference to the player. The audio moves once, on release: kira
+//! restarts the stream at each `seek`, so seeking per pointer-move turns a drag
+//! into a burst of quarter-second fragments. The rail still follows the pointer
+//! throughout, so the scrub stays responsive without being audible.
+//!
+//! `seeking` then outlives the release. kira applies the seek on its own audio
+//! thread, so `Player::position` keeps reporting the old spot for a frame or two
+//! afterwards, and clearing `seeking` as the button came up made the rail snap
+//! back and then jump forward again. `settle_seek` clears it only once the
+//! player's own position agrees with the target to within `SEEK_SETTLED`, driven
+//! by `Tick` — a single check at release would run before the audio thread had
+//! caught up. The tick keeps running while a seek is outstanding, since a scrub
+//! made while paused would otherwise have nothing to settle it.
+//!
+//! `Tick` drives animation, and `TICK` is 16ms because of it. Position comes
+//! from `Player::position` when `view` runs, so a frame is only as fresh as the
+//! last `view`, and anything following playback moves at this rate. At 250ms the
+//! rail lurched.
+//!
+//! Widget-driven animation was tried instead and does not work here.
+//! `Shell::request_redraw` repaints the existing widget tree; it does not re-run
+//! `view`, so the timeline redrew at 60fps against a `position` captured
+//! whenever `view` last ran. Smooth requests, stale values. A widget can animate
+//! itself only from state it already owns, and the playhead is not that.
+//!
+//! The gate is a track being loaded rather than playback being active, which
+//! costs an idle tick per frame while paused. The alternatives were worse:
+//! `Player::is_playing` reads state kira's audio thread owns, so it still said
+//! `false` right after a `PlayPause` and the window froze until a stray mouse
+//! move repainted it, and a flag tracking what the user asked for cleared before
+//! `pause`'s 500ms fade had been drawn.
 
 mod render;
+
+const SEEK_SETTLED: f32 = 0.35;
+
+const TICK: Duration = Duration::from_millis(16);
 
 use std::path::{Path, PathBuf};
 use std::time::Duration;
@@ -19,6 +88,7 @@ use crate::layout::{Axis, DropZone, Layout, PaneId, PaneMetrics, SplitPath};
 use crate::pane::{PaneKind, PaneMessage, PaneStates, view as pane_view};
 use crate::styles;
 use crate::tasks;
+use crate::tracks::{Context, Selection};
 
 pub struct App {
     library: Library,
@@ -31,6 +101,12 @@ pub struct App {
     edit_mode: bool,
     drag: Option<DividerDrag>,
     pane_drag: Option<PaneDrag>,
+
+    search: String,
+    selection: Selection,
+    hovered: Option<i64>,
+
+    visible_ids: Vec<i64>,
 
     scanning: bool,
     seeking: Option<f32>,
@@ -67,6 +143,25 @@ pub enum DropTarget {
     RootEdge(DropZone),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RowClick {
+    Replace,
+    Toggle,
+    Extend,
+}
+
+impl RowClick {
+    pub fn from_modifiers(modifiers: keyboard::Modifiers) -> Self {
+        if modifiers.shift() {
+            Self::Extend
+        } else if modifiers.command() {
+            Self::Toggle
+        } else {
+            Self::Replace
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
 pub enum Message {
@@ -83,9 +178,24 @@ pub enum Message {
     Shuffle,
     PlayTrack(i64),
     EnqueueTrack(i64),
+    PlayTracks(Vec<i64>),
+    EnqueueTracks(Vec<i64>),
+    EnqueueTracksNext(Vec<i64>),
     RemoveFromQueue(usize),
     ClearQueue,
     QueueAll,
+
+    SearchChanged(String),
+    TrackHovered(Option<i64>),
+    RowClicked(usize, RowClick),
+    RowActivated(usize),
+    RowRightClicked(usize),
+    SelectAll,
+    ClearSelection,
+    PlaySelection,
+    QueueSelection,
+    QueueSelectionNext,
+    RateTrack(i64, Option<u8>),
 
     Pane(PaneId, PaneMessage),
     SplitPane(PaneId, Axis),
@@ -131,12 +241,17 @@ impl App {
             edit_mode: false,
             drag: None,
             pane_drag: None,
+            search: String::new(),
+            selection: Selection::default(),
+            hovered: None,
+            visible_ids: Vec::new(),
             scanning: false,
             seeking: None,
             status: None,
             window: iced::Size::new(1280.0, 800.0),
         };
         app.sync_pane_states();
+        app.refresh_visible();
 
         (app, Task::none())
     }
@@ -176,6 +291,121 @@ impl App {
         self.config.save();
     }
 
+    fn visible(&self) -> Vec<&Track> {
+        self.context().visible()
+    }
+
+    /// Refills the cached ids of the rows the query matches.
+    ///
+    /// The cache holds ids rather than `&Track` because a `Vec<&Track>` stored
+    /// on `App` would borrow from `App`, which Rust cannot express. Ids are
+    /// `Copy` and own nothing, so the panes resolve them against `library` in
+    /// `view` and the filter itself runs once per change rather than once per
+    /// pane per frame.
+    ///
+    /// This is the caching [`crate::tracks`] warns against, made safe by *when*
+    /// it is refreshed: the query and the library are the filter's only inputs,
+    /// so refilling wherever either changes leaves nothing that can go stale.
+    /// The rule guards against a list that changed without the cache knowing,
+    /// not against caching as such.
+    fn refresh_visible(&mut self) {
+        self.visible_ids = self
+            .visible()
+            .iter()
+            .filter_map(|track| track.id())
+            .collect();
+    }
+
+    fn settle_seek(&mut self) {
+        let Some(target) = self.seeking else {
+            return;
+        };
+        if (self.player.position() as f32 - target).abs() <= SEEK_SETTLED {
+            self.seeking = None;
+        }
+    }
+
+    fn context(&self) -> Context<'_> {
+        Context {
+            library: &self.library,
+            queue: self.player.queue(),
+            search: &self.search,
+            selection: &self.selection,
+            hovered: self.hovered,
+            playing: self.player.queue().current(),
+        }
+    }
+
+    fn visible_ids(&self) -> &[i64] {
+        &self.visible_ids
+    }
+
+    fn update_tracks(&mut self, message: Message) {
+        match message {
+            Message::SearchChanged(query) => {
+                self.search = query;
+                self.refresh_visible();
+            }
+            Message::TrackHovered(id) => self.hovered = id,
+            Message::RowClicked(index, click) => {
+                let ids = std::mem::take(&mut self.visible_ids);
+                if let Some(&id) = ids.get(index) {
+                    match click {
+                        RowClick::Replace => self.selection.select(index, id),
+                        RowClick::Toggle => self.selection.toggle(index, id),
+                        RowClick::Extend => self.selection.extend_to_ids(index, &ids),
+                    }
+                }
+                self.visible_ids = ids;
+            }
+            Message::RowActivated(index) => {
+                let ids = self.visible_ids();
+                if let Some(&id) = ids.get(index) {
+                    self.selection.select(index, id);
+                    let _ = self.player.play_now(&self.library, id);
+                }
+            }
+            Message::RowRightClicked(index) => {
+                let ids = self.visible_ids();
+                if let Some(&id) = ids.get(index)
+                    && !self.selection.contains(id)
+                {
+                    self.selection.select(index, id);
+                }
+            }
+            Message::SelectAll => {
+                let ids = std::mem::take(&mut self.visible_ids);
+                self.selection.select_all_ids(&ids);
+                self.visible_ids = ids;
+            }
+            Message::ClearSelection => self.selection.clear(),
+            Message::PlaySelection => {
+                let ids = self.selected_in_order();
+                if let Some((&first, rest)) = ids.split_first() {
+                    let _ = self.player.play_now(&self.library, first);
+                    self.player.queue_mut().extend_next(rest.iter().copied());
+                }
+            }
+            Message::QueueSelection => {
+                let ids = self.selected_in_order();
+                self.player.queue_mut().extend(ids);
+            }
+            Message::QueueSelectionNext => {
+                let ids = self.selected_in_order();
+                self.player.queue_mut().extend_next(ids);
+            }
+            Message::RateTrack(id, stars) => {
+                let _ = self.library.set_rating(id, stars);
+                self.refresh_visible();
+            }
+            _ => {}
+        }
+    }
+
+    fn selected_in_order(&self) -> Vec<i64> {
+        self.selection.ordered_ids(self.visible_ids())
+    }
+
     #[allow(clippy::needless_pass_by_value)]
     fn update_playback(&mut self, message: Message) {
         match message {
@@ -190,7 +420,7 @@ impl App {
             }
             Message::Seek(position) => self.seeking = Some(position),
             Message::SeekReleased => {
-                if let Some(position) = self.seeking.take() {
+                if let Some(position) = self.seeking {
                     self.player.seek(f64::from(position));
                 }
             }
@@ -207,6 +437,14 @@ impl App {
                 let _ = self.player.play_now(&self.library, id);
             }
             Message::EnqueueTrack(id) => self.player.enqueue(id),
+            Message::PlayTracks(ids) => {
+                if let Some((&first, rest)) = ids.split_first() {
+                    let _ = self.player.play_now(&self.library, first);
+                    self.player.queue_mut().extend_next(rest.iter().copied());
+                }
+            }
+            Message::EnqueueTracks(ids) => self.player.queue_mut().extend(ids),
+            Message::EnqueueTracksNext(ids) => self.player.queue_mut().extend_next(ids),
             Message::RemoveFromQueue(index) => self.player.remove_from_queue(index),
             Message::ClearQueue => self.player.clear_queue(),
             Message::QueueAll => {
@@ -221,6 +459,7 @@ impl App {
         match message {
             Message::Tick => {
                 let _ = self.player.update(&self.library);
+                self.settle_seek();
             }
 
             Message::PlayPause
@@ -233,9 +472,24 @@ impl App {
             | Message::Shuffle
             | Message::PlayTrack(_)
             | Message::EnqueueTrack(_)
+            | Message::PlayTracks(_)
+            | Message::EnqueueTracks(_)
+            | Message::EnqueueTracksNext(_)
             | Message::RemoveFromQueue(_)
             | Message::ClearQueue
             | Message::QueueAll => self.update_playback(message),
+
+            Message::SearchChanged(_)
+            | Message::TrackHovered(_)
+            | Message::RowClicked(..)
+            | Message::RowActivated(_)
+            | Message::RowRightClicked(_)
+            | Message::SelectAll
+            | Message::ClearSelection
+            | Message::PlaySelection
+            | Message::QueueSelection
+            | Message::QueueSelectionNext
+            | Message::RateTrack(..) => self.update_tracks(message),
 
             Message::Pane(id, message) => self.pane_states.update(id, message),
             Message::SplitPane(id, axis) => {
@@ -287,24 +541,37 @@ impl App {
                 }
                 self.status = Some("No library folder set".into());
             }
-            Message::ScanFinished(result) => {
-                self.scanning = false;
-                match result {
-                    Ok(()) => match Library::open() {
-                        Ok(library) => {
-                            self.library = library;
-                            self.status = Some(format!("{} tracks", self.library.tracks().len()));
-                        }
-                        Err(error) => self.status = Some(format!("Reload failed: {error}")),
-                    },
-                    Err(error) => self.status = Some(format!("Scan failed: {error}")),
-                }
-            }
+            Message::ScanFinished(result) => self.finish_scan(&result),
 
             Message::Event(event) => return self.handle_event(&event),
             Message::Noop => {}
         }
         Task::none()
+    }
+
+    fn finish_scan(&mut self, result: &Result<(), String>) {
+        self.scanning = false;
+
+        let error = match result {
+            Err(error) => Some(format!("Scan failed: {error}")),
+            Ok(()) => match Library::open() {
+                Err(error) => Some(format!("Reload failed: {error}")),
+                Ok(library) => {
+                    self.library = library;
+                    self.refresh_visible();
+                    let live: Vec<i64> =
+                        self.library.tracks().iter().filter_map(Track::id).collect();
+                    self.selection.retain_listed(&live);
+                    self.hovered = self.hovered.filter(|id| live.contains(id));
+                    self.status = Some(format!("{} tracks", self.library.tracks().len()));
+                    None
+                }
+            },
+        };
+
+        if let Some(error) = error {
+            self.status = Some(error);
+        }
     }
 
     fn start_scan(&mut self, root: PathBuf) -> Task<Message> {
@@ -446,12 +713,20 @@ impl App {
 
     pub fn view(&self) -> Element<'_, Message> {
         let layout = self.layout();
+        let visible = &self.visible_ids;
         let edit_mode = self.edit_mode;
         let dragging = self.drag.as_ref().map(|drag| drag.axis);
         let pane_drag = self.pane_drag.as_ref();
         let over = pane_drag.and_then(PaneDrag::over);
-        let playback = pane_view::Playback {
-            is_playing: self.player.is_playing(),
+        let shared = pane_view::Shared {
+            playback: pane_view::Playback {
+                is_playing: self.player.is_playing(),
+                position: self
+                    .seeking
+                    .unwrap_or_else(|| self.player.position() as f32),
+            },
+            tracks: self.context(),
+            visible,
         };
 
         let pane = move |id, kind, edit, span| {
@@ -462,7 +737,13 @@ impl App {
                     _ => None,
                 },
             };
-            pane_view::view(id, kind, layout.locks(id), edit, drag, playback, span)
+            let pane = pane_view::Pane {
+                id,
+                kind,
+                locks: layout.locks(id),
+                state: self.pane_states.get(id),
+            };
+            pane_view::view(pane, edit, drag, shared, span)
         };
 
         let panes = render::view(layout, edit_mode, dragging, &pane, self.window);
@@ -505,8 +786,8 @@ impl App {
         });
 
         let mut subs = vec![events];
-        if self.player.is_playing() {
-            subs.push(every(Duration::from_millis(100)).map(|_| Message::Tick));
+        if self.player.queue().current().is_some() {
+            subs.push(every(TICK).map(|_| Message::Tick));
         }
 
         Subscription::batch(subs)

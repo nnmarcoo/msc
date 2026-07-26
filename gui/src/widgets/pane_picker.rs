@@ -15,6 +15,14 @@
 //! The trigger has two widths, since the edit overlay measures it before laying
 //! out: [`PanePicker::label_width`] with the pane's title, and
 //! [`PanePicker::compact_width`] once it drops the label for its icon.
+//!
+//! `PickerOverlay::mouse_interaction` claims the cursor over the whole panel,
+//! not just its interactive parts: iced hands the cursor back to the layer
+//! beneath whenever an overlay answers `Interaction::None`, so the gaps between
+//! items would let the pane behind this one hover through the panel. That covers
+//! the panel alone; while a category fly-out is open, `overlay::Nested` asks only
+//! the fly-out, which answers for this panel in turn. See
+//! `docs/overlay-cursor.md`.
 
 use std::cell::Cell;
 use std::rc::Rc;
@@ -680,7 +688,7 @@ impl<Message: Clone> Overlay<Message, Theme, Renderer> for PickerOverlay<'_, '_,
         renderer: &Renderer,
     ) -> mouse::Interaction {
         let viewport = layout.bounds();
-        if let (Some(content), Some(panel_tree)) =
+        let interaction = if let (Some(content), Some(panel_tree)) =
             (self.state.content.as_ref(), self.state.panel_tree.as_ref())
         {
             content
@@ -688,7 +696,13 @@ impl<Message: Clone> Overlay<Message, Theme, Renderer> for PickerOverlay<'_, '_,
                 .mouse_interaction(panel_tree, layout, cursor, &viewport, renderer)
         } else {
             mouse::Interaction::default()
+        };
+
+        if interaction == mouse::Interaction::None && cursor.is_over(viewport) {
+            return mouse::Interaction::Idle;
         }
+
+        interaction
     }
 
     fn overlay<'c>(
