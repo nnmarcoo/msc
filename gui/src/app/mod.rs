@@ -199,6 +199,7 @@ pub enum Message {
     EnqueueTracks(Vec<i64>),
     EnqueueTracksNext(Vec<i64>),
     RemoveFromQueue(usize),
+    ReorderQueue { from: usize, to: usize },
     ClearQueue,
     QueueAll,
 
@@ -375,6 +376,7 @@ impl App {
         }
     }
 
+
     fn context(&self) -> Context<'_> {
         Context {
             library: &self.library,
@@ -493,6 +495,7 @@ impl App {
             Message::EnqueueTracks(ids) => self.player.queue_mut().extend(ids),
             Message::EnqueueTracksNext(ids) => self.player.queue_mut().extend_next(ids),
             Message::RemoveFromQueue(index) => self.player.remove_from_queue(index),
+            Message::ReorderQueue { from, to } => self.player.reorder_queue(from, to),
             Message::ClearQueue => self.player.clear_queue(),
             Message::QueueAll => {
                 let ids: Vec<i64> = self.library.available().filter_map(Track::id).collect();
@@ -524,6 +527,7 @@ impl App {
             | Message::EnqueueTracks(_)
             | Message::EnqueueTracksNext(_)
             | Message::RemoveFromQueue(_)
+            | Message::ReorderQueue { .. }
             | Message::ClearQueue
             | Message::QueueAll => self.update_playback(message),
 

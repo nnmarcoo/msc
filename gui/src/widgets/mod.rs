@@ -7,6 +7,7 @@
 pub mod context_menu;
 pub mod menu;
 pub mod pane_picker;
+pub mod queue_list;
 pub mod rating;
 pub mod search_bar;
 pub mod timeline;

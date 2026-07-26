@@ -194,6 +194,10 @@ impl Player {
         self.queue.move_to_front(index);
     }
 
+    pub fn reorder_queue(&mut self, from: usize, to: usize) {
+        self.queue.reorder(from, to);
+    }
+
     pub fn loop_mode(&self) -> LoopMode {
         self.queue.loop_mode()
     }

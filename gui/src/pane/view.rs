@@ -130,11 +130,18 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
         PaneKind::Controls => controls::view(shared.playback.is_playing),
         PaneKind::Library => library::view(shared.tracks, shared.visible),
         PaneKind::Queue => {
-            let show_history = match pane.state {
-                Some(PaneState::Queue(state)) => state.show_history,
-                _ => false,
+            static EMPTY: queue::State = queue::State::EMPTY;
+            let state = match pane.state {
+                Some(PaneState::Queue(state)) => state,
+                _ => &EMPTY,
             };
-            queue::view(shared.tracks, show_history)
+            queue::view(
+                shared.tracks,
+                state,
+                &queue::Bindings {
+                    clear: Message::ClearQueue,
+                },
+            )
         }
         PaneKind::Timeline => {
             static EMPTY: timeline::State = timeline::State {

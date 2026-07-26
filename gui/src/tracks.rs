@@ -72,11 +72,20 @@
 //! remove by, so the pane has no flat index available to pass by mistake.
 //!
 //! A queue may hold the same track twice, so its rows are positional while
-//! `row_state` remains keyed on the id alone. Hovering a track therefore lights
-//! *every* copy of it in the queue, which is the truth about where that track
-//! sits; a positional highlight would claim the other copies are a different
-//! song. This is also why [`QueueRow`] carries the track rather than an index:
-//! position identifies a row, the id identifies the music.
+//! `row_state` stays keyed on the id. Hovering a track therefore lights *every*
+//! copy of it in the queue, which is the truth about where that track sits; a
+//! positional highlight would claim the other copies are a different song. This
+//! is also why [`QueueRow`] carries the track rather than an index: position
+//! identifies a row, the id identifies the music.
+//!
+//! `hovered` is a track id and nothing more, which works only because both lists
+//! are single widgets that know which row the cursor is over. An arrangement of
+//! per-row `mouse_area`s cannot manage with an id: rows publish arrivals and
+//! departures that race in layout order, and an id cannot tell "the pointer left
+//! me" from "the pointer moved to another copy of me". That version needed a
+//! position-keyed hover to disambiguate, and invalidation everywhere the queue
+//! changed shape. Both went when the queue became
+//! [`crate::widgets::queue_list`]; see that module for what the arrangement cost.
 
 use std::collections::BTreeSet;
 
@@ -658,6 +667,7 @@ mod tests {
             "hover is keyed on the track, so both copies of 7 light up"
         );
     }
+
 
     #[test]
     fn hovering_a_track_lights_it_up_in_every_pane() {
