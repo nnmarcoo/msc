@@ -11,14 +11,13 @@
 //! [`Form`] drops parts of the row as the pane narrows: the readout goes first,
 //! since the rail's fill already says roughly how loud, then the icon, which
 //! outlasts it because muting is a control rather than a description. Every form
-//! keeps the rail. The readout reads above 100% when boosting, since 100% is the
-//! file as mastered and not the top of the scale.
+//! keeps the rail. The readout tops out at 100%, the file as mastered, which is
+//! also the top of the scale.
 //!
-//! `LOUD` is half of unity rather than half the rail, because the glyph is about
-//! loudness relative to the recording and everything from unity up is loud. A
-//! level of zero draws the muted glyph whether or not the mute is on: what the
-//! icon reports is whether sound is coming out, and those two are the same to a
-//! listener.
+//! `LOUD` is the level above which the glyph shows the loud speaker, at half the
+//! scale. A level of zero draws the muted glyph whether or not the mute is on:
+//! what the icon reports is whether sound is coming out, and those two are the
+//! same to a listener.
 //!
 //! Muting is the app's, not the pane's: [`crate::app`] keeps the flag and hands
 //! this pane the level actually reaching the speakers, zero while muted. So the

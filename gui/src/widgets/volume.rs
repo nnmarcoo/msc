@@ -1,7 +1,7 @@
 //! The volume slider: a draggable rail with a filled portion.
 //!
-//! The rail spans 0 to [`verse_core::VOLUME_MAX`], so the far end is a boost
-//! above the level a file was mastered at rather than the mastered level itself.
+//! The rail spans 0 to [`verse_core::VOLUME_MAX`], which is unity, so the far
+//! end is the file as mastered and the rail only ever attenuates.
 //!
 //! A custom widget rather than iced's `slider` for the same reason the timeline
 //! is one: a 4px rail is not something anyone can hit, and a slider ties the hit
@@ -327,9 +327,12 @@ mod tests {
     }
 
     #[test]
-    fn a_boosted_level_is_kept_rather_than_clamped_to_unity() {
-        let boosted: Volume<'_, ()> = Volume::new(1.5, |_| ());
-        assert_eq!(boosted.level, 1.5, "boost should survive construction");
+    fn a_level_past_unity_is_clamped_to_it() {
+        let loud: Volume<'_, ()> = Volume::new(1.5, |_| ());
+        assert_eq!(
+            loud.level, 1.0,
+            "nothing above the mastered level should survive construction"
+        );
     }
 
     #[test]
@@ -355,7 +358,7 @@ mod tests {
     }
 
     #[test]
-    fn clicking_the_far_right_is_the_loudest_boost() {
+    fn clicking_the_far_right_is_the_mastered_level() {
         let bounds = bar(200.0);
         assert_eq!(
             Volume::<()>::level_at(bounds, at(bounds, 200.0)),
@@ -364,23 +367,27 @@ mod tests {
     }
 
     #[test]
-    fn the_middle_of_the_rail_is_unity() {
+    fn the_middle_of_the_rail_is_half_volume() {
         let bounds = bar(200.0);
         let level = Volume::<()>::level_at(bounds, at(bounds, 100.0)).unwrap();
 
         assert!(
-            (level - 1.0).abs() < 0.001,
-            "the rail's midpoint should be the mastered level, got {level}"
+            (level - 0.5).abs() < 0.001,
+            "the rail's midpoint should be half the scale, got {level}"
         );
     }
 
     #[test]
-    fn the_upper_half_of_the_rail_boosts() {
+    fn no_point_on_the_rail_passes_unity() {
         let bounds = bar(200.0);
-        let level = Volume::<()>::level_at(bounds, at(bounds, 150.0)).unwrap();
 
-        assert!(level > 1.0, "past the tick should boost, got {level}");
-        assert!((level - 1.5).abs() < 0.001, "{level}");
+        for step in 0..=200 {
+            let level = Volume::<()>::level_at(bounds, at(bounds, step as f32)).unwrap();
+            assert!(
+                level <= 1.0,
+                "x {step} gave {level}, past the mastered level"
+            );
+        }
     }
 
     #[test]
@@ -397,7 +404,7 @@ mod tests {
 
     #[test]
     fn a_level_is_drawn_at_its_share_of_the_full_range() {
-        assert!((Volume::<()>::fraction_of(1.0) - 0.5).abs() < 0.001);
+        assert!((Volume::<()>::fraction_of(0.5) - 0.5).abs() < 0.001);
         assert!((Volume::<()>::fraction_of(verse_core::VOLUME_MAX) - 1.0).abs() < 0.001);
     }
 
@@ -452,15 +459,15 @@ mod tests {
     }
 
     #[test]
-    fn a_boosted_level_reads_above_one_hundred() {
-        assert_eq!(percent(1.5), "150%");
-        assert_eq!(percent(verse_core::VOLUME_MAX), "200%");
+    fn the_readout_never_passes_one_hundred() {
+        assert_eq!(percent(1.5), "100%");
+        assert_eq!(percent(verse_core::VOLUME_MAX), "100%");
     }
 
     #[test]
     fn a_nonsense_level_still_reads_as_a_percentage() {
         assert_eq!(percent(f32::NAN), "0%");
         assert_eq!(percent(-3.0), "0%");
-        assert_eq!(percent(99.0), "200%");
+        assert_eq!(percent(99.0), "100%");
     }
 }

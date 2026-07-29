@@ -31,11 +31,12 @@
 //! watch app-side state instead, not poll this.
 //!
 //! Volume is a linear 0..`VOLUME_MAX` scale converted to dB by `VOLUME_SLOPE *
-//! log10`, so 1.0 is 0 dB, the file as mastered, and the range above it is
-//! real amplification, for boosting a quiet recording without reaching for the
-//! system mixer. Boosting can clip and kira does not limit for us; that is the
-//! listener's call and it is audible the moment it happens. `volume_db` is a
-//! free function so the curve is testable without an audio device.
+//! log10`. `VOLUME_MAX` is unity, so the top of the scale is the file as
+//! mastered and every level below it attenuates. The scale once ran to 2.0,
+//! amplifying past unity; that clips, kira does not limit for us, and a volume
+//! control that can distort what it plays is a trap rather than a feature.
+//! `volume_db` is a free function so the curve is testable without an audio
+//! device.
 
 use std::{path::Path, sync::Arc, time::Duration};
 use thiserror::Error;
@@ -52,7 +53,7 @@ use kira::{
 
 use crate::analyzer::{AnalyzerBuilder, VisData, VisReader};
 
-pub const VOLUME_MAX: f32 = 2.0;
+pub const VOLUME_MAX: f32 = 1.0;
 const VOLUME_SLOPE: f32 = 28.0;
 const SILENT_DB: f32 = -60.0;
 
@@ -207,12 +208,24 @@ mod tests {
     }
 
     #[test]
-    fn boosting_past_unity_amplifies() {
+    fn the_top_of_the_scale_is_unity() {
         assert!(
-            volume_db(VOLUME_MAX) > 0.0,
-            "the top of the scale should be positive gain, got {}",
+            volume_db(VOLUME_MAX).abs() < 0.001,
+            "the loudest level should be the file as mastered, got {}",
             volume_db(VOLUME_MAX)
         );
+    }
+
+    #[test]
+    fn the_scale_never_amplifies() {
+        for step in 0..=100 {
+            let level = VOLUME_MAX * step as f32 / 100.0;
+            assert!(
+                volume_db(level) <= 0.001,
+                "level {level} gave positive gain {}",
+                volume_db(level)
+            );
+        }
     }
 
     #[test]
