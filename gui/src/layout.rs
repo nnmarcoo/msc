@@ -18,6 +18,10 @@
 //! controls at 40px, one icon at `ICON_MIN` plus padding, and it sits a little
 //! above that so a pane at the floor is not exactly one icon tall.
 //!
+//! Its width matters to the same pane too: the transport shrinks its buttons
+//! rather than dropping them, and `ICON_FLOOR` in [`crate::pane::controls`] sits
+//! below what this width affords, so all three survive at the floor.
+//!
 //! It cannot go much higher without stopping strips from being strips. A search
 //! bar draws in about 34px and a timeline in less, so the original 80px left
 //! both locked to more than twice the height they use. Panes whose content wants

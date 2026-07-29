@@ -42,10 +42,7 @@
 
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::svg::Handle;
-use iced::widget::tooltip::Position;
-use iced::widget::{
-    button, column, container, mouse_area, responsive, row, stack, svg, text, tooltip,
-};
+use iced::widget::{button, column, container, mouse_area, responsive, row, stack, svg, text};
 use iced::{Element, Length};
 
 use crate::app::{DropTarget, Message};
@@ -53,9 +50,10 @@ use crate::layout::{Axis, DropZone, Locks, PaneId, PaneMetrics};
 use crate::pane::{
     PaneKind, PaneMessage, PaneState, controls, library, queue, search, timeline, volume,
 };
-use crate::styles::{self, LABEL_FONT_SIZE, PAD, TOOLTIP_DELAY};
+use crate::styles::{self, PAD};
 use crate::tracks::Context;
 use crate::widgets::pane_picker::PanePicker;
+use crate::widgets::tooltip::tip;
 
 const ROOT_BAND: f32 = 24.0;
 
@@ -479,16 +477,7 @@ fn with_tooltip<'a>(
     content: impl Into<Element<'a, Message>>,
     label: &'a str,
 ) -> Element<'a, Message> {
-    tooltip(
-        content,
-        container(text(label).size(LABEL_FONT_SIZE))
-            .padding(PAD)
-            .style(styles::tooltip_style),
-        Position::Bottom,
-    )
-    .delay(TOOLTIP_DELAY)
-    .gap(PAD)
-    .into()
+    tip(content, label).into()
 }
 
 #[cfg(test)]

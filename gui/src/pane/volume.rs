@@ -28,12 +28,12 @@
 //! must agree about the volume, so there is nothing here to disagree about.
 
 use iced::widget::svg::Handle;
-use iced::widget::tooltip::Position;
-use iced::widget::{button, container, responsive, row, svg, text, tooltip};
+use iced::widget::{button, container, responsive, row, svg, text};
 use iced::{Element, Length};
 
 use crate::app::Message;
-use crate::styles::{self, LABEL_FONT_SIZE, PAD, TOOLTIP_DELAY};
+use crate::styles::{self, LABEL_FONT_SIZE, PAD};
+use crate::widgets::tooltip::tip;
 use crate::widgets::volume::{Op, Volume, percent};
 
 const ICON_HIGH: &[u8] = include_bytes!("../../../assets/icons/volume_high.svg");
@@ -140,16 +140,7 @@ fn mute_button<'a>(level: f32, muted: bool) -> Element<'a, Message> {
         .padding(PAD)
         .style(styles::icon_button_style);
 
-    tooltip(
-        control,
-        container(text(label).size(LABEL_FONT_SIZE))
-            .padding(PAD)
-            .style(styles::tooltip_style),
-        Position::Top,
-    )
-    .delay(TOOLTIP_DELAY)
-    .gap(PAD)
-    .into()
+    tip(control, label).into()
 }
 
 fn readout<'a>(level: f32) -> Element<'a, Message> {

@@ -12,5 +12,6 @@ pub mod queue_list;
 pub mod rating;
 pub mod search_bar;
 pub mod timeline;
+pub mod tooltip;
 pub mod track_list;
 pub mod volume;
