@@ -75,6 +75,17 @@ pub fn divider_inert_style(theme: &Theme) -> container::Style {
     }
 }
 
+pub fn artwork_placeholder_style(theme: &Theme) -> container::Style {
+    let palette = theme.extended_palette();
+    container::Style {
+        background: Some(Background::Color(
+            palette.background.strong.color.scale_alpha(0.4),
+        )),
+        border: iced::border::rounded(radius()),
+        ..Default::default()
+    }
+}
+
 pub fn drop_highlight_style(theme: &Theme) -> container::Style {
     let palette = theme.extended_palette();
     container::Style {

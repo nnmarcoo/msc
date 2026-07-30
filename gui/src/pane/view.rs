@@ -46,9 +46,10 @@ use iced::widget::{button, column, container, mouse_area, responsive, row, stack
 use iced::{Element, Length};
 
 use crate::app::{DropTarget, Message};
+use crate::artwork::Cache as ArtCache;
 use crate::layout::{Axis, DropZone, Locks, PaneId, PaneMetrics};
 use crate::pane::{
-    PaneKind, PaneMessage, PaneState, controls, library, queue, search, timeline, volume,
+    PaneKind, PaneMessage, PaneState, artwork, controls, library, queue, search, timeline, volume,
 };
 use crate::styles::{self, PAD};
 use crate::tracks::Context;
@@ -87,6 +88,7 @@ pub struct Shared<'a> {
     pub playback: Playback,
     pub tracks: Context<'a>,
     pub visible: &'a [i64],
+    pub artwork: &'a ArtCache,
 }
 
 #[derive(Clone, Copy)]
@@ -168,6 +170,16 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
                 },
             )
         }
+        // Unlike the other kinds, the fallback cannot be a `static`: this state
+        // holds a handle behind a `RefCell`, which is not `Sync`. A pane without
+        // state simply keeps no bridge, and draws the placeholder as it would
+        // have anyway.
+        PaneKind::Artwork => match pane.state {
+            Some(PaneState::Artwork(state)) => {
+                artwork::view(shared.tracks, shared.artwork, Some(state))
+            }
+            _ => artwork::view(shared.tracks, shared.artwork, None),
+        },
         PaneKind::Volume => volume::view(shared.playback.volume, shared.playback.muted),
         PaneKind::Search => search::view(shared.tracks, shared.visible.len()),
         _ => container(text(pane.kind.title()).size(18))

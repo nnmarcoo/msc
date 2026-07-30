@@ -18,6 +18,7 @@
 //! qualify: each is about how one pane draws itself and nothing else.
 #![allow(dead_code)]
 
+pub mod artwork;
 pub mod controls;
 pub mod library;
 pub mod queue;
@@ -68,6 +69,7 @@ pub enum PaneKind {
     History,
     Lyrics,
     TrackInfo,
+    Artwork,
     Visualiser,
     Equaliser,
     Settings,
@@ -75,7 +77,7 @@ pub enum PaneKind {
 }
 
 impl PaneKind {
-    pub const ALL: [PaneKind; 18] = [
+    pub const ALL: [PaneKind; 19] = [
         PaneKind::Library,
         PaneKind::Search,
         PaneKind::Albums,
@@ -90,6 +92,7 @@ impl PaneKind {
         PaneKind::History,
         PaneKind::Lyrics,
         PaneKind::TrackInfo,
+        PaneKind::Artwork,
         PaneKind::Visualiser,
         PaneKind::Equaliser,
         PaneKind::Settings,
@@ -112,6 +115,7 @@ impl PaneKind {
             PaneKind::History => "History",
             PaneKind::Lyrics => "Lyrics",
             PaneKind::TrackInfo => "Track Info",
+            PaneKind::Artwork => "Artwork",
             PaneKind::Visualiser => "Visualiser",
             PaneKind::Equaliser => "Equaliser",
             PaneKind::Settings => "Settings",
@@ -133,7 +137,10 @@ impl PaneKind {
             | PaneKind::Timeline
             | PaneKind::Volume
             | PaneKind::History => PaneCategory::Playback,
-            PaneKind::Lyrics | PaneKind::TrackInfo | PaneKind::Visualiser => PaneCategory::Detail,
+            PaneKind::Lyrics
+            | PaneKind::TrackInfo
+            | PaneKind::Artwork
+            | PaneKind::Visualiser => PaneCategory::Detail,
             PaneKind::Equaliser | PaneKind::Settings | PaneKind::Empty => PaneCategory::Tools,
         }
     }
@@ -154,6 +161,7 @@ impl PaneKind {
             PaneKind::History => "recent played log past",
             PaneKind::Lyrics => "words text karaoke",
             PaneKind::TrackInfo => "metadata tags details properties",
+            PaneKind::Artwork => "cover art album picture image sleeve",
             PaneKind::Visualiser => "spectrum waveform graphics visualizer",
             PaneKind::Equaliser => "eq bands tone audio equalizer",
             PaneKind::Settings => "preferences options config",
@@ -197,6 +205,7 @@ pub enum PaneMessage {
 pub enum PaneState {
     Queue(queue::State),
     Timeline(timeline::State),
+    Artwork(artwork::State),
     Stateless,
 }
 
@@ -205,6 +214,7 @@ impl PaneState {
         match kind {
             PaneKind::Queue => Self::Queue(queue::State::default()),
             PaneKind::Timeline => Self::Timeline(timeline::State::default()),
+            PaneKind::Artwork => Self::Artwork(artwork::State::default()),
             PaneKind::Library
             | PaneKind::Search
             | PaneKind::Albums

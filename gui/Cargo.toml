@@ -15,8 +15,16 @@ path = "src/main.rs"
 [dependencies]
 verse-core = { path = "../core" }
 
-iced = { version = "0.14.0", features = ["advanced", "svg", "tokio"] }
+iced = { version = "0.14.0", features = ["advanced", "svg", "image", "tokio"] }
 tokio = { version = "1", features = ["rt", "sync", "macros"] }
+image = { version = "0.25.9", default-features = false, features = [
+    "jpeg",
+    "png",
+    "gif",
+    "bmp",
+    "webp",
+] }
+lru = "0.16.4"
 rfd = "0.15.4"
 dirs = "6.0.0"
 serde = { version = "1.0.228", features = ["derive"] }

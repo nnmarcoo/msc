@@ -98,6 +98,7 @@ use iced::widget::container;
 use iced::{Element, Event, Length, Subscription, Task, Theme, event, keyboard, window};
 use verse_core::{Library, Player, Track};
 
+use crate::artwork::{Cache as ArtCache, Decoded};
 use crate::config::Config;
 use crate::layout::{Axis, DropZone, Layout, PaneId, PaneMetrics, SplitPath};
 use crate::pane::{PaneKind, PaneMessage, PaneStates, view as pane_view};
@@ -109,6 +110,7 @@ pub struct App {
     library: Library,
     player: Player,
     config: Config,
+    artwork: ArtCache,
 
     layouts: Vec<Layout>,
     active_layout: usize,
@@ -234,6 +236,8 @@ pub enum Message {
 
     SaveConfig,
 
+    ArtDecoded(Box<Decoded>),
+
     Noop,
 }
 
@@ -255,6 +259,7 @@ impl App {
             library,
             player,
             config,
+            artwork: ArtCache::new(),
             layouts,
             active_layout,
             pane_states: PaneStates::default(),
@@ -509,6 +514,7 @@ impl App {
             Message::Tick => {
                 let _ = self.player.update(&self.library);
                 self.settle_seek();
+                return self.decode_artwork();
             }
 
             Message::PlayPause
@@ -596,10 +602,30 @@ impl App {
 
             Message::SaveConfig => self.flush_config(),
 
+            Message::ArtDecoded(decoded) => {
+                let decoded = *decoded;
+                if let Some((key, master)) = decoded.master {
+                    self.artwork.keep_master(key, master);
+                }
+                self.artwork.insert(decoded.art);
+            }
+
             Message::Event(event) => return self.handle_event(&event),
             Message::Noop => {}
         }
         Task::none()
+    }
+
+    fn decode_artwork(&mut self) -> Task<Message> {
+        let jobs = self.artwork.take();
+        if jobs.is_empty() {
+            return Task::none();
+        }
+
+        Task::batch(
+            jobs.into_iter()
+                .map(|(job, master)| tasks::decode_art(job, master)),
+        )
     }
 
     fn finish_scan(&mut self, result: &Result<(), String>) {
@@ -615,6 +641,7 @@ impl App {
                     let live: Vec<i64> =
                         self.library.tracks().iter().filter_map(Track::id).collect();
                     self.selection.retain_listed(&live);
+                    self.artwork.forget(&live);
                     self.hovered = self.hovered.filter(|id| live.contains(id));
                     self.status = Some(format!("{} tracks", self.library.tracks().len()));
                     None
@@ -783,6 +810,7 @@ impl App {
             },
             tracks: self.context(),
             visible,
+            artwork: &self.artwork,
         };
 
         let pane = move |id, kind, edit, span| {
