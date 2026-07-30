@@ -28,11 +28,14 @@
 //! therefore answer smaller than asked, and panes must draw what they are given.
 //!
 //! Decoding costs tens of milliseconds, so `view` only records what is missing
-//! and [`Cache::take`] drains that in `update`. `pending` keeps a miss redrawn
-//! sixty times a second down to one job. `request` takes `&self` because `view`
+//! and [`Cache::take`] drains that after every message, whatever the message was.
+//! Draining on the playback tick alone left a grid of covers queued forever with
+//! nothing playing, since that tick does not run then. `pending` keeps a miss
+//! redrawn sixty times a second down to one job. `request` takes `&self` because `view`
 //! has only `&self`, which keeps [`crate::pane::view::Shared`] `Copy`; it must
 //! touch a hit rather than peek, so anything on screen is too recently used to be
 //! evicted beneath the pane drawing it.
+
 //!
 //! Between a track changing and its art arriving this answers `None`. Bridging
 //! that gap belongs to the pane, being a fact about what one pane drew last
@@ -141,6 +144,10 @@ impl Cache {
 
     pub fn resolved_empty(&self, track: i64) -> bool {
         self.sources.get(&track) == Some(&None)
+    }
+
+    pub fn is_idle(&self) -> bool {
+        self.wanted.borrow().is_empty()
     }
 
     pub fn take(&mut self) -> Vec<(Job, Option<Source>)> {
@@ -496,6 +503,33 @@ mod tests {
 
         assert!(cache.request(2, path(B), 200.0).is_some());
         assert!(cache.take().is_empty());
+    }
+
+    #[test]
+    fn a_queued_cover_reports_itself_as_work_to_do() {
+        let cache = Cache::new();
+        assert!(cache.is_idle(), "an untouched cache claimed work");
+
+        let _ = cache.request(1, path(A), 200.0);
+
+        assert!(
+            !cache.is_idle(),
+            "a queued cover left the cache looking idle, so the drain would be \
+             skipped and the request never spawned"
+        );
+    }
+
+    #[test]
+    fn draining_returns_the_cache_to_idle() {
+        let mut cache = Cache::new();
+        let _ = cache.request(1, path(A), 200.0);
+        let _ = cache.take();
+
+        assert!(
+            cache.is_idle(),
+            "a drained cache still claimed work, so every message would rebuild \
+             a task batch for nothing"
+        );
     }
 
     #[test]

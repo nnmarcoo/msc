@@ -49,7 +49,8 @@ use crate::app::{DropTarget, Message};
 use crate::artwork::Cache as ArtCache;
 use crate::layout::{Axis, DropZone, Locks, PaneId, PaneMetrics};
 use crate::pane::{
-    PaneKind, PaneMessage, PaneState, artwork, controls, library, queue, search, timeline, volume,
+    PaneKind, PaneMessage, PaneState, artwork, collections, controls, library, queue, search,
+    timeline, volume,
 };
 use crate::styles::{self, PAD};
 use crate::tracks::Context;
@@ -180,6 +181,7 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
             }
             _ => artwork::view(shared.tracks, shared.artwork, None),
         },
+        PaneKind::Collections => collections::view(shared.tracks, shared.artwork),
         PaneKind::Volume => volume::view(shared.playback.volume, shared.playback.muted),
         PaneKind::Search => search::view(shared.tracks, shared.visible.len()),
         _ => container(text(pane.kind.title()).size(18))

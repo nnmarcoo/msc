@@ -19,6 +19,7 @@
 #![allow(dead_code)]
 
 pub mod artwork;
+pub mod collections;
 pub mod controls;
 pub mod library;
 pub mod queue;
@@ -60,6 +61,7 @@ pub enum PaneKind {
     Albums,
     Artists,
     Playlists,
+    Collections,
     Folders,
     Queue,
     NowPlaying,
@@ -77,12 +79,13 @@ pub enum PaneKind {
 }
 
 impl PaneKind {
-    pub const ALL: [PaneKind; 19] = [
+    pub const ALL: [PaneKind; 20] = [
         PaneKind::Library,
         PaneKind::Search,
         PaneKind::Albums,
         PaneKind::Artists,
         PaneKind::Playlists,
+        PaneKind::Collections,
         PaneKind::Folders,
         PaneKind::Queue,
         PaneKind::NowPlaying,
@@ -106,6 +109,7 @@ impl PaneKind {
             PaneKind::Albums => "Albums",
             PaneKind::Artists => "Artists",
             PaneKind::Playlists => "Playlists",
+            PaneKind::Collections => "Collections",
             PaneKind::Folders => "Folders",
             PaneKind::Queue => "Queue",
             PaneKind::NowPlaying => "Now Playing",
@@ -130,6 +134,7 @@ impl PaneKind {
             | PaneKind::Albums
             | PaneKind::Artists
             | PaneKind::Playlists
+            | PaneKind::Collections
             | PaneKind::Folders => PaneCategory::Browse,
             PaneKind::Queue
             | PaneKind::NowPlaying
@@ -151,6 +156,7 @@ impl PaneKind {
             PaneKind::Albums => "records releases discography",
             PaneKind::Artists => "bands performers musicians",
             PaneKind::Playlists => "mixes sets collections",
+            PaneKind::Collections => "albums grid covers artwork browse library",
             PaneKind::Folders => "files directories browse disk",
             PaneKind::Queue => "up next playlist upcoming",
             PaneKind::NowPlaying => "current track player",
@@ -219,6 +225,7 @@ impl PaneState {
             | PaneKind::Albums
             | PaneKind::Artists
             | PaneKind::Playlists
+            | PaneKind::Collections
             | PaneKind::Folders
             | PaneKind::NowPlaying
             | PaneKind::Controls

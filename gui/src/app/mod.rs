@@ -198,6 +198,7 @@ pub enum Message {
     PlayTrack(i64),
     EnqueueTrack(i64),
     PlayTracks(Vec<i64>),
+    PlayAlbum(usize),
     EnqueueTracks(Vec<i64>),
     EnqueueTracksNext(Vec<i64>),
     RemoveFromQueue(usize),
@@ -458,6 +459,19 @@ impl App {
         }
     }
 
+    fn album_track_ids(&self, index: usize) -> Vec<i64> {
+        self.library
+            .albums()
+            .get(index)
+            .map(|album| {
+                self.library
+                    .album_tracks(album)
+                    .filter_map(Track::id)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
     fn selected_in_order(&self) -> Vec<i64> {
         self.selection.ordered_ids(self.visible_ids())
     }
@@ -496,6 +510,13 @@ impl App {
                     self.player.queue_mut().extend_next(rest.iter().copied());
                 }
             }
+            Message::PlayAlbum(index) => {
+                let ids = self.album_track_ids(index);
+                if let Some((&first, rest)) = ids.split_first() {
+                    let _ = self.player.play_now(&self.library, first);
+                    self.player.queue_mut().extend_next(rest.iter().copied());
+                }
+            }
             Message::EnqueueTracks(ids) => self.player.queue_mut().extend(ids),
             Message::EnqueueTracksNext(ids) => self.player.queue_mut().extend_next(ids),
             Message::RemoveFromQueue(index) => self.player.remove_from_queue(index),
@@ -510,11 +531,20 @@ impl App {
     }
 
     pub fn update(&mut self, message: Message) -> Task<Message> {
+        let task = self.dispatch(message);
+
+        if self.artwork.is_idle() {
+            return task;
+        }
+
+        Task::batch([task, self.decode_artwork()])
+    }
+
+    fn dispatch(&mut self, message: Message) -> Task<Message> {
         match message {
             Message::Tick => {
                 let _ = self.player.update(&self.library);
                 self.settle_seek();
-                return self.decode_artwork();
             }
 
             Message::PlayPause
@@ -529,6 +559,7 @@ impl App {
             | Message::PlayTrack(_)
             | Message::EnqueueTrack(_)
             | Message::PlayTracks(_)
+            | Message::PlayAlbum(_)
             | Message::EnqueueTracks(_)
             | Message::EnqueueTracksNext(_)
             | Message::RemoveFromQueue(_)
