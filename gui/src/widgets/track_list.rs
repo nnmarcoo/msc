@@ -24,10 +24,10 @@
 //! moving within one row emits nothing, since every message redraws the window
 //! and hover fires on every mouse motion.
 //!
-//! Selection lives in [`crate::tracks::Selection`] on the app, not here: it is
-//! keyed on track ids and read by other panes, so the widget reports what the
-//! user did ([`Op`]) and never decides what is selected. [`RowClick`] names what
-//! a click's modifiers meant, so the app never re-reads raw key state. Mouse
+//! Selection lives in [`crate::browsing::Selection`] on the app, not here:
+//! it is keyed on track ids and read by other panes, so the widget reports what
+//! the user did ([`Op`]) and never decides what is selected. [`RowClick`] names
+//! what a click's modifiers meant, so the app never re-reads raw key state. Mouse
 //! events carry no modifiers of their own, so `State::modifiers` tracks them
 //! from the keyboard events that do report them and reads them back on a press.
 //!
@@ -74,8 +74,8 @@ use iced::{
 use verse_core::Track;
 
 use crate::app::RowClick;
+use crate::browsing::Context;
 use crate::styles::radius;
-use crate::tracks::Context;
 
 pub const ROW_HEIGHT: f32 = 26.0;
 pub const HEADER_HEIGHT: f32 = 24.0;

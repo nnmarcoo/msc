@@ -1,15 +1,29 @@
-//! Track state shared by every pane that shows tracks.
+//! Browsing state: what the user has searched, selected, and pointed at, and
+//! the tracks and albums that follow from it.
 //!
-//! Search, selection, and hover are properties of a *track*, not of the pane
+//! Named for the act rather than for what it holds, since the query, the
+//! selection and the hover are one activity and separating them into modules
+//! would split state that is always read together. This is not
+//! [`crate::pane::PaneCategory::Browse`], which groups pane *kinds* in the
+//! picker; nothing here knows about panes.
+//!
+//! Search, selection, and hover are properties of the *music*, not of the pane
 //! that happens to display it, so they live on the app and reach panes through
 //! [`Context`] rather than through per-pane state. Hovering a row in the library
 //! therefore lights the same track up in the queue without the two panes knowing
 //! about each other: neither reads the other's state, both read this.
 //!
-//! That split is the rule for where new state goes. Anything keyed on a track id
-//! belongs here; anything describing how one pane draws, such as its scroll offset
-//! or column widths, belongs in that pane's own state, since two panes of the same
-//! kind must be able to disagree about it.
+//! That split is the rule for where new state goes. Anything the query or the
+//! selection decides belongs here; anything describing how one pane draws, such
+//! as its scroll offset or column widths, belongs in that pane's own state, since
+//! two panes of the same kind must be able to disagree about it.
+//!
+//! Albums appear here despite the state being keyed on track ids, because an
+//! album's search behaviour is defined entirely by its tracks: `matching_albums`
+//! keeps an album when any of its tracks matches, so it is the track filter with
+//! a grouping step rather than a second rule. What is *not* here is navigation
+//! over the album list itself, which is [`verse_core::Library`]'s: this module
+//! owns what the search selects, not how the library is indexed.
 //!
 //! [`Selection`] holds track ids rather than row indices because the rows a pane
 //! shows are a filtered, ordered view that changes under it. An index-keyed
@@ -25,21 +39,62 @@
 //! fails.
 //!
 //! [`Context`] is built once per frame in the app's view and handed down; panes
-//! read it and never own it. `visible` drops missing files, since a pane lists
-//! what can actually be played, and [`RowState`] carries the three flags a row
-//! draws from. They are independent rather than ranked, because a track can be
-//! playing, selected, and hovered at once and the widget layers them.
+//! read it and never own it. `matching_tracks` drops missing files, since a pane
+//! lists what can actually be played, and [`RowState`] carries the three flags a
+//! row draws from. They are independent rather than ranked, because a track can
+//! be playing, selected, and hovered at once and the widget layers them.
 //!
-//! `visible` re-filters the library every frame rather than caching the rows,
-//! since a row index only means anything against the list the click was made
-//! on. That makes the filter itself the thing that has to be cheap, so
-//! `contains_fold` allocates nothing for the ASCII tags that are almost all of
-//! them: it compares case-insensitively in place. Lowercasing every field of
-//! every track instead, as this first did, allocated five strings per track per
-//! frame and cost more than the frame budget on a large library, where the search
-//! alone was slower than drawing. Non-ASCII text still falls back to a real
-//! `to_lowercase`, so a query matches `Björk` the way it always did; only the
-//! rows that need Unicode folding pay for it.
+//! [`Query`] is the search text after trimming and lowercasing, and it exists so
+//! that normalisation happens once at construction rather than at each place that
+//! filters. `contains_fold` needs its needle already lowercased, which as a bare
+//! convention is a precondition living only in the caller's head: a filter that
+//! forgot the `trim` or the `to_lowercase` would not fail, it would quietly match
+//! a different set of tracks than the pane beside it. Making the normalised query
+//! a type means the un-normalised one cannot be passed, and every pane filters by
+//! the same rule because there is only one rule to apply.
+//!
+//! Both filters are iterators rather than lists, so a caller that only wants ids
+//! or keys never materialises the tracks and albums in between. [`crate::app`]
+//! is that caller: it collects each once per change, so nothing here is called
+//! per frame and the intermediate `Vec`s a collecting filter would build do not
+//! exist. Returning `Vec`s cost two throwaway allocations per keystroke for
+//! exactly no benefit, since neither list was ever read as a list.
+//!
+//! The filter itself still has to be cheap, because it walks the whole library
+//! on every keystroke. `contains_fold` allocates nothing for the ASCII tags that
+//! are almost all of them: it compares case-insensitively in place. Lowercasing
+//! every field of every track instead, as this first did, allocated five strings
+//! per track and cost more than the frame budget on a large library, where the
+//! search alone was slower than drawing. Non-ASCII text still falls back to a
+//! real `to_lowercase`, so a query matches `Björk` the way it always did; only
+//! the rows that need Unicode folding pay for it.
+//!
+//! `matching_albums` applies that same query to collections, so one field filters
+//! every pane that lists music rather than only the ones listing tracks. An album
+//! is kept when any of its available tracks matches, which is why it reuses
+//! [`Query::matches`] rather than testing the album's own name and artist: those
+//! are track tags too, so a query naming an album already matches every track on
+//! it, while one naming a single song keeps the album that song is on. Testing
+//! the album fields instead would hide an album whose title matched nothing while
+//! one of its tracks did, and a grid that omits the record holding the song you
+//! searched for is the wrong answer.
+//!
+//! That rule makes filtering albums walk every track, not every album, which is
+//! why the app caches the result rather than letting the grid recompute it: a
+//! pane of a few dozen covers would otherwise cost a full library scan per frame.
+//! The empty query short-circuits before touching a track, since it is the common
+//! case and every album is kept anyway. Turning cached keys back into albums is
+//! [`verse_core::Library::albums_by_key`], which lives there rather than here
+//! because it is navigation over the album list with no query in it; this module
+//! owns what the search selects, not how the library is indexed.
+//!
+//! Missing files are dropped from both, and both ask the library for available
+//! tracks rather than testing `missing` themselves, so the two cannot drift apart
+//! about what is playable. The check cannot be hoisted to the album, since an
+//! album with one missing track is still playable; `album_tracks_available`
+//! therefore filters the tracks and the album is kept when any survivor matches.
+//! An album whose every track is missing leaves the grid, which is the same rule
+//! the library pane applies to its rows.
 //!
 //! `retain_listed` is only ever called with the *unfiltered* library, never with
 //! the rows a search left on screen: narrowing a query would otherwise discard a
@@ -86,7 +141,7 @@
 
 use std::collections::BTreeSet;
 
-use verse_core::{Library, Queue, Track};
+use verse_core::{Album, Library, Queue, Track};
 
 #[derive(Clone, Copy)]
 pub struct QueueRow<'a> {
@@ -113,12 +168,27 @@ pub struct Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    pub fn visible(&self) -> Vec<&'a Track> {
-        let query = self.search.trim().to_lowercase();
+    pub fn query(&self) -> Query {
+        Query::new(self.search)
+    }
+
+    pub fn matching_tracks(&self) -> impl Iterator<Item = &'a Track> {
+        let query = self.query();
         self.library
             .available()
-            .filter(|track| matches(track, &query))
-            .collect()
+            .filter(move |track| query.matches(track))
+    }
+
+    pub fn matching_albums(&self) -> impl Iterator<Item = &'a Album> {
+        let query = self.query();
+        let filtering = !query.is_empty();
+        let library = self.library;
+        library.albums().iter().filter(move |album| {
+            !filtering
+                || library
+                    .album_tracks_available(album)
+                    .any(|track| query.matches(track))
+        })
     }
 
     pub fn queued(&self, show_history: bool) -> Vec<QueueRow<'a>> {
@@ -180,16 +250,39 @@ pub struct RowState {
     pub playing: bool,
 }
 
-fn matches(track: &Track, query_lower: &str) -> bool {
-    if query_lower.is_empty() {
-        return true;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Query {
+    needle: String,
+}
+
+impl Query {
+    pub fn new(search: &str) -> Self {
+        Self {
+            needle: search.trim().to_lowercase(),
+        }
     }
-    let field = |value: Option<&str>| value.is_some_and(|value| contains_fold(value, query_lower));
-    field(track.title())
-        || field(track.track_artist())
-        || field(track.album())
-        || field(track.album_artist())
-        || field(track.genre())
+
+    pub fn is_empty(&self) -> bool {
+        self.needle.is_empty()
+    }
+
+    pub fn matches_field(&self, value: Option<&str>) -> bool {
+        if self.is_empty() {
+            return true;
+        }
+        value.is_some_and(|value| contains_fold(value, &self.needle))
+    }
+
+    pub fn matches(&self, track: &Track) -> bool {
+        if self.is_empty() {
+            return true;
+        }
+        self.matches_field(track.title())
+            || self.matches_field(track.track_artist())
+            || self.matches_field(track.album())
+            || self.matches_field(track.album_artist())
+            || self.matches_field(track.genre())
+    }
 }
 
 fn contains_fold(haystack: &str, needle_lower: &str) -> bool {
@@ -491,6 +584,65 @@ mod tests {
         {
             selection.select(index, id);
         }
+    }
+
+    #[test]
+    fn a_query_normalises_once_however_it_was_typed() {
+        let canonical = Query::new("monday");
+        for typed in ["monday", "Monday", "MONDAY", "  monday  ", "\tMonday\n"] {
+            assert_eq!(
+                Query::new(typed),
+                canonical,
+                "{typed:?} filtered by a different rule than the same query typed plainly"
+            );
+        }
+    }
+
+    #[test]
+    fn a_blank_query_is_empty_so_nothing_is_filtered() {
+        for typed in ["", "   ", "\t\n"] {
+            assert!(
+                Query::new(typed).is_empty(),
+                "{typed:?} would have been searched for literally"
+            );
+        }
+    }
+
+    /// The rule [`Context::matching_albums`] applies, over the fields alone.
+    /// `Library` has no test constructor, so the albums it filters cannot be
+    /// built here; what can be checked is which album a query keeps, which is
+    /// whether *any* of its tracks match rather than the album's own title.
+    fn album_kept(query: &str, track_fields: &[&str]) -> bool {
+        let query = Query::new(query);
+        query.is_empty()
+            || track_fields
+                .iter()
+                .any(|field| query.matches_field(Some(field)))
+    }
+
+    #[test]
+    fn an_album_is_kept_when_one_of_its_tracks_matches() {
+        assert!(
+            album_kept("sympathy", &["Safe From Harm", "Unfinished Sympathy"]),
+            "an album holding the searched-for song was dropped from the grid"
+        );
+    }
+
+    #[test]
+    fn an_album_whose_tracks_all_miss_is_dropped() {
+        assert!(!album_kept(
+            "zzz",
+            &["Safe From Harm", "Unfinished Sympathy"]
+        ));
+    }
+
+    #[test]
+    fn an_empty_query_keeps_every_album() {
+        assert!(album_kept("", &["anything"]));
+        assert!(
+            album_kept("   ", &[]),
+            "a blank query dropped an album with no tracks to test"
+        );
     }
 
     #[test]

@@ -30,8 +30,8 @@ use iced::{ContentFit, Element, Length};
 
 use crate::app::Message;
 use crate::artwork::Cache;
+use crate::browsing::Context;
 use crate::styles::{self, PAD};
-use crate::tracks::Context;
 
 const ICON_PANE: &[u8] = include_bytes!("../../../assets/icons/pane.svg");
 const ICON_SCALE: f32 = 0.28;

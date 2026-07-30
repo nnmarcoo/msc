@@ -89,8 +89,8 @@ use iced::widget::{Space, button, column, container, responsive, row, text};
 use iced::{Element, Length};
 
 use crate::app::Message as AppMessage;
+use crate::browsing::Context;
 use crate::styles::{LABEL_FONT_SIZE, PAD};
-use crate::tracks::Context;
 use crate::widgets::marquee::{self, marquee};
 use crate::widgets::rating::Rating;
 use crate::widgets::timeline::{Op, Timeline, clock};

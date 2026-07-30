@@ -4,7 +4,7 @@
 //! its own and two search panes show the same text. That is the intended
 //! behaviour, not a limitation: the query describes which tracks are interesting
 //! right now, which is a fact about the library and not about a pane. See
-//! [`crate::tracks`].
+//! [`crate::browsing`].
 //!
 //! An untouched pane and a cleared one are the same thing. An empty query means
 //! no filter, so the library shows everything either way and there is no state
@@ -20,8 +20,8 @@ use iced::widget::container;
 use iced::{Element, Length};
 
 use crate::app::Message;
+use crate::browsing::Context;
 use crate::styles::PAD;
-use crate::tracks::Context;
 use crate::widgets::search_bar::SearchBar;
 
 pub fn view(tracks: Context<'_>, matched: usize) -> Element<'_, Message> {

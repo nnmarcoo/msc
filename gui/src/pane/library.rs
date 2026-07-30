@@ -2,7 +2,7 @@
 //!
 //! The pane owns no search state of its own. Query, selection, and hover are
 //! properties of a track rather than of a pane, so they live on the app and
-//! arrive through [`Context`]; see [`crate::tracks`]. Two library panes
+//! arrive through [`Context`]; see [`crate::browsing`]. Two library panes
 //! therefore show the same filter and the same highlights, which is what makes
 //! hovering a row here light the same track up in the queue.
 //!
@@ -17,8 +17,8 @@ use iced::{Element, Length, Theme};
 use verse_core::Track;
 
 use crate::app::Message;
+use crate::browsing::Context;
 use crate::styles::PAD;
-use crate::tracks::Context;
 use crate::widgets::context_menu::{ContextMenu, Entry};
 use crate::widgets::track_list::{Op, TrackList, header};
 

@@ -64,8 +64,8 @@ use iced::{
 
 use std::sync::LazyLock;
 
+use crate::browsing::{Context, QueueRow, Slot};
 use crate::styles::radius;
-use crate::tracks::{Context, QueueRow, Slot};
 
 const ICON_CLOSE: &[u8] = include_bytes!("../../../assets/icons/close.svg");
 const ICON_PLAYING: &[u8] = include_bytes!("../../../assets/icons/play.svg");

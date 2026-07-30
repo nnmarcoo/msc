@@ -6,24 +6,44 @@
 //!
 //! Track state (`search`, `selection`, `hovered`) is held here rather than per
 //! pane, because it is keyed on track ids that every pane showing tracks reads;
-//! see [`crate::tracks`]. [`RowClick`] names what a click's modifiers meant so
-//! that raw key state is interpreted once, in the widget.
+//! see [`crate::browsing`]. [`RowClick`] names what a click's modifiers
+//! meant so that raw key state is interpreted once, in the widget.
 //!
-//! `visible_ids` caches the ids the query matches, refreshed by
-//! `refresh_visible` wherever the query or the library changes and nowhere
-//! else. Every pane listing tracks reads it, and `update` resolves row indices
-//! against it, so the filter runs once per change rather than once per pane per
-//! frame, which on a large library cost more than the frame budget by itself.
+//! `visible_ids` and `visible_albums` cache what the query matches, refreshed
+//! together by `refresh_visible` wherever the query or the library changes and
+//! nowhere else. Every pane listing tracks or covers reads them, and `update`
+//! resolves row indices against the ids, so each filter runs once per change
+//! rather than once per pane per frame, which on a large library cost more than
+//! the frame budget by itself.
 //!
-//! The cache holds ids rather than `&Track` because a `Vec<&Track>` on `App`
-//! would borrow from `App`. Panes resolve the ids against `library` when they
-//! draw, which is a map lookup per visible row.
+//! The album cache matters for the same reason and is easy to miss: an album is
+//! kept when any of its tracks matches, so filtering the grid walks the whole
+//! library rather than the album list. Recomputing it in `view` therefore made a
+//! pane of a few dozen covers cost a full library scan per frame, which is the
+//! cost `visible_ids` already exists to avoid. Both caches are filled from one
+//! [`crate::browsing::Context`], so they cannot disagree about the query
+//! they were built from.
+//!
+//! Both hold owned keys rather than references because a `Vec<&Track>` or
+//! `Vec<&Album>` on `App` would borrow from `App`, which Rust cannot express.
+//! Panes resolve them against `library` when they draw, which is a map lookup
+//! per visible row and a scan per drawn cover.
 //!
 //! A cached list is normally the thing to avoid here, since a row index only
 //! means anything against the list the click was made on. What makes it safe is
-//! that the query and the library are the filter's only two inputs: refreshing
-//! on both leaves nothing that can change without the cache knowing. Adding a
-//! third input to the filter means adding a `refresh_visible` call with it.
+//! that the query and the library are the filters' only two inputs: refreshing
+//! on both leaves nothing that can change without the caches knowing. Adding a
+//! third input to either filter means adding a `refresh_visible` call with it.
+//!
+//! `album_track_ids` resolves a clicked cover through `visible_albums`, the same
+//! cache the grid drew from, so the tile's number and the album it names cannot
+//! disagree. Resolving against `library.albums()` instead was the bug this
+//! replaced: that list is unfiltered, so under a query the number pointed at a
+//! different record entirely. An index is only ever meaningful against one list,
+//! and naming which one is what makes it safe rather than avoiding it — the same
+//! reason [`crate::browsing::Selection`] pairs its anchor index with the id it
+//! pointed at. A stale click resolves to nothing and plays nothing, since the
+//! cache and the grid refresh together.
 //!
 //! A selection deliberately survives a query change: tracks filtered off screen
 //! stay selected, so clearing a search restores what was picked before it. Only
@@ -96,15 +116,15 @@ use std::time::Duration;
 use iced::time::every;
 use iced::widget::container;
 use iced::{Element, Event, Length, Subscription, Task, Theme, event, keyboard, window};
-use verse_core::{Library, Player, Track};
+use verse_core::{AlbumKey, Library, Player, Track};
 
 use crate::artwork::{Cache as ArtCache, Decoded};
+use crate::browsing::{Context, Selection};
 use crate::config::Config;
 use crate::layout::{Axis, DropZone, Layout, PaneId, PaneMetrics, SplitPath};
 use crate::pane::{PaneKind, PaneMessage, PaneStates, view as pane_view};
 use crate::styles;
 use crate::tasks;
-use crate::tracks::{Context, Selection};
 
 pub struct App {
     library: Library,
@@ -124,6 +144,7 @@ pub struct App {
     hovered: Option<i64>,
 
     visible_ids: Vec<i64>,
+    visible_albums: Vec<AlbumKey>,
 
     scanning: bool,
     seeking: Option<f32>,
@@ -271,6 +292,7 @@ impl App {
             selection: Selection::default(),
             hovered: None,
             visible_ids: Vec::new(),
+            visible_albums: Vec::new(),
             scanning: false,
             seeking: None,
             config_dirty: false,
@@ -319,29 +341,16 @@ impl App {
         self.config_dirty = false;
     }
 
-    fn visible(&self) -> Vec<&Track> {
-        self.context().visible()
-    }
-
-    /// Refills the cached ids of the rows the query matches.
-    ///
-    /// The cache holds ids rather than `&Track` because a `Vec<&Track>` stored
-    /// on `App` would borrow from `App`, which Rust cannot express. Ids are
-    /// `Copy` and own nothing, so the panes resolve them against `library` in
-    /// `view` and the filter itself runs once per change rather than once per
-    /// pane per frame.
-    ///
-    /// This is the caching [`crate::tracks`] warns against, made safe by *when*
-    /// it is refreshed: the query and the library are the filter's only inputs,
-    /// so refilling wherever either changes leaves nothing that can go stale.
-    /// The rule guards against a list that changed without the cache knowing,
-    /// not against caching as such.
     fn refresh_visible(&mut self) {
-        self.visible_ids = self
-            .visible()
-            .iter()
-            .filter_map(|track| track.id())
+        let context = self.context();
+        let ids = context.matching_tracks().filter_map(Track::id).collect();
+        let albums = context
+            .matching_albums()
+            .map(|album| album.key.clone())
             .collect();
+
+        self.visible_ids = ids;
+        self.visible_albums = albums;
     }
 
     fn set_volume(&mut self, volume: f32) {
@@ -459,10 +468,10 @@ impl App {
         }
     }
 
-    fn album_track_ids(&self, index: usize) -> Vec<i64> {
-        self.library
-            .albums()
-            .get(index)
+    fn album_track_ids(&self, shown: usize) -> Vec<i64> {
+        self.visible_albums
+            .get(shown)
+            .and_then(|key| self.library.albums().iter().find(|album| album.key == *key))
             .map(|album| {
                 self.library
                     .album_tracks(album)
@@ -510,8 +519,8 @@ impl App {
                     self.player.queue_mut().extend_next(rest.iter().copied());
                 }
             }
-            Message::PlayAlbum(index) => {
-                let ids = self.album_track_ids(index);
+            Message::PlayAlbum(shown) => {
+                let ids = self.album_track_ids(shown);
                 if let Some((&first, rest)) = ids.split_first() {
                     let _ = self.player.play_now(&self.library, first);
                     self.player.queue_mut().extend_next(rest.iter().copied());
@@ -841,6 +850,7 @@ impl App {
             },
             tracks: self.context(),
             visible,
+            visible_albums: &self.visible_albums,
             artwork: &self.artwork,
         };
 

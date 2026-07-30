@@ -45,15 +45,17 @@ use iced::widget::svg::Handle;
 use iced::widget::{button, column, container, mouse_area, responsive, row, stack, svg, text};
 use iced::{Element, Length};
 
+use verse_core::AlbumKey;
+
 use crate::app::{DropTarget, Message};
 use crate::artwork::Cache as ArtCache;
+use crate::browsing::Context;
 use crate::layout::{Axis, DropZone, Locks, PaneId, PaneMetrics};
 use crate::pane::{
     PaneKind, PaneMessage, PaneState, artwork, collections, controls, library, queue, search,
     timeline, volume,
 };
 use crate::styles::{self, PAD};
-use crate::tracks::Context;
 use crate::widgets::pane_picker::PanePicker;
 use crate::widgets::tooltip::tip;
 
@@ -89,6 +91,7 @@ pub struct Shared<'a> {
     pub playback: Playback,
     pub tracks: Context<'a>,
     pub visible: &'a [i64],
+    pub visible_albums: &'a [AlbumKey],
     pub artwork: &'a ArtCache,
 }
 
@@ -181,7 +184,9 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
             }
             _ => artwork::view(shared.tracks, shared.artwork, None),
         },
-        PaneKind::Collections => collections::view(shared.tracks, shared.artwork),
+        PaneKind::Collections => {
+            collections::view(shared.tracks, shared.visible_albums, shared.artwork)
+        }
         PaneKind::Volume => volume::view(shared.playback.volume, shared.playback.muted),
         PaneKind::Search => search::view(shared.tracks, shared.visible.len()),
         _ => container(text(pane.kind.title()).size(18))

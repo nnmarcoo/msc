@@ -30,10 +30,30 @@
 //! show as bare placeholders — a hover label is the answer there, when the pane
 //! grows the interaction to hang it on.
 //!
-//! A tile names the album by its index and nothing else, so the ids it would play
+//! The grid is filtered by the search pane, so one field narrows the covers the
+//! same way it narrows a track list; [`crate::browsing`] holds the rule for
+//! which albums a query keeps. The two empty states are different messages: a
+//! library with no albums at all is not a search that matched none of them, and
+//! saying "No albums" under a query would read as a library that had lost them.
+//!
+//! A tile names the album by its key and nothing else, so the ids it would play
 //! are gathered in `update` when it is clicked rather than per tile per frame. A
 //! `Vec` built for every tile of every frame is a screenful of allocations for a
 //! list that is only ever read once, and never on most frames.
+//!
+//! The grid draws from the keys [`crate::app`] cached, turned back into albums by
+//! [`verse_core::Library::albums_by_key`]. Filtering here instead would walk every
+//! track in the library on every frame, since an album is kept by what its tracks
+//! match: a few dozen covers would cost a full library scan sixty times a second.
+//!
+//! A tile's number is its position in *that cached list*, which is the same list
+//! `update` resolves it against. Which list is the whole point: numbering against
+//! the unfiltered library instead meant a click under a query played whichever
+//! album sat that far down the full list, since the two lists agree only when
+//! nothing is filtered. Carrying the [`verse_core::AlbumKey`] would also be
+//! unambiguous, but a key is two `String`s and a tile builds its message every
+//! frame, so a screenful of covers cloned a screenful of strings sixty times a
+//! second to name something a `usize` already names exactly.
 //!
 //! The tile is a plain `button` rather than a `mouse_area` wrapping one. A button
 //! with no `on_press` reports `Status::Disabled` and never `Hovered`, so the
@@ -43,21 +63,29 @@
 use iced::widget::{Space, button, column, container, image, row, scrollable, text};
 use iced::{ContentFit, Element, Length};
 
-use verse_core::Album;
+use verse_core::{Album, AlbumKey};
 
 use crate::app::Message;
 use crate::artwork::Cache;
+use crate::browsing::Context;
 use crate::styles::{self, PAD};
-use crate::tracks::Context;
 
 const MIN_CELL: f32 = 120.0;
 const MAX_COLUMNS: usize = 12;
 const GAP: f32 = PAD * 2.0;
 
-pub fn view<'a>(tracks: Context<'a>, art: &'a Cache) -> Element<'a, Message> {
-    let albums = tracks.library.albums();
+pub fn view<'a>(
+    tracks: Context<'a>,
+    visible: &'a [AlbumKey],
+    art: &'a Cache,
+) -> Element<'a, Message> {
+    if tracks.library.albums().is_empty() {
+        return empty("No albums");
+    }
+
+    let albums: Vec<&'a Album> = tracks.library.albums_by_key(visible);
     if albums.is_empty() {
-        return empty();
+        return empty("No matching albums");
     }
 
     iced::widget::responsive(move |size| {
@@ -120,7 +148,7 @@ pub fn layout(width: f32, albums: usize) -> Option<Grid> {
 
 fn tile<'a>(
     album: &'a Album,
-    index: usize,
+    shown: usize,
     tracks: Context<'a>,
     art: &'a Cache,
     cell: f32,
@@ -148,12 +176,12 @@ fn tile<'a>(
     button(face)
         .padding(0)
         .style(styles::tile_style)
-        .on_press(Message::PlayAlbum(index))
+        .on_press(Message::PlayAlbum(shown))
         .into()
 }
 
-fn empty<'a>() -> Element<'a, Message> {
-    container(text("No albums").size(14).style(|theme: &iced::Theme| {
+fn empty(message: &str) -> Element<'_, Message> {
+    container(text(message).size(14).style(|theme: &iced::Theme| {
         text::Style {
             color: Some(
                 theme
@@ -174,29 +202,56 @@ fn empty<'a>() -> Element<'a, Message> {
 mod tests {
     use super::*;
 
-    /// Tiles are numbered down the grid rather than across each row, since a
-    /// click carries that number and `update` resolves it against the album list
-    /// in its own order. Getting this wrong plays a different album than the one
-    /// pointed at, which nothing else would catch.
-    #[test]
-    fn tiles_are_numbered_in_the_order_the_albums_are_listed() {
-        for columns in 1..6 {
-            let numbered: Vec<usize> = (0..11)
-                .collect::<Vec<usize>>()
-                .chunks(columns)
-                .enumerate()
-                .flat_map(|(line, chunk)| {
-                    let first = line * columns;
-                    (0..chunk.len()).map(move |offset| first + offset)
-                })
-                .collect();
+    /// The number each tile carries, which is its index into the visible list
+    /// `update` resolves against. The grid is built from `chunks`, so the number
+    /// is reconstructed from the row and the position within it; getting that
+    /// arithmetic wrong plays a different album than the one clicked, and only
+    /// the covers on the first row would look right.
+    fn numbering(albums: usize, columns: usize) -> Vec<usize> {
+        (0..albums)
+            .collect::<Vec<usize>>()
+            .chunks(columns)
+            .enumerate()
+            .flat_map(|(line, chunk)| {
+                let first = line * columns;
+                (0..chunk.len()).map(move |offset| first + offset)
+            })
+            .collect()
+    }
 
+    #[test]
+    fn a_tile_is_numbered_by_its_place_in_the_visible_list() {
+        for columns in 1..6 {
             assert_eq!(
-                numbered,
+                numbering(11, columns),
                 (0..11).collect::<Vec<usize>>(),
                 "in {columns} columns a tile would play the wrong album"
             );
         }
+    }
+
+    /// The bug the numbering replaced, stated as the difference it turns on: a
+    /// tile's number indexes the *visible* list, so a filter that drops earlier
+    /// albums does not shift what the remaining covers play. Resolving the same
+    /// number against the unfiltered library picks a different record.
+    #[test]
+    fn filtering_does_not_shift_what_a_cover_plays() {
+        let library = ["Blue Lines", "Mezzanine", "Protection"];
+        let visible: Vec<&str> = library
+            .iter()
+            .copied()
+            .filter(|name| *name != "Blue Lines")
+            .collect();
+
+        for (shown, name) in numbering(visible.len(), 2).into_iter().zip(&visible) {
+            assert_eq!(visible[shown], *name);
+        }
+
+        assert_ne!(
+            library[numbering(visible.len(), 2)[0]],
+            visible[0],
+            "the filter dropped nothing, so this proves nothing"
+        );
     }
 
     #[test]

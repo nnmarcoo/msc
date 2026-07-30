@@ -22,8 +22,8 @@ use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Element, Length};
 
 use crate::app::Message as AppMessage;
+use crate::browsing::{Context, Slot};
 use crate::styles::{self, LABEL_FONT_SIZE, PAD};
-use crate::tracks::{Context, Slot};
 use crate::widgets::context_menu::{ContextMenu, Entry};
 use crate::widgets::queue_list::{Op, QueueList};
 

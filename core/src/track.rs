@@ -119,6 +119,10 @@ impl Track {
         self.missing
     }
 
+    pub fn available(&self) -> bool {
+        !self.missing
+    }
+
     pub fn title(&self) -> Option<&str> {
         self.title.as_deref()
     }

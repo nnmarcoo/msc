@@ -8,7 +8,7 @@
 //!
 //! The bar reports what the user typed and nothing else. The query itself is
 //! app state, shared by every pane that lists tracks, so two search panes show
-//! the same text and stay in sync; see [`crate::tracks`].
+//! the same text and stay in sync; see [`crate::browsing`].
 //!
 //! The clear button occupies its slot only when there is something to clear.
 //! A permanently visible one reads as a control that does nothing most of the

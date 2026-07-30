@@ -1,3 +1,25 @@
+//! The in-memory library: every track, and the albums grouped from them.
+//!
+//! Tracks are loaded whole and filtered on the way out rather than in SQL, so
+//! `tracks` holds everything the database knows and [`Library::available`] is
+//! what a caller listing playable music asks for. [`Track::available`] is the
+//! single definition of that rule; nothing outside should test `missing` itself,
+//! or two views of the same library will disagree about what can be played.
+//! [`Library::album_tracks_available`] applies the same rule within one album,
+//! which is why an album with one missing track is still listed while one with
+//! no playable tracks at all is not.
+//!
+//! [`Library::albums_by_key`] resolves keys back to albums in a single pass,
+//! advancing through `albums` in step with the keys rather than searching for
+//! each one. That requires the keys to arrive in `albums` order, which holds for
+//! their only source: a filtered view of that same list. Keys in another order
+//! resolve only the ones that happen to fall in sequence, so this is a lookup for
+//! a caller narrowing the album list, not a general one. Callers holding
+//! arbitrary keys want a scan per key, and should not use this.
+//!
+//! A key that no longer matches any album is skipped rather than faulted, since
+//! a rescan can retire an album while a cached view of it is still in flight.
+
 use rayon::prelude::*;
 use std::{
     collections::HashMap,
@@ -7,7 +29,7 @@ use std::{
 use thiserror::Error;
 use walkdir::WalkDir;
 
-use crate::{Album, Playlist, Track, album, db::Database, track};
+use crate::{Album, AlbumKey, Playlist, Track, album, db::Database, track};
 
 const AUDIO_EXTENSIONS: &[&str] = &["mp3", "flac", "wav", "ogg", "m4a", "aac"];
 
@@ -87,7 +109,7 @@ impl Library {
     }
 
     pub fn available(&self) -> impl Iterator<Item = &Track> {
-        self.tracks.iter().filter(|t| !t.missing())
+        self.tracks.iter().filter(|t| t.available())
     }
 
     pub fn track(&self, id: i64) -> Option<&Track> {
@@ -104,6 +126,17 @@ impl Library {
 
     pub fn album_tracks(&self, album: &Album) -> impl Iterator<Item = &Track> {
         album.track_indices.iter().map(|&i| &self.tracks[i])
+    }
+
+    pub fn album_tracks_available(&self, album: &Album) -> impl Iterator<Item = &Track> {
+        self.album_tracks(album).filter(|t| t.available())
+    }
+
+    pub fn albums_by_key<'a>(
+        &'a self,
+        keys: impl IntoIterator<Item = &'a AlbumKey, IntoIter: ExactSizeIterator>,
+    ) -> Vec<&'a Album> {
+        albums_by_key(&self.albums, keys)
     }
 
     pub fn playlists(&self) -> &[Playlist] {
@@ -254,6 +287,25 @@ impl Library {
     }
 }
 
+fn albums_by_key<'a>(
+    albums: &'a [Album],
+    keys: impl IntoIterator<Item = &'a AlbumKey, IntoIter: ExactSizeIterator>,
+) -> Vec<&'a Album> {
+    let keys = keys.into_iter();
+    let mut resolved = Vec::with_capacity(keys.len());
+    let mut next = 0;
+
+    for key in keys {
+        if let Some(offset) = albums[next..].iter().position(|album| album.key == *key) {
+            let found = next + offset;
+            resolved.push(&albums[found]);
+            next = found + 1;
+        }
+    }
+
+    resolved
+}
+
 fn is_audio(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
@@ -264,6 +316,101 @@ fn database_path() -> Result<PathBuf, LibraryError> {
     directories::ProjectDirs::from("", "", "verse")
         .map(|dirs| dirs.data_dir().join("library.db"))
         .ok_or(LibraryError::DataDirNotFound)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn album(name: &str) -> Album {
+        Album {
+            key: AlbumKey {
+                name: name.to_owned(),
+                artist: None,
+            },
+            year: None,
+            track_indices: Vec::new(),
+        }
+    }
+
+    fn names(albums: &[&Album]) -> Vec<String> {
+        albums.iter().map(|a| a.name().to_owned()).collect()
+    }
+
+    #[test]
+    fn a_filtered_view_resolves_to_the_albums_it_named() {
+        let albums = [album("Blue Lines"), album("Mezzanine"), album("Protection")];
+        let keys = [albums[1].key.clone(), albums[2].key.clone()];
+
+        assert_eq!(
+            names(&albums_by_key(&albums, &keys)),
+            ["Mezzanine", "Protection"]
+        );
+    }
+
+    #[test]
+    fn resolving_stays_a_single_pass_however_sparse_the_view_is() {
+        let albums: Vec<Album> = (0..20).map(|n| album(&format!("Album {n}"))).collect();
+        let keys: Vec<AlbumKey> = albums.iter().step_by(7).map(|a| a.key.clone()).collect();
+
+        assert_eq!(
+            names(&albums_by_key(&albums, &keys)),
+            ["Album 0", "Album 7", "Album 14"]
+        );
+    }
+
+    #[test]
+    fn every_album_resolves_when_nothing_was_filtered() {
+        let albums: Vec<Album> = (0..8).map(|n| album(&format!("Album {n}"))).collect();
+        let keys: Vec<AlbumKey> = albums.iter().map(|a| a.key.clone()).collect();
+
+        assert_eq!(albums_by_key(&albums, &keys).len(), albums.len());
+    }
+
+    #[test]
+    fn a_key_that_left_the_library_is_skipped_rather_than_shifting_the_rest() {
+        let albums = [album("Blue Lines"), album("Protection")];
+        let stale = [
+            albums[0].key.clone(),
+            AlbumKey {
+                name: "Mezzanine".into(),
+                artist: None,
+            },
+            albums[1].key.clone(),
+        ];
+
+        assert_eq!(
+            names(&albums_by_key(&albums, &stale)),
+            ["Blue Lines", "Protection"],
+            "a rescanned-away album displaced the covers after it"
+        );
+    }
+
+    /// The precondition the single pass rests on. Keys out of `albums` order
+    /// resolve only what falls in sequence, which is why the header restricts
+    /// this to callers narrowing that same list.
+    #[test]
+    fn keys_out_of_order_are_not_all_found() {
+        let albums = [album("Blue Lines"), album("Mezzanine"), album("Protection")];
+        let reversed = [albums[2].key.clone(), albums[0].key.clone()];
+
+        assert_eq!(names(&albums_by_key(&albums, &reversed)), ["Protection"]);
+    }
+
+    #[test]
+    fn no_keys_resolve_to_no_albums() {
+        let albums = [album("Blue Lines")];
+        assert!(albums_by_key(&albums, &[]).is_empty());
+    }
+
+    #[test]
+    fn keys_against_an_empty_library_resolve_to_nothing() {
+        let key = AlbumKey {
+            name: "Blue Lines".into(),
+            artist: None,
+        };
+        assert!(albums_by_key(&[], &[key]).is_empty());
+    }
 }
 
 #[derive(Debug, Error)]
