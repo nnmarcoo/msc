@@ -77,10 +77,7 @@ pub fn divider_inert_style(theme: &Theme) -> container::Style {
 
 pub fn tile_style(theme: &Theme, status: button::Status) -> button::Style {
     let palette = theme.extended_palette();
-    let lit = matches!(
-        status,
-        button::Status::Hovered | button::Status::Pressed
-    );
+    let lit = matches!(status, button::Status::Hovered | button::Status::Pressed);
 
     button::Style {
         background: lit.then_some(Background::Color(palette.background.weak.color)),

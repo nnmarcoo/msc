@@ -70,9 +70,10 @@ pub fn view<'a>(tracks: Context<'a>, art: &'a Cache) -> Element<'a, Message> {
             .enumerate()
             .map(|(line, chunk)| {
                 let first = line * grid.columns;
-                let cells = chunk.iter().enumerate().map(|(offset, album)| {
-                    tile(album, first + offset, tracks, art, grid.cell)
-                });
+                let cells = chunk
+                    .iter()
+                    .enumerate()
+                    .map(|(offset, album)| tile(album, first + offset, tracks, art, grid.cell));
 
                 row(cells).spacing(GAP).into()
             });
@@ -152,20 +153,18 @@ fn tile<'a>(
 }
 
 fn empty<'a>() -> Element<'a, Message> {
-    container(
-        text("No albums")
-            .size(14)
-            .style(|theme: &iced::Theme| text::Style {
-                color: Some(
-                    theme
-                        .extended_palette()
-                        .background
-                        .base
-                        .text
-                        .scale_alpha(0.6),
-                ),
-            }),
-    )
+    container(text("No albums").size(14).style(|theme: &iced::Theme| {
+        text::Style {
+            color: Some(
+                theme
+                    .extended_palette()
+                    .background
+                    .base
+                    .text
+                    .scale_alpha(0.6),
+            ),
+        }
+    }))
     .center_x(Length::Fill)
     .center_y(Length::Fill)
     .into()
