@@ -140,7 +140,3 @@ replaced.
 
 Verse is entirely local. No telemetry, no analytics, no network requests. Your
 library stays on your machine.
-
-## License
-
-[GPL-3.0-only](LICENSE)
