@@ -137,10 +137,9 @@ impl PaneKind {
             | PaneKind::Timeline
             | PaneKind::Volume
             | PaneKind::History => PaneCategory::Playback,
-            PaneKind::Lyrics
-            | PaneKind::TrackInfo
-            | PaneKind::Artwork
-            | PaneKind::Visualiser => PaneCategory::Detail,
+            PaneKind::Lyrics | PaneKind::TrackInfo | PaneKind::Artwork | PaneKind::Visualiser => {
+                PaneCategory::Detail
+            }
             PaneKind::Equaliser | PaneKind::Settings | PaneKind::Empty => PaneCategory::Tools,
         }
     }

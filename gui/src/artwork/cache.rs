@@ -401,7 +401,11 @@ mod tests {
         for _ in 0..60 {
             let _ = cache.request(1, path(A), 200.0);
         }
-        assert_eq!(cache.take().len(), 1, "sixty frames queued more than one job");
+        assert_eq!(
+            cache.take().len(),
+            1,
+            "sixty frames queued more than one job"
+        );
 
         for _ in 0..60 {
             let _ = cache.request(1, path(A), 200.0);
@@ -472,7 +476,10 @@ mod tests {
             cache.request(2, path(B), 200.0).is_some(),
             "the second track did not reuse a cover already decoded"
         );
-        assert!(cache.take().is_empty(), "it queued work for art already held");
+        assert!(
+            cache.take().is_empty(),
+            "it queued work for art already held"
+        );
     }
 
     #[test]
@@ -566,7 +573,10 @@ mod tests {
         let mut cache = Cache::new();
 
         for n in 0..8u8 {
-            cache.keep_master(ArtKey::of(&[n]), Arc::new(image::RgbaImage::new(2048, 2048)));
+            cache.keep_master(
+                ArtKey::of(&[n]),
+                Arc::new(image::RgbaImage::new(2048, 2048)),
+            );
         }
 
         assert!(
@@ -578,7 +588,10 @@ mod tests {
     #[test]
     fn an_oversized_master_is_refused_rather_than_emptying_the_cache() {
         let mut cache = Cache::new();
-        cache.keep_master(ArtKey::of(&[1]), Arc::new(image::RgbaImage::new(8192, 8192)));
+        cache.keep_master(
+            ArtKey::of(&[1]),
+            Arc::new(image::RgbaImage::new(8192, 8192)),
+        );
 
         assert!(*cache.master_bytes.borrow() <= MASTER_BUDGET);
     }
@@ -592,7 +605,10 @@ mod tests {
         cache.keep_master(key, Arc::new(image::RgbaImage::new(64, 64)));
 
         for n in 1..8u8 {
-            cache.keep_master(ArtKey::of(&[n + 10]), Arc::new(image::RgbaImage::new(2048, 2048)));
+            cache.keep_master(
+                ArtKey::of(&[n + 10]),
+                Arc::new(image::RgbaImage::new(2048, 2048)),
+            );
         }
 
         assert!(
