@@ -248,6 +248,41 @@ pub fn pick_list_menu_style(theme: &Theme) -> iced::overlay::menu::Style {
     }
 }
 
+pub fn key_chip_style(theme: &Theme, status: button::Status) -> button::Style {
+    let palette = theme.extended_palette();
+    let background = match status {
+        button::Status::Hovered | button::Status::Pressed => palette.background.strong.color,
+        _ => palette.background.weak.color,
+    };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color: palette.background.base.text,
+        border: Border {
+            color: palette.background.strong.color,
+            width: 1.0,
+            radius: radius().into(),
+        },
+        ..Default::default()
+    }
+}
+
+pub fn capturing_chip_style(theme: &Theme, _status: button::Status) -> button::Style {
+    let palette = theme.extended_palette();
+    button::Style {
+        background: Some(Background::Color(
+            palette.primary.weak.color.scale_alpha(0.3),
+        )),
+        text_color: palette.background.base.text,
+        border: Border {
+            color: palette.primary.base.color,
+            width: 1.0,
+            radius: radius().into(),
+        },
+        ..Default::default()
+    }
+}
+
 pub fn pref_rule_style(theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Color(

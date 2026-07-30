@@ -73,15 +73,22 @@ content yet.
 
 ## Keys
 
+Every key below is rebindable in Preferences → Keybindings. These are the
+defaults.
+
 <table align="center">
   <thead>
     <tr><th>Key</th><th>Action</th></tr>
   </thead>
   <tbody>
     <tr><td><kbd>Space</kbd></td><td>Play / pause</td></tr>
+    <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>Previous / next track</td></tr>
+    <tr><td><kbd>m</kbd></td><td>Mute</td></tr>
+    <tr><td><kbd>r</kbd></td><td>Cycle loop mode</td></tr>
+    <tr><td><kbd>h</kbd></td><td>Shuffle queue</td></tr>
     <tr><td><kbd>e</kbd></td><td>Toggle edit mode</td></tr>
     <tr><td><kbd>s</kbd></td><td>Toggle preferences</td></tr>
-    <tr><td><kbd>1</kbd> to <kbd>9</kbd></td><td>Switch to layout preset</td></tr>
+    <tr><td><kbd>1</kbd> to <kbd>9</kbd>, <kbd>0</kbd></td><td>Switch to layout preset (ten slots)</td></tr>
   </tbody>
 </table>
 

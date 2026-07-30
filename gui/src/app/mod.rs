@@ -90,10 +90,22 @@
 //! there is no way to be in preferences without something to edit, and none of
 //! the layout messages can reach a tree that is not on screen.
 //!
-//! Toggling the mode off with `s` discards, exactly as Cancel does, since the
-//! key is a toggle rather than a commit and only Save says "keep this". Both
-//! paths restore the corner radius from the live config, which is the one edit
-//! that previews through a global instead of through the pending clone.
+//! Toggling the mode off discards, exactly as Cancel does, since the key is a
+//! toggle rather than a commit and only Save says "keep this". Both paths
+//! restore the corner radius from the live config, which is the one edit that
+//! previews through a global instead of through the pending clone.
+//!
+//! Keys reach [`crate::keybinds`] in every mode but one: while a keybind row is
+//! capturing, the next key *is* the binding, so it goes to the row rather than
+//! running whatever it is currently bound to. Capture is the gate rather than
+//! the preferences view itself, because gating on the view would kill the
+//! shortcut that closes it and leave the mouse as the only way out.
+//!
+//! With the view merely open, playback keys still work — a preferences window is
+//! no reason to be unable to pause — while edit mode and layout switching do
+//! not, since both address a pane tree that is not on screen. Layout switching
+//! also writes the config, so letting it run mid-edit would put the live config
+//! on disk in the middle of editing a copy of it.
 //!
 //! `Tick` drives animation, and `TICK` is 16ms because of it. Position comes
 //! from `Player::position` when `view` runs, so a frame is only as fresh as the
@@ -132,6 +144,7 @@ use verse_core::{AlbumKey, Library, Player, Track};
 use crate::artwork::{Cache as ArtCache, Decoded};
 use crate::browsing::{Context, Selection};
 use crate::config::Config;
+use crate::keybinds::Action;
 use crate::layout::{Axis, DropZone, Layout, PaneId, PaneMetrics, SplitPath};
 use crate::pane::{PaneKind, PaneMessage, PaneStates, view as pane_view};
 use crate::preferences::{self, PreferenceMessage, PreferenceOutcome, PreferenceState};
@@ -782,8 +795,12 @@ impl App {
             {
                 self.drop_pane();
             }
-            Event::Keyboard(keyboard::Event::KeyPressed { key, modifiers, .. }) => {
-                return self.handle_key(key, *modifiers);
+            Event::Keyboard(keyboard::Event::KeyPressed {
+                physical_key,
+                modifiers,
+                ..
+            }) => {
+                return self.handle_key(*physical_key, *modifiers);
             }
             _ => {}
         }
@@ -867,29 +884,44 @@ impl App {
         self.layout_mut().drag_divider(&path, delta, span);
     }
 
-    fn handle_key(&self, key: &keyboard::Key, modifiers: keyboard::Modifiers) -> Task<Message> {
-        use keyboard::key::Named;
+    fn handle_key(
+        &self,
+        physical: keyboard::key::Physical,
+        modifiers: keyboard::Modifiers,
+    ) -> Task<Message> {
+        if self.preference_state.capturing.is_some() {
+            return match preferences::capture_key(&self.preference_state, physical, modifiers) {
+                Some(message) => Task::done(Message::Preference(message)),
+                None => Task::none(),
+            };
+        }
 
-        match key {
-            keyboard::Key::Named(Named::Space) => Task::done(Message::PlayPause),
-            keyboard::Key::Character(character) if modifiers.is_empty() => {
-                if character.as_str() == "s" {
-                    return Task::done(Message::TogglePreferences);
-                }
-                if self.editing_config.is_some() {
-                    return Task::none();
-                }
-                if character.as_str() == "e" {
-                    return Task::done(Message::ToggleEditMode);
-                }
-                match character.parse::<usize>() {
-                    Ok(number) if (1..=self.layouts.len()).contains(&number) => {
-                        Task::done(Message::SelectLayout(number - 1))
-                    }
-                    _ => Task::none(),
+        let open = self.editing_config.is_some();
+
+        match self.config.keymap.resolve(physical, modifiers) {
+            Some(Action::PlayPause) => Task::done(Message::PlayPause),
+            Some(Action::Next) => Task::done(Message::Next),
+            Some(Action::Previous) => Task::done(Message::Previous),
+            Some(Action::ToggleMute) => Task::done(Message::ToggleMute),
+            Some(Action::CycleLoop) => Task::done(Message::CycleLoop),
+            Some(Action::Shuffle) => Task::done(Message::Shuffle),
+            Some(Action::TogglePreferences) => Task::done(Message::TogglePreferences),
+            Some(Action::ToggleEditMode) => {
+                if open {
+                    Task::none()
+                } else {
+                    Task::done(Message::ToggleEditMode)
                 }
             }
-            _ => Task::none(),
+            Some(Action::SelectLayout(slot)) => {
+                let index = usize::from(slot - 1);
+                if open || index >= self.layouts.len() {
+                    Task::none()
+                } else {
+                    Task::done(Message::SelectLayout(index))
+                }
+            }
+            None => Task::none(),
         }
     }
 

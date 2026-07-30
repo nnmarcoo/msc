@@ -4,6 +4,7 @@ mod app;
 mod artwork;
 mod browsing;
 mod config;
+mod keybinds;
 mod layout;
 mod pane;
 mod preferences;

@@ -35,36 +35,54 @@
 
 use iced::alignment::{Horizontal, Vertical};
 use iced::font::Weight;
+use iced::keyboard::{
+    self,
+    key::{self, Physical},
+};
 use iced::widget::scrollable::{Direction, Scrollbar};
 use iced::widget::svg::Handle;
 use iced::widget::{
     Space, button, column, container, pick_list, row, scrollable, svg, text, toggler,
 };
-use iced::{Element, Font, Length, Theme};
+use iced::{Color, Element, Font, Length, Theme};
 
 use crate::app::Message;
 use crate::config::{ALL_THEMES, Config};
+use crate::keybinds::{self, Action, KeyBinding, KeyCategory, Keymap};
 use crate::styles::{
     self, BAR_HEIGHT, PAD, PREF_CONTENT_MAX_WIDTH, PREF_SIDEBAR_WIDTH, RULE_HEIGHT, muted_text,
     set_radius,
 };
+use crate::widgets::hover_row::HoverRow;
 use crate::widgets::tooltip::tip;
 
 const ICON_CHECK: &[u8] = include_bytes!("../../assets/icons/check.svg");
 const ICON_CLOSE: &[u8] = include_bytes!("../../assets/icons/close.svg");
 
-const FOOTER_ICON: f32 = 16.0;
+const ICON_SIZE: f32 = 16.0;
+
+const CLEAR_SLOT: f32 = ICON_SIZE + PAD * 4.0;
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PrefSection {
     #[default]
     Appearance,
+    Keybindings,
     About,
+}
+
+#[derive(Debug, Clone)]
+pub struct Conflict {
+    pub winner: Action,
+    pub losers: Vec<Action>,
+    pub binding: KeyBinding,
 }
 
 #[derive(Default)]
 pub struct PreferenceState {
     pub section: PrefSection,
+    pub capturing: Option<Action>,
+    pub conflict: Option<Conflict>,
 }
 
 #[derive(Debug, Clone)]
@@ -72,10 +90,49 @@ pub enum PreferenceMessage {
     SelectSection(PrefSection),
     SetTheme(Theme),
     SetRounded(bool),
+    StartCapture(Action),
+    CancelCapture,
+    SetBinding(Action, KeyBinding),
+    ClearBinding(Action),
     ResetAppearance,
+    ResetKeybindings,
     ResetAll,
     Save,
     Cancel,
+}
+
+pub fn capture_key(
+    state: &PreferenceState,
+    physical: Physical,
+    modifiers: keyboard::Modifiers,
+) -> Option<PreferenceMessage> {
+    let action = state.capturing?;
+    let Physical::Code(code) = physical else {
+        return None;
+    };
+
+    if keybinds::is_modifier(code) {
+        return None;
+    }
+    if code == key::Code::Escape {
+        return Some(PreferenceMessage::CancelCapture);
+    }
+    if code == key::Code::Backspace && modifiers.is_empty() {
+        return Some(PreferenceMessage::ClearBinding(action));
+    }
+    if !keybinds::is_bindable(code) {
+        return None;
+    }
+
+    Some(PreferenceMessage::SetBinding(
+        action,
+        KeyBinding {
+            ctrl: modifiers.control(),
+            shift: modifiers.shift(),
+            alt: modifiers.alt(),
+            code,
+        },
+    ))
 }
 
 pub enum PreferenceOutcome {
@@ -89,9 +146,42 @@ pub fn update(
     pending: &mut Config,
     state: &mut PreferenceState,
 ) -> PreferenceOutcome {
+    state.conflict = None;
+
     match message {
         PreferenceMessage::SelectSection(section) => {
             state.section = section;
+            state.capturing = None;
+            PreferenceOutcome::Open
+        }
+        PreferenceMessage::StartCapture(action) => {
+            state.capturing = Some(action);
+            PreferenceOutcome::Open
+        }
+        PreferenceMessage::CancelCapture => {
+            state.capturing = None;
+            PreferenceOutcome::Open
+        }
+        PreferenceMessage::SetBinding(action, binding) => {
+            let losers = pending.keymap.set(action, binding);
+            if !losers.is_empty() {
+                state.conflict = Some(Conflict {
+                    winner: action,
+                    losers,
+                    binding,
+                });
+            }
+            state.capturing = None;
+            PreferenceOutcome::Open
+        }
+        PreferenceMessage::ClearBinding(action) => {
+            pending.keymap.clear(action);
+            state.capturing = None;
+            PreferenceOutcome::Open
+        }
+        PreferenceMessage::ResetKeybindings => {
+            pending.keymap = Keymap::default();
+            state.capturing = None;
             PreferenceOutcome::Open
         }
         PreferenceMessage::SetTheme(theme) => {
@@ -116,7 +206,9 @@ pub fn update(
             pending.rounded = defaults.rounded;
             pending.volume = defaults.volume;
             pending.muted = defaults.muted;
+            pending.keymap = defaults.keymap;
             set_radius(pending.rounded);
+            state.capturing = None;
             PreferenceOutcome::Open
         }
         PreferenceMessage::Save => {
@@ -127,17 +219,23 @@ pub fn update(
     }
 }
 
-fn label_block<'a>(title: &'a str, description: &'a str, theme: &Theme) -> Element<'a, Message> {
-    container(
-        column![
-            text(title).size(13),
-            text(description).size(11).color(muted_text(theme)),
-        ]
-        .spacing(PAD / 2.0),
-    )
-    .clip(true)
-    .width(Length::Fill)
-    .into()
+fn label_block<'a>(
+    title: impl text::IntoFragment<'a>,
+    description: impl text::IntoFragment<'a>,
+    note: Option<(String, Color)>,
+    theme: &Theme,
+) -> Element<'a, Message> {
+    let mut block = column![
+        text(title).size(13),
+        text(description).size(11).color(muted_text(theme)),
+    ]
+    .spacing(PAD / 2.0);
+
+    if let Some((note, color)) = note {
+        block = block.push(text(note).size(11).color(color));
+    }
+
+    container(block).clip(true).width(Length::Fill).into()
 }
 
 fn setting<'a>(
@@ -146,10 +244,83 @@ fn setting<'a>(
     control: Element<'a, Message>,
     theme: &Theme,
 ) -> Element<'a, Message> {
-    row![label_block(label, description, theme), control]
-        .align_y(Vertical::Center)
-        .spacing(PAD * 2.0)
+    HoverRow::new(
+        row![label_block(label, description, None, theme), control]
+            .align_y(Vertical::Center)
+            .spacing(PAD * 2.0),
+    )
+    .into()
+}
+
+fn keybind_row<'a>(
+    action: Action,
+    keymap: &Keymap,
+    state: &PreferenceState,
+    theme: &Theme,
+) -> Element<'a, Message> {
+    let capturing = state.capturing == Some(action);
+    let binding = keymap.binding(action);
+
+    let chip: Element<'a, Message> = if capturing {
+        button(text("Press a key\u{2026}").size(11))
+            .style(styles::capturing_chip_style)
+            .on_press(Message::Preference(PreferenceMessage::CancelCapture))
+            .padding([4.0, 8.0])
+            .into()
+    } else {
+        tip(
+            button(text(binding.map_or_else(|| "\u{2014}".into(), KeyBinding::shown)).size(11))
+                .style(styles::key_chip_style)
+                .on_press(Message::Preference(PreferenceMessage::StartCapture(action)))
+                .padding([4.0, 8.0]),
+            "Set a key for this action",
+        )
         .into()
+    };
+
+    let note = if capturing {
+        let hint = if binding.is_some() {
+            "Backspace removes the key, Esc cancels"
+        } else {
+            "Esc cancels"
+        };
+        Some((hint.into(), muted_text(theme)))
+    } else {
+        state
+            .conflict
+            .as_ref()
+            .filter(|conflict| conflict.winner == action)
+            .map(|conflict| {
+                let losers = conflict
+                    .losers
+                    .iter()
+                    .map(|action| action.label())
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                (
+                    format!("{} was taken from {losers}", conflict.binding.shown()),
+                    theme.extended_palette().danger.base.color,
+                )
+            })
+    };
+
+    let clear: Option<Element<'a, Message>> = (binding.is_some() && !capturing).then(|| {
+        icon_button(
+            ICON_CLOSE,
+            "Remove this key",
+            Message::Preference(PreferenceMessage::ClearBinding(action)),
+        )
+    });
+
+    HoverRow::new(label_block(
+        action.label(),
+        action.description(),
+        note,
+        theme,
+    ))
+    .trailing(chip)
+    .hover_slot(CLEAR_SLOT, clear)
+    .into()
 }
 
 fn subgroup<'a>(
@@ -235,6 +406,37 @@ fn appearance<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, Message> {
     )
 }
 
+fn keybindings<'a>(
+    pending: &'a Config,
+    state: &PreferenceState,
+    theme: &Theme,
+) -> Element<'a, Message> {
+    let actions = Action::all();
+    let mut sections = column![].spacing(PAD * 5.0).width(Length::Fill);
+    let mut first = true;
+
+    for &category in KeyCategory::all() {
+        let rows: Vec<Element<'a, Message>> = actions
+            .iter()
+            .filter(|action| action.category() == category)
+            .map(|&action| keybind_row(action, &pending.keymap, state, theme))
+            .collect();
+
+        if rows.is_empty() {
+            continue;
+        }
+
+        let reset = first.then_some((
+            "Reset every key to its default",
+            PreferenceMessage::ResetKeybindings,
+        ));
+        sections = sections.push(subgroup(category.label(), reset, rows));
+        first = false;
+    }
+
+    sections.into()
+}
+
 fn about<'a>(theme: &Theme) -> Element<'a, Message> {
     let muted = muted_text(theme);
 
@@ -304,8 +506,8 @@ fn bar<'a>(content: impl Into<Element<'a, Message>>, divider_on_top: bool) -> El
 fn icon_button<'a>(bytes: &'static [u8], label: &'a str, message: Message) -> Element<'a, Message> {
     let glyph = svg(Handle::from_memory(bytes))
         .style(styles::svg_style)
-        .width(Length::Fixed(FOOTER_ICON))
-        .height(Length::Fixed(FOOTER_ICON));
+        .width(Length::Fixed(ICON_SIZE))
+        .height(Length::Fixed(ICON_SIZE));
 
     tip(
         button(glyph)
@@ -328,6 +530,11 @@ pub fn view<'a>(pending: &'a Config, state: &'a PreferenceState) -> Element<'a, 
                 PrefSection::Appearance,
                 active == PrefSection::Appearance
             ),
+            nav_button(
+                "Keybindings",
+                PrefSection::Keybindings,
+                active == PrefSection::Keybindings
+            ),
             Space::new().height(Length::Fill),
             nav_button("About", PrefSection::About, active == PrefSection::About),
         ]
@@ -341,6 +548,7 @@ pub fn view<'a>(pending: &'a Config, state: &'a PreferenceState) -> Element<'a, 
 
     let section = match active {
         PrefSection::Appearance => appearance(pending, theme),
+        PrefSection::Keybindings => keybindings(pending, state, theme),
         PrefSection::About => about(theme),
     };
 
@@ -498,6 +706,131 @@ mod tests {
 
             assert_eq!(pending.layouts, mine, "a reset wiped the saved layouts");
         }
+    }
+
+    fn capturing(action: Action) -> PreferenceState {
+        PreferenceState {
+            capturing: Some(action),
+            ..PreferenceState::default()
+        }
+    }
+
+    fn press(code: key::Code) -> Physical {
+        Physical::Code(code)
+    }
+
+    #[test]
+    fn a_key_pressed_outside_a_capture_is_not_swallowed() {
+        let state = PreferenceState::default();
+        assert!(
+            capture_key(&state, press(key::Code::KeyA), keyboard::Modifiers::empty()).is_none(),
+            "a key was captured with no row waiting for one"
+        );
+    }
+
+    #[test]
+    fn a_captured_key_becomes_the_binding() {
+        let state = capturing(Action::Shuffle);
+        let message = capture_key(&state, press(key::Code::KeyJ), keyboard::Modifiers::CTRL);
+
+        match message {
+            Some(PreferenceMessage::SetBinding(action, binding)) => {
+                assert_eq!(action, Action::Shuffle);
+                assert_eq!(binding.code, key::Code::KeyJ);
+                assert!(binding.ctrl);
+                assert!(!binding.shift);
+            }
+            other => panic!("expected a binding, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn escape_cancels_and_backspace_unbinds() {
+        let state = capturing(Action::Shuffle);
+        let empty = keyboard::Modifiers::empty();
+
+        assert!(matches!(
+            capture_key(&state, press(key::Code::Escape), empty),
+            Some(PreferenceMessage::CancelCapture)
+        ));
+        assert!(matches!(
+            capture_key(&state, press(key::Code::Backspace), empty),
+            Some(PreferenceMessage::ClearBinding(Action::Shuffle))
+        ));
+    }
+
+    #[test]
+    fn a_modified_backspace_is_a_binding_rather_than_an_unbind() {
+        let state = capturing(Action::Shuffle);
+        let message = capture_key(
+            &state,
+            press(key::Code::Backspace),
+            keyboard::Modifiers::CTRL,
+        );
+
+        assert!(
+            matches!(message, Some(PreferenceMessage::SetBinding(..))),
+            "Ctrl+Backspace unbound the action instead of binding to it"
+        );
+    }
+
+    #[test]
+    fn a_modifier_alone_never_becomes_a_binding() {
+        let state = capturing(Action::Shuffle);
+        for code in [key::Code::ControlLeft, key::Code::ShiftRight] {
+            assert!(
+                capture_key(&state, press(code), keyboard::Modifiers::empty()).is_none(),
+                "a modifier was captured as a key"
+            );
+        }
+    }
+
+    #[test]
+    fn a_key_that_cannot_be_stored_is_refused_at_capture() {
+        let state = capturing(Action::Shuffle);
+        let message = capture_key(&state, press(key::Code::F13), keyboard::Modifiers::empty());
+
+        assert!(
+            message.is_none(),
+            "a key with no stored spelling was accepted, and would vanish on restart"
+        );
+    }
+
+    #[test]
+    fn a_conflict_is_reported_and_then_cleared_by_the_next_edit() {
+        let mut pending = Config::default();
+        let mut state = PreferenceState::default();
+        let space = KeyBinding::plain(key::Code::Space);
+
+        update(
+            PreferenceMessage::SetBinding(Action::Shuffle, space),
+            &mut pending,
+            &mut state,
+        );
+
+        let conflict = state.conflict.as_ref().expect("a reported conflict");
+        assert_eq!(conflict.winner, Action::Shuffle);
+        assert_eq!(conflict.losers, vec![Action::PlayPause]);
+
+        update(
+            PreferenceMessage::SelectSection(PrefSection::About),
+            &mut pending,
+            &mut state,
+        );
+        assert!(
+            state.conflict.is_none(),
+            "the conflict note outlived its edit"
+        );
+    }
+
+    #[test]
+    fn resetting_keybindings_restores_the_defaults() {
+        let mut pending = Config::default();
+        pending.keymap.clear(Action::PlayPause);
+
+        apply(PreferenceMessage::ResetKeybindings, &mut pending);
+
+        assert_eq!(pending.keymap, Keymap::default());
     }
 
     #[test]

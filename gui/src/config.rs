@@ -3,13 +3,20 @@
 //!
 //! `muted` is kept beside `volume` rather than folded into it as a zero, so
 //! unmuting knows what level to go back to across a restart.
+//!
+//! A short `layouts` list is padded back up to `PRESET_SLOTS` from the defaults
+//! rather than left as saved, so a config written before the slots were fixed —
+//! or hand-edited down — still answers every key bound to a slot. Padding takes
+//! the defaults at the same position, which leaves what the user saved untouched
+//! and only fills the tail they never had.
 
 use std::path::PathBuf;
 
 use iced::Theme;
 use serde::{Deserialize, Serialize};
 
-use crate::layout::{Layout, default_presets};
+use crate::keybinds::{Keymap, KeymapFile};
+use crate::layout::{Layout, PRESET_SLOTS, default_presets};
 
 pub const VOLUME_DEFAULT: f32 = 0.5;
 
@@ -44,6 +51,7 @@ pub struct Config {
     pub rounded: bool,
     pub volume: f32,
     pub muted: bool,
+    pub keymap: Keymap,
     pub layouts: Vec<Layout>,
     pub active_layout: usize,
 }
@@ -55,6 +63,7 @@ impl Default for Config {
             rounded: true,
             volume: VOLUME_DEFAULT,
             muted: false,
+            keymap: Keymap::default(),
             layouts: default_presets(),
             active_layout: 0,
         }
@@ -71,6 +80,8 @@ struct ConfigFile {
     volume: f32,
     #[serde(default)]
     muted: bool,
+    #[serde(default)]
+    keybinds: KeymapFile,
     #[serde(default)]
     layouts: Vec<Layout>,
     #[serde(default)]
@@ -92,6 +103,7 @@ impl From<&Config> for ConfigFile {
             rounded: c.rounded,
             volume: c.volume,
             muted: c.muted,
+            keybinds: KeymapFile::from(&c.keymap),
             layouts: c.layouts.clone(),
             active_layout: c.active_layout,
         }
@@ -100,11 +112,7 @@ impl From<&Config> for ConfigFile {
 
 impl From<ConfigFile> for Config {
     fn from(f: ConfigFile) -> Self {
-        let layouts = if f.layouts.is_empty() {
-            default_presets()
-        } else {
-            f.layouts
-        };
+        let layouts = fill_slots(f.layouts);
         let active_layout = f.active_layout.min(layouts.len() - 1);
 
         Self {
@@ -112,10 +120,21 @@ impl From<ConfigFile> for Config {
             rounded: f.rounded,
             volume: f.volume.clamp(0.0, verse_core::VOLUME_MAX),
             muted: f.muted,
+            keymap: Keymap::from(f.keybinds),
             layouts,
             active_layout,
         }
     }
+}
+
+fn fill_slots(mut layouts: Vec<Layout>) -> Vec<Layout> {
+    let defaults = default_presets();
+    if layouts.is_empty() {
+        return defaults;
+    }
+    layouts.truncate(PRESET_SLOTS);
+    layouts.extend(defaults.into_iter().skip(layouts.len()));
+    layouts
 }
 
 fn theme_from_str(s: &str) -> Theme {

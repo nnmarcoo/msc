@@ -27,6 +27,18 @@
 //! both locked to more than twice the height they use. Panes whose content wants
 //! more room ask for it; the floor only says what cannot be taken away.
 //!
+//! Layouts live in a fixed set of `PRESET_SLOTS` slots rather than a list the
+//! user grows, because a slot is reached by a key and nothing else. A slot that
+//! must be created before it can be switched to is a slot whose key does
+//! nothing, so every one is bound from first launch and an unused slot holds a
+//! single empty pane, ready to be built in place.
+//!
+//! Ten is what the number row affords, which is where
+//! [`crate::keybinds::Keymap`] puts them by default, but the count is this
+//! module's and the keys are the user's: `SelectLayout` is rebindable per slot
+//! like any other action, so the number row is a starting point rather than the
+//! reason there are ten.
+//!
 //! `cycle_lock` advances a pane through unlocked, width, height, both. Width
 //! leads because the common case is a vertical list that should keep it.
 //! Holding both suits a transport strip needing a fixed height and a floor on
@@ -49,6 +61,8 @@ use serde::{Deserialize, Serialize};
 use crate::pane::PaneKind;
 
 pub const MIN_PANE: f32 = 50.0;
+
+pub const PRESET_SLOTS: usize = 10;
 
 const MIN_SHARE: f32 = 0.05;
 
@@ -657,7 +671,12 @@ pub fn default_presets() -> Vec<Layout> {
         ],
     };
 
-    vec![browsing, Layout::single("Library", PaneKind::Library)]
+    let mut presets = vec![browsing, Layout::single("Library", PaneKind::Library)];
+    while presets.len() < PRESET_SLOTS {
+        let slot = presets.len() + 1;
+        presets.push(Layout::single(format!("Layout {slot}"), PaneKind::Empty));
+    }
+    presets
 }
 
 #[cfg(test)]
@@ -1120,6 +1139,33 @@ mod tests {
         l.lock(PaneId(0), Axis::Vertical, square(10.0));
         let width = l.locks(PaneId(0)).width.expect("locked");
         assert!(width >= MIN_PANE, "got {width}");
+    }
+
+    #[test]
+    fn every_number_key_has_a_layout_to_reach() {
+        assert_eq!(default_presets().len(), PRESET_SLOTS);
+    }
+
+    #[test]
+    fn an_unused_slot_is_one_empty_pane() {
+        for preset in default_presets().into_iter().skip(2) {
+            assert_eq!(
+                preset.panes.len(),
+                1,
+                "{} is not a single pane",
+                preset.name
+            );
+            assert_eq!(preset.panes[0].kind, PaneKind::Empty);
+        }
+    }
+
+    #[test]
+    fn presets_are_distinctly_named() {
+        let presets = default_presets();
+        let mut names: Vec<_> = presets.iter().map(|preset| preset.name.as_str()).collect();
+        names.sort_unstable();
+        names.dedup();
+        assert_eq!(names.len(), presets.len());
     }
 
     #[test]

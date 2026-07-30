@@ -5,6 +5,7 @@
 //! view code that uses it, not in this module.
 
 pub mod context_menu;
+pub mod hover_row;
 pub mod marquee;
 pub mod menu;
 pub mod pane_picker;
