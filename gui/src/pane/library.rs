@@ -101,6 +101,26 @@ fn empty_library<'a>() -> Element<'a, Message> {
         .into()
 }
 
+fn no_results<'a>(query: &str) -> Element<'a, Message> {
+    let label = text(format!("No results for \u{201c}{}\u{201d}", query.trim()))
+        .size(14)
+        .style(|theme: &Theme| text::Style {
+            color: Some(
+                theme
+                    .extended_palette()
+                    .background
+                    .base
+                    .text
+                    .scale_alpha(0.6),
+            ),
+        });
+
+    container(label)
+        .center_x(Length::Fill)
+        .center_y(Length::Fill)
+        .into()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,24 +163,4 @@ mod tests {
         assert!(labels.iter().any(|label| label.starts_with("Play next")));
         assert!(labels.iter().any(|label| label.starts_with("Add to queue")));
     }
-}
-
-fn no_results<'a>(query: &str) -> Element<'a, Message> {
-    let label = text(format!("No results for \u{201c}{}\u{201d}", query.trim()))
-        .size(14)
-        .style(|theme: &Theme| text::Style {
-            color: Some(
-                theme
-                    .extended_palette()
-                    .background
-                    .base
-                    .text
-                    .scale_alpha(0.6),
-            ),
-        });
-
-    container(label)
-        .center_x(Length::Fill)
-        .center_y(Length::Fill)
-        .into()
 }

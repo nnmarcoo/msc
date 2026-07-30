@@ -345,6 +345,10 @@ impl<'a, Message: 'a> From<Timeline<'a, Message>> for Element<'a, Message, Theme
 }
 
 #[cfg(test)]
+// The comparisons below assert exact constants (0.0, 1.0) and values passed
+// through untouched, so bit equality is the property under test, not a
+// tolerance question.
+#[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
     use iced::Point;
