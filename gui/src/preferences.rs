@@ -210,6 +210,8 @@ fn appearance<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, Message> {
                 Message::Preference(PreferenceMessage::SetTheme(theme))
             })
             .text_size(12)
+            .style(styles::pick_list_style)
+            .menu_style(styles::pick_list_menu_style)
             .into(),
             theme,
         ),

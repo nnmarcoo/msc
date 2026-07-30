@@ -165,6 +165,7 @@ fn tile<'a>(
             .width(Length::Fixed(cell))
             .height(Length::Fixed(cell))
             .filter_method(image::FilterMethod::Linear)
+            .border_radius(styles::radius())
             .into(),
         None => container(Space::new())
             .width(Length::Fixed(cell))

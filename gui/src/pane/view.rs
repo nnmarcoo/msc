@@ -346,7 +346,7 @@ fn edit_controls<'a>(
     container(
         container(controls)
             .padding(PAD / 2.0)
-            .style(styles::bar_style),
+            .style(styles::floating_bar_style),
     )
     .align_x(Horizontal::Right)
     .align_y(Vertical::Top)

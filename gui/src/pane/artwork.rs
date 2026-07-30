@@ -93,6 +93,7 @@ pub fn view<'a>(
             Some(handle) => image(handle)
                 .content_fit(ContentFit::Contain)
                 .filter_method(image::FilterMethod::Linear)
+                .border_radius(styles::radius())
                 .width(Length::Fill)
                 .height(Length::Fill)
                 .into(),

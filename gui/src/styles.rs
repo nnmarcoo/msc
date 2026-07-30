@@ -1,5 +1,21 @@
 //! Shared widget styling: theme-derived colours and the global corner radius.
 //!
+//! `radius()` is the "rounded corners" setting, and every surface with corners
+//! to soften reads it rather than naming its own number, so the preference
+//! reaches all of them at once. Two kinds of curve deliberately do not: a shape
+//! that *is* round — the scrubber head, the volume head, a toggler — stays round
+//! when the setting is off, because squaring it would not be a flatter corner
+//! but a different object; and a seam, hairline, or full-width bar has no
+//! corners to round in the first place. `floating_bar_style` exists for that
+//! reason: the same colours as `bar_style`, but for the edit-mode chip, which
+//! floats over a pane and so has corners, where the preferences bars span the
+//! window and must not.
+//!
+//! Stock iced widgets need their own bridge, since their defaults hardcode a
+//! radius — `pick_list` at 2.0 — and would otherwise ignore the setting while
+//! everything around them obeyed it. The wrappers here take iced's default
+//! style and overwrite only the radius, so themes keep their own colours.
+//!
 //! The three divider styles carry meaning rather than decoration, so they are
 //! kept visually distinct. A seam drags the split's ratio when free and rewrites
 //! an adjacent pane's pixel lock when pinned; both do something, so both get a
@@ -52,6 +68,13 @@ pub fn bar_style(theme: &Theme) -> container::Style {
         text_color: Some(palette.background.base.text),
         background: Some(Background::Color(palette.background.strong.color)),
         ..Default::default()
+    }
+}
+
+pub fn floating_bar_style(theme: &Theme) -> container::Style {
+    container::Style {
+        border: iced::border::rounded(radius()),
+        ..bar_style(theme)
     }
 }
 
@@ -197,6 +220,31 @@ pub fn pref_nav_button_style(active: bool) -> impl Fn(&Theme, button::Status) ->
             border: iced::border::rounded(radius()),
             ..Default::default()
         }
+    }
+}
+
+pub fn pick_list_style(
+    theme: &Theme,
+    status: iced::widget::pick_list::Status,
+) -> iced::widget::pick_list::Style {
+    let base = iced::widget::pick_list::default(theme, status);
+    iced::widget::pick_list::Style {
+        border: Border {
+            radius: radius().into(),
+            ..base.border
+        },
+        ..base
+    }
+}
+
+pub fn pick_list_menu_style(theme: &Theme) -> iced::overlay::menu::Style {
+    let base = iced::overlay::menu::default(theme);
+    iced::overlay::menu::Style {
+        border: Border {
+            radius: radius().into(),
+            ..base.border
+        },
+        ..base
     }
 }
 
