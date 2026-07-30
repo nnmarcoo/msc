@@ -23,6 +23,12 @@ pub const LABEL_FONT_SIZE: f32 = 11.0;
 
 pub const TOOLTIP_DELAY: Duration = Duration::from_millis(400);
 
+pub const BAR_HEIGHT: f32 = 40.0;
+pub const RULE_HEIGHT: f32 = 2.0;
+
+pub const PREF_SIDEBAR_WIDTH: f32 = 160.0;
+pub const PREF_CONTENT_MAX_WIDTH: f32 = 600.0;
+
 static ACTIVE_RADIUS: OnceLock<AtomicU32> = OnceLock::new();
 
 pub fn set_radius(rounded: bool) {
@@ -157,6 +163,60 @@ pub fn svg_style(theme: &Theme, status: svg::Status) -> svg::Style {
         svg::Status::Idle => base.scale_alpha(0.7),
     };
     svg::Style { color: Some(color) }
+}
+
+pub fn muted_text(theme: &Theme) -> iced::Color {
+    theme
+        .extended_palette()
+        .background
+        .base
+        .text
+        .scale_alpha(0.5)
+}
+
+pub fn pref_nav_button_style(active: bool) -> impl Fn(&Theme, button::Status) -> button::Style {
+    move |theme: &Theme, status: button::Status| {
+        let palette = theme.extended_palette();
+        let background = if active {
+            Some(Background::Color(palette.background.strong.color))
+        } else {
+            match status {
+                button::Status::Hovered => Some(Background::Color(palette.background.weak.color)),
+                button::Status::Pressed => Some(Background::Color(palette.background.strong.color)),
+                _ => None,
+            }
+        };
+
+        button::Style {
+            background,
+            text_color: if active {
+                palette.background.base.text
+            } else {
+                palette.background.base.text.scale_alpha(0.7)
+            },
+            border: iced::border::rounded(radius()),
+            ..Default::default()
+        }
+    }
+}
+
+pub fn pref_rule_style(theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(
+            theme.extended_palette().primary.base.color,
+        )),
+        ..Default::default()
+    }
+}
+
+pub fn pref_divider_style(theme: &Theme) -> container::Style {
+    let palette = theme.extended_palette();
+    container::Style {
+        background: Some(Background::Color(
+            palette.background.base.text.scale_alpha(0.15),
+        )),
+        ..Default::default()
+    }
 }
 
 pub fn icon_button_style(theme: &Theme, status: button::Status) -> button::Style {

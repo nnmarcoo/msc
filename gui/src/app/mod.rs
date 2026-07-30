@@ -84,6 +84,17 @@
 //! set, so an idle session does no disk work; `CloseRequested` flushes too, so a
 //! clean exit never loses the last second.
 //!
+//! `editing_config` is both the preferences state and the flag that the window
+//! is in that mode, so `view` returns [`crate::preferences`] instead of the
+//! panes whenever it is set. Holding the pending config rather than a bool means
+//! there is no way to be in preferences without something to edit, and none of
+//! the layout messages can reach a tree that is not on screen.
+//!
+//! Toggling the mode off with `s` discards, exactly as Cancel does, since the
+//! key is a toggle rather than a commit and only Save says "keep this". Both
+//! paths restore the corner radius from the live config, which is the one edit
+//! that previews through a global instead of through the pending clone.
+//!
 //! `Tick` drives animation, and `TICK` is 16ms because of it. Position comes
 //! from `Player::position` when `view` runs, so a frame is only as fresh as the
 //! last `view`, and anything following playback moves at this rate. At 250ms the
@@ -123,6 +134,7 @@ use crate::browsing::{Context, Selection};
 use crate::config::Config;
 use crate::layout::{Axis, DropZone, Layout, PaneId, PaneMetrics, SplitPath};
 use crate::pane::{PaneKind, PaneMessage, PaneStates, view as pane_view};
+use crate::preferences::{self, PreferenceMessage, PreferenceOutcome, PreferenceState};
 use crate::styles;
 use crate::tasks;
 
@@ -138,6 +150,9 @@ pub struct App {
     edit_mode: bool,
     drag: Option<DividerDrag>,
     pane_drag: Option<PaneDrag>,
+
+    editing_config: Option<Config>,
+    preference_state: PreferenceState,
 
     search: String,
     selection: Selection,
@@ -251,6 +266,9 @@ pub enum Message {
     ToggleEditMode,
     SelectLayout(usize),
 
+    TogglePreferences,
+    Preference(PreferenceMessage),
+
     SelectFolder,
     FolderPicked(PathBuf),
     Rescan,
@@ -288,6 +306,8 @@ impl App {
             edit_mode: false,
             drag: None,
             pane_drag: None,
+            editing_config: None,
+            preference_state: PreferenceState::default(),
             search: String::new(),
             selection: Selection::default(),
             hovered: None,
@@ -332,6 +352,38 @@ impl App {
 
         let live: Vec<PaneId> = entries.iter().map(|(id, _)| *id).collect();
         self.pane_states.retain(&live);
+    }
+
+    fn toggle_preferences(&mut self) {
+        self.editing_config = match self.editing_config {
+            Some(_) => {
+                styles::set_radius(self.config.rounded);
+                None
+            }
+            None => Some(self.config.clone()),
+        };
+        self.preference_state = PreferenceState::default();
+    }
+
+    fn apply_preference(&mut self, message: PreferenceMessage) {
+        let Some(pending) = self.editing_config.as_mut() else {
+            return;
+        };
+
+        match preferences::update(message, pending, &mut self.preference_state) {
+            PreferenceOutcome::Open => {}
+            PreferenceOutcome::Save => {
+                let pending = self.editing_config.take().expect("a pending config");
+                self.config = pending;
+                self.player.set_volume(self.audible_volume());
+                self.config.save();
+                self.config_dirty = false;
+            }
+            PreferenceOutcome::Cancel => {
+                styles::set_radius(self.config.rounded);
+                self.editing_config = None;
+            }
+        }
     }
 
     fn persist_layouts(&mut self) {
@@ -630,6 +682,9 @@ impl App {
                 }
             }
 
+            Message::TogglePreferences => self.toggle_preferences(),
+            Message::Preference(message) => self.apply_preference(message),
+
             Message::SelectFolder => return tasks::pick_library_folder(),
             Message::FolderPicked(path) => return self.start_scan(path),
             Message::Rescan => {
@@ -818,6 +873,12 @@ impl App {
         match key {
             keyboard::Key::Named(Named::Space) => Task::done(Message::PlayPause),
             keyboard::Key::Character(character) if modifiers.is_empty() => {
+                if character.as_str() == "s" {
+                    return Task::done(Message::TogglePreferences);
+                }
+                if self.editing_config.is_some() {
+                    return Task::none();
+                }
                 if character.as_str() == "e" {
                     return Task::done(Message::ToggleEditMode);
                 }
@@ -833,6 +894,10 @@ impl App {
     }
 
     pub fn view(&self) -> Element<'_, Message> {
+        if let Some(pending) = &self.editing_config {
+            return preferences::view(pending, &self.preference_state);
+        }
+
         let layout = self.layout();
         let visible = &self.visible_ids;
         let edit_mode = self.edit_mode;
@@ -901,7 +966,11 @@ impl App {
     }
 
     pub fn theme(&self) -> Theme {
-        self.config.theme.clone()
+        self.editing_config
+            .as_ref()
+            .unwrap_or(&self.config)
+            .theme
+            .clone()
     }
 
     pub fn subscription(&self) -> Subscription<Message> {

@@ -6,6 +6,7 @@ mod browsing;
 mod config;
 mod layout;
 mod pane;
+mod preferences;
 mod styles;
 mod tasks;
 mod widgets;

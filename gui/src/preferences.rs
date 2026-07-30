@@ -1,0 +1,515 @@
+//! The preferences view: a full-window mode that replaces the pane tree.
+//!
+//! This is deliberately not a pane. Panes are content the layout arranges, and
+//! their whole point is that the user chooses where they sit and how many there
+//! are; preferences are a mode the window enters and leaves, and a second copy
+//! of them open beside the first would be a bug rather than a feature. So
+//! [`crate::app::App::view`] returns this *instead of* the panes whenever a
+//! pending config exists, and `s` toggles it the way `e` toggles edit mode.
+//!
+//! Edits are made against a clone of the config rather than the live one, which
+//! is what lets the footer offer a real Cancel. `Save` hands the clone back to
+//! the app to commit and write; `Cancel` drops it and nothing was touched.
+//!
+//! Both appearance settings preview live, so what the dialog shows is what Save
+//! keeps. The theme does it by [`crate::app::App::theme`] reading the pending
+//! config when one exists, since iced asks for the theme every frame. The corner
+//! radius cannot work that way: it lives in a global that styling reads during
+//! layout, so setting it is the only way to show it, and that write outlives a
+//! Cancel. Cancel therefore restores the radius from the live config — the one
+//! edit here with anything to undo.
+//!
+//! The section list is an enum rather than an index, so adding a section cannot
+//! silently renumber the others, and [`PrefSection::About`] is pinned to the
+//! bottom of the sidebar because it is not a setting.
+//!
+//! `Keybindings` and `Playback` sections are expected here; the layout is built
+//! from `subgroup` and `setting` so that adding one is a list of rows rather
+//! than a new arrangement.
+//!
+//! Neither reset touches `layouts` or `active_layout`, which is why `ResetAll`
+//! names its fields rather than assigning a whole `Config::default()`. Panes the
+//! user arranged are work, not a setting that drifted, and no arrangement is
+//! reachable from this view to undo; wiping them from a button labelled "Reset
+//! all settings" would destroy the most expensive thing in the file.
+
+use iced::alignment::{Horizontal, Vertical};
+use iced::font::Weight;
+use iced::widget::scrollable::{Direction, Scrollbar};
+use iced::widget::svg::Handle;
+use iced::widget::{
+    Space, button, column, container, pick_list, row, scrollable, svg, text, toggler,
+};
+use iced::{Element, Font, Length, Theme};
+
+use crate::app::Message;
+use crate::config::{ALL_THEMES, Config};
+use crate::styles::{
+    self, BAR_HEIGHT, PAD, PREF_CONTENT_MAX_WIDTH, PREF_SIDEBAR_WIDTH, RULE_HEIGHT, muted_text,
+    set_radius,
+};
+use crate::widgets::tooltip::tip;
+
+const ICON_CHECK: &[u8] = include_bytes!("../../assets/icons/check.svg");
+const ICON_CLOSE: &[u8] = include_bytes!("../../assets/icons/close.svg");
+
+const FOOTER_ICON: f32 = 16.0;
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PrefSection {
+    #[default]
+    Appearance,
+    About,
+}
+
+#[derive(Default)]
+pub struct PreferenceState {
+    pub section: PrefSection,
+}
+
+#[derive(Debug, Clone)]
+pub enum PreferenceMessage {
+    SelectSection(PrefSection),
+    SetTheme(Theme),
+    SetRounded(bool),
+    ResetAppearance,
+    ResetAll,
+    Save,
+    Cancel,
+}
+
+pub enum PreferenceOutcome {
+    Open,
+    Save,
+    Cancel,
+}
+
+pub fn update(
+    message: PreferenceMessage,
+    pending: &mut Config,
+    state: &mut PreferenceState,
+) -> PreferenceOutcome {
+    match message {
+        PreferenceMessage::SelectSection(section) => {
+            state.section = section;
+            PreferenceOutcome::Open
+        }
+        PreferenceMessage::SetTheme(theme) => {
+            pending.theme = theme;
+            PreferenceOutcome::Open
+        }
+        PreferenceMessage::SetRounded(rounded) => {
+            pending.rounded = rounded;
+            set_radius(rounded);
+            PreferenceOutcome::Open
+        }
+        PreferenceMessage::ResetAppearance => {
+            let defaults = Config::default();
+            pending.theme = defaults.theme;
+            pending.rounded = defaults.rounded;
+            set_radius(pending.rounded);
+            PreferenceOutcome::Open
+        }
+        PreferenceMessage::ResetAll => {
+            let defaults = Config::default();
+            pending.theme = defaults.theme;
+            pending.rounded = defaults.rounded;
+            pending.volume = defaults.volume;
+            pending.muted = defaults.muted;
+            set_radius(pending.rounded);
+            PreferenceOutcome::Open
+        }
+        PreferenceMessage::Save => {
+            set_radius(pending.rounded);
+            PreferenceOutcome::Save
+        }
+        PreferenceMessage::Cancel => PreferenceOutcome::Cancel,
+    }
+}
+
+fn label_block<'a>(title: &'a str, description: &'a str, theme: &Theme) -> Element<'a, Message> {
+    container(
+        column![
+            text(title).size(13),
+            text(description).size(11).color(muted_text(theme)),
+        ]
+        .spacing(PAD / 2.0),
+    )
+    .clip(true)
+    .width(Length::Fill)
+    .into()
+}
+
+fn setting<'a>(
+    label: &'a str,
+    description: &'a str,
+    control: Element<'a, Message>,
+    theme: &Theme,
+) -> Element<'a, Message> {
+    row![label_block(label, description, theme), control]
+        .align_y(Vertical::Center)
+        .spacing(PAD * 2.0)
+        .into()
+}
+
+fn subgroup<'a>(
+    label: &'a str,
+    reset: Option<(&'a str, PreferenceMessage)>,
+    rows: Vec<Element<'a, Message>>,
+) -> Element<'a, Message> {
+    let heading = text(label).size(14).font(Font {
+        weight: Weight::Semibold,
+        ..Font::DEFAULT
+    });
+
+    let header: Element<'a, Message> = match reset {
+        Some((label, on_reset)) => row![
+            heading,
+            Space::new().width(Length::Fill),
+            tip(
+                button(text("Reset").size(11))
+                    .style(styles::icon_button_style)
+                    .on_press(Message::Preference(on_reset))
+                    .padding([2.0, 6.0]),
+                label,
+            ),
+        ]
+        .align_y(Vertical::Center)
+        .into(),
+        None => heading.into(),
+    };
+
+    let mut list = column![].spacing(PAD * 3.0).width(Length::Fill);
+    for row in rows {
+        list = list.push(row);
+    }
+
+    column![column![header, section_rule()].spacing(PAD), list]
+        .spacing(PAD * 2.0)
+        .width(Length::Fill)
+        .into()
+}
+
+fn nav_button(label: &str, target: PrefSection, active: bool) -> Element<'_, Message> {
+    button(text(label).size(13))
+        .width(Length::Fill)
+        .padding([6.0, 8.0])
+        .style(styles::pref_nav_button_style(active))
+        .on_press(Message::Preference(PreferenceMessage::SelectSection(
+            target,
+        )))
+        .into()
+}
+
+fn appearance<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, Message> {
+    let rows = vec![
+        setting(
+            "Theme",
+            "Colour scheme for the application",
+            pick_list(ALL_THEMES, Some(pending.theme.clone()), |theme| {
+                Message::Preference(PreferenceMessage::SetTheme(theme))
+            })
+            .text_size(12)
+            .into(),
+            theme,
+        ),
+        setting(
+            "Rounded corners",
+            "Round the corners of buttons, panels, and panes",
+            toggler(pending.rounded)
+                .on_toggle(|rounded| Message::Preference(PreferenceMessage::SetRounded(rounded)))
+                .into(),
+            theme,
+        ),
+    ];
+
+    subgroup(
+        "Appearance",
+        Some((
+            "Reset appearance to defaults",
+            PreferenceMessage::ResetAppearance,
+        )),
+        rows,
+    )
+}
+
+fn about<'a>(theme: &Theme) -> Element<'a, Message> {
+    let muted = muted_text(theme);
+
+    column![
+        text("Verse").size(24).font(Font {
+            weight: Weight::Semibold,
+            ..Font::DEFAULT
+        }),
+        text(concat!("Version ", env!("CARGO_PKG_VERSION")))
+            .size(12)
+            .color(muted),
+        Space::new().height(PAD),
+        text(env!("CARGO_PKG_DESCRIPTION")).size(13),
+        Space::new().height(PAD * 2.0),
+        text(concat!("Licensed under ", env!("CARGO_PKG_LICENSE")))
+            .size(11)
+            .color(muted),
+    ]
+    .spacing(PAD)
+    .align_x(Horizontal::Center)
+    .width(Length::Fill)
+    .into()
+}
+
+fn divider<'a>() -> Element<'a, Message> {
+    container(Space::new().height(RULE_HEIGHT))
+        .width(Length::Fill)
+        .style(styles::pref_divider_style)
+        .into()
+}
+
+fn sidebar_edge<'a>() -> Element<'a, Message> {
+    container(Space::new().width(RULE_HEIGHT))
+        .height(Length::Fill)
+        .style(styles::pref_divider_style)
+        .into()
+}
+
+fn section_rule<'a>() -> Element<'a, Message> {
+    container(Space::new().height(1.0))
+        .width(Length::Fill)
+        .style(styles::pref_rule_style)
+        .into()
+}
+
+fn bar<'a>(content: impl Into<Element<'a, Message>>, divider_on_top: bool) -> Element<'a, Message> {
+    let body = container(content)
+        .width(Length::Fill)
+        .height(Length::Fixed(BAR_HEIGHT))
+        .align_x(Horizontal::Center)
+        .align_y(Vertical::Center)
+        .padding([0.0, PAD]);
+
+    let stack = if divider_on_top {
+        column![divider(), body]
+    } else {
+        column![body, divider()]
+    }
+    .width(Length::Fill);
+
+    container(stack)
+        .width(Length::Fill)
+        .style(styles::bar_style)
+        .into()
+}
+
+fn icon_button<'a>(bytes: &'static [u8], label: &'a str, message: Message) -> Element<'a, Message> {
+    let glyph = svg(Handle::from_memory(bytes))
+        .style(styles::svg_style)
+        .width(Length::Fixed(FOOTER_ICON))
+        .height(Length::Fixed(FOOTER_ICON));
+
+    tip(
+        button(glyph)
+            .on_press(message)
+            .padding(PAD)
+            .style(styles::icon_button_style),
+        label,
+    )
+    .into()
+}
+
+pub fn view<'a>(pending: &'a Config, state: &'a PreferenceState) -> Element<'a, Message> {
+    let theme = &pending.theme;
+    let active = state.section;
+
+    let sidebar = container(
+        column![
+            nav_button(
+                "Appearance",
+                PrefSection::Appearance,
+                active == PrefSection::Appearance
+            ),
+            Space::new().height(Length::Fill),
+            nav_button("About", PrefSection::About, active == PrefSection::About),
+        ]
+        .spacing(PAD)
+        .width(Length::Fill)
+        .height(Length::Fill),
+    )
+    .width(Length::Fixed(PREF_SIDEBAR_WIDTH))
+    .height(Length::Fill)
+    .padding(PAD * 2.0);
+
+    let section = match active {
+        PrefSection::Appearance => appearance(pending, theme),
+        PrefSection::About => about(theme),
+    };
+
+    let content: Element<'a, Message> = if active == PrefSection::About {
+        container(section)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .align_x(Horizontal::Center)
+            .align_y(Vertical::Center)
+            .padding(PAD * 3.0)
+            .into()
+    } else {
+        scrollable(
+            container(section)
+                .max_width(PREF_CONTENT_MAX_WIDTH)
+                .width(Length::Fill)
+                .padding(PAD * 3.0),
+        )
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .direction(Direction::Vertical(
+            Scrollbar::new().width(4).scroller_width(4),
+        ))
+        .into()
+    };
+
+    let footer = bar(
+        row![
+            tip(
+                button(text("Reset all").size(12))
+                    .style(styles::icon_button_style)
+                    .on_press(Message::Preference(PreferenceMessage::ResetAll))
+                    .padding([4.0, 8.0]),
+                "Reset all settings to defaults",
+            ),
+            Space::new().width(Length::Fill),
+            icon_button(
+                ICON_CHECK,
+                "Save",
+                Message::Preference(PreferenceMessage::Save)
+            ),
+            icon_button(
+                ICON_CLOSE,
+                "Cancel",
+                Message::Preference(PreferenceMessage::Cancel)
+            ),
+        ]
+        .width(Length::Fill)
+        .align_y(Vertical::Center)
+        .spacing(PAD),
+        true,
+    );
+
+    column![
+        bar(text("Preferences").size(16), false),
+        row![sidebar, sidebar_edge(), content]
+            .width(Length::Fill)
+            .height(Length::Fill),
+        footer,
+    ]
+    .width(Length::Fill)
+    .height(Length::Fill)
+    .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::layout::Layout;
+    use crate::pane::PaneKind;
+
+    fn edited() -> Config {
+        Config {
+            theme: Theme::Nord,
+            rounded: false,
+            ..Config::default()
+        }
+    }
+
+    fn apply(message: PreferenceMessage, pending: &mut Config) -> PreferenceOutcome {
+        update(message, pending, &mut PreferenceState::default())
+    }
+
+    #[test]
+    fn an_edit_keeps_the_dialog_open() {
+        let mut pending = Config::default();
+        let outcome = apply(PreferenceMessage::SetTheme(Theme::Nord), &mut pending);
+
+        assert!(matches!(outcome, PreferenceOutcome::Open));
+        assert_eq!(pending.theme, Theme::Nord);
+    }
+
+    #[test]
+    fn saving_reports_a_save_and_cancelling_a_cancel() {
+        let mut pending = Config::default();
+
+        assert!(matches!(
+            apply(PreferenceMessage::Save, &mut pending),
+            PreferenceOutcome::Save
+        ));
+        assert!(matches!(
+            apply(PreferenceMessage::Cancel, &mut pending),
+            PreferenceOutcome::Cancel
+        ));
+    }
+
+    #[test]
+    fn cancelling_leaves_the_pending_edits_alone() {
+        let mut pending = edited();
+        apply(PreferenceMessage::Cancel, &mut pending);
+
+        assert_eq!(pending.theme, Theme::Nord);
+        assert!(!pending.rounded);
+    }
+
+    #[test]
+    fn resetting_appearance_restores_both_of_its_settings() {
+        let defaults = Config::default();
+        let mut pending = edited();
+        apply(PreferenceMessage::ResetAppearance, &mut pending);
+
+        assert_eq!(pending.theme, defaults.theme);
+        assert_eq!(pending.rounded, defaults.rounded);
+    }
+
+    #[test]
+    fn resetting_everything_restores_the_playback_settings_too() {
+        let defaults = Config::default();
+        let mut pending = edited();
+        pending.volume = 0.9;
+        pending.muted = true;
+
+        apply(PreferenceMessage::ResetAll, &mut pending);
+
+        assert_eq!(pending.theme, defaults.theme);
+        assert_eq!(pending.rounded, defaults.rounded);
+        assert_eq!(pending.volume.to_bits(), defaults.volume.to_bits());
+        assert_eq!(pending.muted, defaults.muted);
+    }
+
+    #[test]
+    fn no_reset_discards_the_layouts_the_user_built() {
+        let mine = vec![Layout::single("Mine", PaneKind::Queue)];
+
+        for message in [
+            PreferenceMessage::ResetAppearance,
+            PreferenceMessage::ResetAll,
+        ] {
+            let mut pending = Config {
+                layouts: mine.clone(),
+                active_layout: 0,
+                ..edited()
+            };
+            apply(message, &mut pending);
+
+            assert_eq!(pending.layouts, mine, "a reset wiped the saved layouts");
+        }
+    }
+
+    #[test]
+    fn selecting_a_section_moves_the_sidebar() {
+        let mut pending = Config::default();
+        let mut state = PreferenceState::default();
+        assert_eq!(state.section, PrefSection::Appearance);
+
+        update(
+            PreferenceMessage::SelectSection(PrefSection::About),
+            &mut pending,
+            &mut state,
+        );
+
+        assert_eq!(state.section, PrefSection::About);
+    }
+}

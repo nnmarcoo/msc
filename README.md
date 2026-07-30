@@ -80,6 +80,7 @@ content yet.
   <tbody>
     <tr><td><kbd>Space</kbd></td><td>Play / pause</td></tr>
     <tr><td><kbd>e</kbd></td><td>Toggle edit mode</td></tr>
+    <tr><td><kbd>s</kbd></td><td>Toggle preferences</td></tr>
     <tr><td><kbd>1</kbd> to <kbd>9</kbd></td><td>Switch to layout preset</td></tr>
   </tbody>
 </table>
