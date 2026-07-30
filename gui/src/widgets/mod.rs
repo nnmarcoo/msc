@@ -1,6 +1,17 @@
-pub mod canvas_button;
-pub mod hover_slider;
-pub mod loading_spinner;
+//! Custom widgets that iced's built-ins cannot express.
+//!
+//! Anything here exists because it needs `Overlay`, drawing outside its own
+//! layout bounds, or its own event handling. Plain composition belongs in the
+//! view code that uses it, not in this module.
+
+pub mod context_menu;
+pub mod marquee;
 pub mod menu;
-pub mod menu_button;
-pub mod theme_picker;
+pub mod pane_picker;
+pub mod queue_list;
+pub mod rating;
+pub mod search_bar;
+pub mod timeline;
+pub mod tooltip;
+pub mod track_list;
+pub mod volume;

@@ -3,131 +3,178 @@ use thiserror::Error;
 use kira::backend::cpal;
 
 use crate::{
-    Config, ConfigError, Library, LibraryError, Queue, Track, VisData,
+    Library, LoopMode, Queue, Track,
+    analyzer::VisData,
     backend::{Backend, BackendState, PlaybackError},
-    queue::LoopMode,
 };
 
 pub struct Player {
     backend: Backend,
-    library: Library,
     queue: Queue,
 }
 
 impl Player {
     pub fn new() -> Result<Self, PlayerError> {
-        Config::init()?;
-
         Ok(Player {
             backend: Backend::new()?,
-            library: Library::new()?,
             queue: Queue::new(),
         })
     }
 
-    /// Read-only access to the library for queries.
-    ///
-    /// Mutations go through `Player` instead, so the queue can be kept
-    /// consistent with whatever changed.
-    pub fn library(&self) -> &Library {
-        &self.library
+    pub fn queue(&self) -> &Queue {
+        &self.queue
     }
 
-    pub fn create_playlist(&self, name: &str) -> Result<i64, LibraryError> {
-        self.library.create_playlist(name)
+    pub fn queue_mut(&mut self) -> &mut Queue {
+        &mut self.queue
     }
 
-    pub fn rename_playlist(&self, id: i64, name: &str) -> Result<(), LibraryError> {
-        self.library.rename_playlist(id, name)
-    }
-
-    pub fn delete_playlist(&self, id: i64) -> Result<(), LibraryError> {
-        self.library.delete_playlist(id)
-    }
-
-    pub fn add_track_to_playlist(
-        &self,
-        playlist_id: i64,
-        track_id: i64,
-    ) -> Result<(), LibraryError> {
-        self.library.add_track_to_playlist(playlist_id, track_id)
-    }
-
-    pub fn remove_track_from_playlist(
-        &self,
-        playlist_id: i64,
-        track_id: i64,
-    ) -> Result<(), LibraryError> {
-        self.library
-            .remove_track_from_playlist(playlist_id, track_id)
-    }
-
-    pub fn set_playlist_cover(
-        &self,
-        playlist_id: i64,
-        track_id: Option<i64>,
-    ) -> Result<(), LibraryError> {
-        self.library.set_playlist_cover(playlist_id, track_id)
-    }
-
-    pub fn clear_library(&mut self) -> Result<(), LibraryError> {
-        self.queue.clear();
-        self.backend.stop();
-        self.library.clear()?;
-        Config::clear_root()?;
-        Ok(())
-    }
-
-    pub fn play(&mut self) -> Result<(), PlaybackError> {
-        match self.backend.state() {
-            BackendState::Paused => self.backend.play(),
-            BackendState::Idle | BackendState::Finished => self.start_current()?,
-            BackendState::Playing => {}
-        }
-        Ok(())
-    }
-
-    pub fn pause(&mut self) {
-        self.backend.pause();
-    }
-
-    pub fn seek(&mut self, pos: f64) {
-        self.backend.seek(pos);
-    }
-
-    pub fn set_volume(&mut self, vol: f32) {
-        self.backend.set_volume(vol);
+    pub fn current_track<'a>(&self, library: &'a Library) -> Option<&'a Track> {
+        library.track(self.queue.current()?)
     }
 
     pub fn is_playing(&self) -> bool {
-        self.backend.is_playing()
+        self.backend.state() == BackendState::Playing
     }
 
     pub fn position(&self) -> f64 {
         self.backend.position()
     }
 
+    pub fn volume(&self) -> f32 {
+        self.backend.volume()
+    }
+
+    pub fn set_volume(&mut self, volume: f32) {
+        self.backend.set_volume(volume);
+    }
+
+    pub fn seek(&mut self, position: f64) {
+        self.backend.seek(position);
+    }
+
     pub fn vis_data(&self) -> VisData {
         self.backend.vis_data()
     }
 
-    pub fn update(&mut self) -> Result<(), PlaybackError> {
+    pub fn pause(&mut self) {
+        self.backend.pause();
+    }
+
+    pub fn play(&mut self, library: &Library) -> Result<(), PlaybackError> {
+        match self.backend.state() {
+            BackendState::Playing => Ok(()),
+            BackendState::Paused => {
+                self.backend.resume();
+                Ok(())
+            }
+            BackendState::Idle | BackendState::Finished => self.start_current(library),
+        }
+    }
+
+    pub fn toggle(&mut self, library: &Library) -> Result<(), PlaybackError> {
+        if self.is_playing() {
+            self.pause();
+            Ok(())
+        } else {
+            self.play(library)
+        }
+    }
+
+    pub fn stop(&mut self) {
+        self.backend.stop();
+    }
+
+    pub fn update(&mut self, library: &Library) -> Result<(), PlaybackError> {
         if self.backend.state() == BackendState::Finished {
-            self.start_next()?;
+            self.next(library)?;
         }
         Ok(())
     }
 
-    pub fn shuffle_queue(&mut self) {
-        self.queue.shuffle();
+    pub fn next(&mut self, library: &Library) -> Result<(), PlaybackError> {
+        if let Some(track_id) = self.queue.advance() {
+            self.start(library, track_id)
+        } else {
+            self.backend.stop();
+            Ok(())
+        }
     }
 
-    pub fn remove_from_queue(&mut self, index: usize) {
-        self.queue.remove_index(index);
+    pub fn previous(&mut self, library: &Library) -> Result<(), PlaybackError> {
+        const RESTART_THRESHOLD: f64 = 3.0;
+        if self.position() > RESTART_THRESHOLD {
+            self.backend.seek(0.0);
+            return Ok(());
+        }
+
+        match self.queue.go_back() {
+            Some(track_id) => self.start(library, track_id),
+            None => Ok(()),
+        }
     }
 
-    pub fn move_to_queue_front(&mut self, index: usize) {
-        self.queue.move_front(index);
+    fn start_current(&mut self, library: &Library) -> Result<(), PlaybackError> {
+        match self.queue.current() {
+            Some(track_id) => self.start(library, track_id),
+            None => self.next(library),
+        }
+    }
+
+    fn start(&mut self, library: &Library, track_id: i64) -> Result<(), PlaybackError> {
+        let mut track_id = track_id;
+
+        loop {
+            match library.track(track_id) {
+                Some(track) if !track.missing() => match self.backend.load_and_play(track.path()) {
+                    Ok(()) => return Ok(()),
+                    Err(PlaybackError::Load(_)) => {}
+                    Err(err) => return Err(err),
+                },
+                _ => {}
+            }
+
+            match self.queue.skip() {
+                Some(next) => track_id = next,
+                None => break,
+            }
+        }
+
+        self.backend.stop();
+        Ok(())
+    }
+}
+
+impl Player {
+    pub fn play_now(&mut self, library: &Library, track_id: i64) -> Result<(), PlaybackError> {
+        self.queue.jump_to(track_id);
+        self.start(library, track_id)
+    }
+
+    pub fn enqueue(&mut self, track_id: i64) {
+        self.queue.push(track_id);
+    }
+
+    pub fn enqueue_next(&mut self, track_id: i64) {
+        self.queue.push_next(track_id);
+    }
+
+    pub fn enqueue_all(&mut self, track_ids: impl IntoIterator<Item = i64>) {
+        self.queue.extend(track_ids);
+    }
+
+    pub fn enqueue_all_next(&mut self, track_ids: impl IntoIterator<Item = i64>) {
+        self.queue.extend_next(track_ids);
+    }
+
+    pub fn replace_queue(
+        &mut self,
+        library: &Library,
+        track_ids: impl IntoIterator<Item = i64>,
+    ) -> Result<(), PlaybackError> {
+        self.queue.clear();
+        self.queue.extend(track_ids);
+        self.start_current(library)
     }
 
     pub fn clear_queue(&mut self) {
@@ -135,36 +182,24 @@ impl Player {
         self.backend.stop();
     }
 
-    pub fn queue_back(&mut self, track_id: i64) {
-        self.queue.add(track_id);
+    pub fn shuffle_queue(&mut self) {
+        self.queue.shuffle();
     }
 
-    pub fn queue_front(&mut self, track_id: i64) {
-        self.queue.add_next(track_id);
+    pub fn remove_from_queue(&mut self, index: usize) {
+        self.queue.remove(index);
     }
 
-    pub fn queue_many(&mut self, track_ids: impl Iterator<Item = i64>) {
-        self.queue.add_many(track_ids);
+    pub fn move_to_queue_front(&mut self, index: usize) {
+        self.queue.move_to_front(index);
     }
 
-    pub fn queue_many_front(&mut self, track_ids: impl Iterator<Item = i64>) {
-        self.queue.add_many_next(track_ids);
+    pub fn reorder_queue(&mut self, from: usize, to: usize) {
+        self.queue.reorder(from, to);
     }
 
-    pub fn queue_library(&mut self) -> Result<(), LibraryError> {
-        let mut tracks = self.library.query_all_tracks()?;
-
-        tracks.sort_by(|a, b| {
-            a.track_artist()
-                .unwrap_or("-")
-                .cmp(b.track_artist().unwrap_or("-"))
-                .then_with(|| a.album().unwrap_or("-").cmp(b.album().unwrap_or("-")))
-                .then_with(|| a.title().unwrap_or("-").cmp(b.title().unwrap_or("-")))
-        });
-
-        self.queue
-            .add_many(tracks.into_iter().filter_map(|t| t.id()));
-        Ok(())
+    pub fn loop_mode(&self) -> LoopMode {
+        self.queue.loop_mode()
     }
 
     pub fn set_loop_mode(&mut self, mode: LoopMode) {
@@ -174,62 +209,10 @@ impl Player {
     pub fn cycle_loop_mode(&mut self) -> LoopMode {
         self.queue.cycle_loop_mode()
     }
-
-    pub fn loop_mode(&self) -> LoopMode {
-        self.queue.loop_mode()
-    }
-
-    pub fn queue(&self) -> &Queue {
-        &self.queue
-    }
-
-    pub fn start_next(&mut self) -> Result<(), PlaybackError> {
-        match self.queue.next() {
-            Some(track_id) => self.play_track(Some(track_id)),
-            None => {
-                self.backend.stop();
-                Ok(())
-            }
-        }
-    }
-
-    pub fn start_previous(&mut self) -> Result<(), PlaybackError> {
-        let track_id = self.queue.previous();
-        self.play_track(track_id)
-    }
-
-    pub fn start_current(&mut self) -> Result<(), PlaybackError> {
-        let track_id = self.queue.current_id();
-        self.play_track(track_id)
-    }
-
-    pub fn clone_current_track(&self) -> Option<Track> {
-        let track_id = self.queue.current_id()?;
-        self.library.query_track_from_id(track_id).ok()?
-    }
-
-    fn play_track(&mut self, track_id: Option<i64>) -> Result<(), PlaybackError> {
-        if let Some(id) = track_id {
-            if let Ok(Some(track)) = self.library.query_track_from_id(id) {
-                self.backend.load_and_play(track.path())?;
-            }
-        }
-        Ok(())
-    }
-}
-
-impl Drop for Player {
-    fn drop(&mut self) {
-        let _ = Config::save_current();
-    }
 }
 
 #[derive(Debug, Error)]
 pub enum PlayerError {
-    #[error("Backend error: {0}")]
+    #[error("Audio backend error: {0}")]
     Backend(#[from] cpal::Error),
-    #[error("Config error: {0}")]
-    Config(#[from] ConfigError),
-    #[error("Library error: {0}")]
-    Library(#[from] LibraryError),
 }

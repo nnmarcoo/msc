@@ -1,19 +1,44 @@
 [package]
 name = "verse-gui"
-version = "0.1.0"
-edition = "2024"
+description = "Desktop music player built on verse-core"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+readme.workspace = true
+keywords.workspace = true
+categories.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "verse"
+path = "src/main.rs"
 
 [dependencies]
-iced = { version = "0.14.0", features = ["tokio", "image", "advanced", "lazy", "svg"] }
 verse-core = { path = "../core" }
-image = "0.25.9"
-lofty = "0.22.4"
-rfd = "0.16.0"
-iced_aw = "0.13.0"
-souvlaki = "0.8.3"
-serde = { version = "1.0", features = ["derive"] }
-toml = "0.8"
-dirs = "5.0"
 
-[target.'cfg(windows)'.dependencies]
-windows = { version = "0.62.2", features = ["Win32_Foundation", "Win32_UI_WindowsAndMessaging", "Win32_System_LibraryLoader"] }
+iced = { version = "0.14.0", features = ["advanced", "svg", "image", "tokio"] }
+tokio = { version = "1", features = ["rt", "sync", "macros"] }
+image = { version = "0.25.9", default-features = false, features = [
+    "jpeg",
+    "png",
+    "gif",
+    "bmp",
+    "webp",
+] }
+lru = "0.16.4"
+rfd = "0.15.4"
+dirs = "6.0.0"
+serde = { version = "1.0.228", features = ["derive"] }
+toml = "0.9.10"
+
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+module_name_repetitions = "allow"
+must_use_candidate = "allow"
+doc_markdown = "allow"
+cast_precision_loss = "allow"
+cast_possible_truncation = "allow"
+cast_sign_loss = "allow"
