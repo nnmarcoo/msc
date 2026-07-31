@@ -376,7 +376,7 @@ fn appearance<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, Message> {
     let rows = vec![
         setting(
             "Theme",
-            "Colour scheme for the application",
+            "Color scheme for the application",
             pick_list(ALL_THEMES, Some(pending.theme.clone()), |theme| {
                 Message::Preference(PreferenceMessage::SetTheme(theme))
             })

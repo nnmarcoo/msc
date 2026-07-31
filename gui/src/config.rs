@@ -1,5 +1,5 @@
 //! Persisted GUI settings (theme, volume, saved layouts). Split into an owned
-//! `Config` and a serialised `ConfigFile` so on-disk changes stay forgiving.
+//! `Config` and a serialized `ConfigFile` so on-disk changes stay forgiving.
 //!
 //! `muted` is kept beside `volume` rather than folded into it as a zero, so
 //! unmuting knows what level to go back to across a restart.

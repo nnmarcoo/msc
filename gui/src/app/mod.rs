@@ -35,15 +35,30 @@
 //! on both leaves nothing that can change without the caches knowing. Adding a
 //! third input to either filter means adding a `refresh_visible` call with it.
 //!
-//! `album_track_ids` resolves a clicked cover through `visible_albums`, the same
-//! cache the grid drew from, so the tile's number and the album it names cannot
-//! disagree. Resolving against `library.albums()` instead was the bug this
+//! `collection_track_ids` resolves a clicked cover through `visible_albums`, the
+//! same cache the grid drew from, so the tile's number and the album it names
+//! cannot disagree. Resolving against `library.albums()` instead was the bug this
 //! replaced: that list is unfiltered, so under a query the number pointed at a
 //! different record entirely. An index is only ever meaningful against one list,
 //! and naming which one is what makes it safe rather than avoiding it — the same
 //! reason [`crate::browsing::Selection`] pairs its anchor index with the id it
 //! pointed at. A stale click resolves to nothing and plays nothing, since the
 //! cache and the grid refresh together.
+//!
+//! Its playlist arm has no cache to resolve through, because there is nothing
+//! expensive to cache: a playlist is filtered by its own name rather than by its
+//! tracks, so the same filter runs here and in the pane. That it is one function,
+//! [`crate::pane::collections::visible_playlists`], is what keeps the two in
+//! step; two copies of the rule that drifted would leave a tile playing the
+//! playlist beside the one pressed.
+//!
+//! Both arms drop tracks whose files are gone, so pressing play on a collection
+//! queues only what can actually sound. The album arm once did not, which meant
+//! a click on an album with a missing file queued silence at that position while
+//! the same click on a playlist skipped it — one rule per kind for what is one
+//! question. That the panel still *draws* missing tracks, dimmed, is a separate
+//! matter: a list should read as the thing its owner made, but playing it should
+//! not stall on a file the library has lost.
 //!
 //! A selection deliberately survives a query change: tracks filtered off screen
 //! stay selected, so clearing a search restores what was picked before it. Only
@@ -146,6 +161,7 @@ use crate::browsing::{Context, Selection};
 use crate::config::Config;
 use crate::keybinds::Action;
 use crate::layout::{Axis, DropZone, Layout, PaneId, PaneMetrics, SplitPath};
+use crate::pane::collections::{self, Kind as CollectionKind};
 use crate::pane::{PaneKind, PaneMessage, PaneStates, view as pane_view};
 use crate::preferences::{self, PreferenceMessage, PreferenceOutcome, PreferenceState};
 use crate::styles;
@@ -210,6 +226,19 @@ pub enum DropTarget {
     RootEdge(DropZone),
 }
 
+/// What to do with a collection's tracks once they are resolved.
+///
+/// One message carrying the disposition rather than three parallel messages,
+/// because all three resolve the same list the same way and differ only in
+/// where it goes; three arms of `update` that each re-resolved were three places
+/// for the resolution to drift.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Act {
+    Play,
+    Next,
+    Queue,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RowClick {
     Replace,
@@ -247,7 +276,7 @@ pub enum Message {
     PlayTrack(i64),
     EnqueueTrack(i64),
     PlayTracks(Vec<i64>),
-    PlayAlbum(usize),
+    Collection(CollectionKind, usize, Act),
     EnqueueTracks(Vec<i64>),
     EnqueueTracksNext(Vec<i64>),
     RemoveFromQueue(usize),
@@ -299,7 +328,7 @@ impl App {
         styles::set_radius(config.rounded);
 
         let library = Library::open().expect("failed to open library");
-        let mut player = Player::new().expect("failed to initialise audio");
+        let mut player = Player::new().expect("failed to initialize audio");
         player.set_volume(if config.muted { 0.0 } else { config.volume });
 
         let mut layouts = config.layouts.clone();
@@ -512,10 +541,7 @@ impl App {
             Message::ClearSelection => self.selection.clear(),
             Message::PlaySelection => {
                 let ids = self.selected_in_order();
-                if let Some((&first, rest)) = ids.split_first() {
-                    let _ = self.player.play_now(&self.library, first);
-                    self.player.queue_mut().extend_next(rest.iter().copied());
-                }
+                self.play_all(&ids);
             }
             Message::QueueSelection => {
                 let ids = self.selected_in_order();
@@ -533,21 +559,54 @@ impl App {
         }
     }
 
-    fn album_track_ids(&self, shown: usize) -> Vec<i64> {
-        self.visible_albums
-            .get(shown)
-            .and_then(|key| self.library.albums().iter().find(|album| album.key == *key))
-            .map(|album| {
-                self.library
-                    .album_tracks(album)
-                    .filter_map(Track::id)
-                    .collect()
-            })
-            .unwrap_or_default()
+    fn collection_track_ids(&self, kind: CollectionKind, shown: usize) -> Vec<i64> {
+        match kind {
+            CollectionKind::Album => self
+                .visible_albums
+                .get(shown)
+                .map(std::slice::from_ref)
+                .and_then(|key| self.library.albums_by_key(key).pop())
+                .map(|album| {
+                    self.library
+                        .album_tracks_available(album)
+                        .filter_map(Track::id)
+                        .collect()
+                })
+                .unwrap_or_default(),
+            CollectionKind::Playlist => {
+                let query = self.context().query();
+                collections::visible_playlists(&self.library, &query)
+                    .nth(shown)
+                    .map(|playlist| {
+                        playlist
+                            .track_ids
+                            .iter()
+                            .filter_map(|&id| self.library.track(id))
+                            .filter(|track| track.available())
+                            .filter_map(Track::id)
+                            .collect()
+                    })
+                    .unwrap_or_default()
+            }
+        }
     }
 
     fn selected_in_order(&self) -> Vec<i64> {
         self.selection.ordered_ids(self.visible_ids())
+    }
+
+    /// Play a list: start the first and queue the rest behind it.
+    ///
+    /// What "play" means for anything holding more than one track — a
+    /// selection, an album, a playlist — so that all of them agree rather than
+    /// each spelling the rule out. An empty list plays nothing and, in
+    /// particular, does not stop what is already playing: a click that resolved
+    /// to nothing should do nothing.
+    fn play_all(&mut self, ids: &[i64]) {
+        if let Some((&first, rest)) = ids.split_first() {
+            let _ = self.player.play_now(&self.library, first);
+            self.player.queue_mut().extend_next(rest.iter().copied());
+        }
     }
 
     #[allow(clippy::needless_pass_by_value)]
@@ -578,17 +637,13 @@ impl App {
                 let _ = self.player.play_now(&self.library, id);
             }
             Message::EnqueueTrack(id) => self.player.enqueue(id),
-            Message::PlayTracks(ids) => {
-                if let Some((&first, rest)) = ids.split_first() {
-                    let _ = self.player.play_now(&self.library, first);
-                    self.player.queue_mut().extend_next(rest.iter().copied());
-                }
-            }
-            Message::PlayAlbum(shown) => {
-                let ids = self.album_track_ids(shown);
-                if let Some((&first, rest)) = ids.split_first() {
-                    let _ = self.player.play_now(&self.library, first);
-                    self.player.queue_mut().extend_next(rest.iter().copied());
+            Message::PlayTracks(ids) => self.play_all(&ids),
+            Message::Collection(kind, shown, act) => {
+                let ids = self.collection_track_ids(kind, shown);
+                match act {
+                    Act::Play => self.play_all(&ids),
+                    Act::Next => self.player.queue_mut().extend_next(ids),
+                    Act::Queue => self.player.queue_mut().extend(ids),
                 }
             }
             Message::EnqueueTracks(ids) => self.player.queue_mut().extend(ids),
@@ -633,7 +688,7 @@ impl App {
             | Message::PlayTrack(_)
             | Message::EnqueueTrack(_)
             | Message::PlayTracks(_)
-            | Message::PlayAlbum(_)
+            | Message::Collection(..)
             | Message::EnqueueTracks(_)
             | Message::EnqueueTracksNext(_)
             | Message::RemoveFromQueue(_)

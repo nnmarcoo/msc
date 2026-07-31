@@ -1,4 +1,4 @@
-//! A virtualised list of tracks.
+//! A virtualized list of tracks.
 //!
 //! This is a custom widget because a row is not worth an `Element`. Composing a
 //! `column` of containers builds, and diffs, one widget tree per track every
@@ -7,7 +7,7 @@
 //! full height from a multiplication rather than by measuring children, so the
 //! cost of a frame follows the *window*, not the library.
 //!
-//! Virtualisation falls out of the `viewport` iced already passes to `draw`.
+//! Virtualization falls out of the `viewport` iced already passes to `draw`.
 //! Inside a `scrollable` that rectangle is the visible slice in content
 //! coordinates, so the first and last rows worth drawing are two divisions, and
 //! everything above or below is skipped. Scrolling itself stays with the
@@ -35,7 +35,7 @@
 //! widget needs the same press to know where to open. `Op::RightClicked` only
 //! tells the app which row it landed on.
 //!
-//! `visible_range` is the whole of the virtualisation, kept a free function so
+//! `visible_range` is the whole of the virtualization, kept a free function so
 //! it can be tested without constructing tracks. It includes one row beyond the
 //! viewport so a row straddling the bottom edge still draws. A list shorter than
 //! its pane still claims the pane's full height, or the pane's background shows

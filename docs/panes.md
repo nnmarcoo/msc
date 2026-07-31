@@ -119,7 +119,7 @@ model is renderer-agnostic by design, so only the renderer would change.
 
 ## Data model (`layout.rs`)
 
-Layout is plain data, free of iced types, serialised directly. The rendered
+Layout is plain data, free of iced types, serialized directly. The rendered
 widget is rebuilt from it every frame, never the reverse, so there is only ever
 one representation to keep correct.
 
@@ -187,7 +187,7 @@ it, which `DividerState` names:
 The distinction is invisible on screen, because it depends on tree depth rather
 than on anything the pane grid shows: the seam beside a locked *pane* is
 draggable, while the seam beside a rigid *group* containing that same pane is
-not. Hence three colours, with the disabled colour reserved for `Inert` alone.
+not. Hence three colors, with the disabled color reserved for `Inert` alone.
 
 > **Bug fixed here.** These were two independent booleans, and the styling read
 > `inert || pinned` while the interaction read only `inert`. A `Pinned` seam
@@ -277,7 +277,7 @@ and divider drags update the `Layout`, which is then re-rendered and persisted.
 - `widgets/pane_picker.rs` — the change-kind trigger and its escaping overlay.
 - `widgets/menu.rs` — menu rows and hover-driven fly-out submenus.
 - `widgets/context_menu.rs` — right-click menus, as an escaping overlay.
-- `widgets/track_list.rs` — the virtualised track list.
+- `widgets/track_list.rs` — the virtualized track list.
 
 Every custom overlay above carries a cursor-claiming fallback in its
 `mouse_interaction`, without which hover falls through the panel to the pane
@@ -330,7 +330,7 @@ the window. Because it is a true `Overlay` it escapes every ancestor's clip
 bounds — which is why the picker can open a 320px list out of an 80px pane. The
 same mechanism applies unchanged; only the anchor and the preferred side differ.
 
-Note the trigger is a **pane** measurement, not a window one. A maximised window
+Note the trigger is a **pane** measurement, not a window one. A maximized window
 can still contain an 80px pane, and that pane needs escaped controls just as much
 as one in a small window does.
 

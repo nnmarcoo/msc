@@ -27,7 +27,7 @@
 //!
 //! The cache is keyed on the text and the width it was cut to, and the widget
 //! reshapes only when one of those actually moves. That is load-bearing rather
-//! than an optimisation: shaping is the expensive half of this widget, and
+//! than an optimization: shaping is the expensive half of this widget, and
 //! `layout` runs on every frame a pane is resized.
 //!
 //! [`width_of`] exposes the same measurement to callers who have to decide what to

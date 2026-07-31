@@ -16,6 +16,14 @@
 //! [`crate::browsing`] instead, which is why the library pane has no state
 //! here. The queue's history toggle and the timeline's remaining-time toggle both
 //! qualify: each is about how one pane draws itself and nothing else.
+//!
+//! [`summary`] lives here rather than in a pane because the queue and the
+//! collections panel both label a list of tracks the same way, and they had each
+//! written the count, the plural and the run time out separately. A shared
+//! parent is the narrowest place both can reach. Note that the several `clock`
+//! functions across the widgets are deliberately *not* shared: they disagree
+//! about what an invalid duration reads as and about rounding versus truncating,
+//! and a scrubber that rounded would show a second that has not elapsed.
 #![allow(dead_code)]
 
 pub mod artwork;
@@ -33,6 +41,31 @@ use std::collections::HashMap;
 use serde::{Deserialize, Serialize};
 
 use crate::layout::PaneId;
+
+pub fn summary(count: usize, total: f32) -> String {
+    format!("{count} {} · {}", plural(count), span(total))
+}
+
+fn plural(count: usize) -> &'static str {
+    if count == 1 { "track" } else { "tracks" }
+}
+
+/// A total run time, in the largest unit that keeps it short.
+fn span(seconds: f32) -> String {
+    if !seconds.is_finite() || seconds <= 0.0 {
+        return "0 min".to_owned();
+    }
+    let minutes = (seconds / 60.0).round() as u64;
+    if minutes < 60 {
+        return format!("{minutes} min");
+    }
+    let (hours, rest) = (minutes / 60, minutes % 60);
+    if rest == 0 {
+        format!("{hours} hr")
+    } else {
+        format!("{hours} hr {rest} min")
+    }
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum PaneCategory {
@@ -72,8 +105,8 @@ pub enum PaneKind {
     Lyrics,
     TrackInfo,
     Artwork,
-    Visualiser,
-    Equaliser,
+    Visualizer,
+    Equalizer,
     Settings,
     Empty,
 }
@@ -96,8 +129,8 @@ impl PaneKind {
         PaneKind::Lyrics,
         PaneKind::TrackInfo,
         PaneKind::Artwork,
-        PaneKind::Visualiser,
-        PaneKind::Equaliser,
+        PaneKind::Visualizer,
+        PaneKind::Equalizer,
         PaneKind::Settings,
         PaneKind::Empty,
     ];
@@ -120,8 +153,8 @@ impl PaneKind {
             PaneKind::Lyrics => "Lyrics",
             PaneKind::TrackInfo => "Track Info",
             PaneKind::Artwork => "Artwork",
-            PaneKind::Visualiser => "Visualiser",
-            PaneKind::Equaliser => "Equaliser",
+            PaneKind::Visualizer => "Visualizer",
+            PaneKind::Equalizer => "Equalizer",
             PaneKind::Settings => "Settings",
             PaneKind::Empty => "Empty",
         }
@@ -142,10 +175,10 @@ impl PaneKind {
             | PaneKind::Timeline
             | PaneKind::Volume
             | PaneKind::History => PaneCategory::Playback,
-            PaneKind::Lyrics | PaneKind::TrackInfo | PaneKind::Artwork | PaneKind::Visualiser => {
+            PaneKind::Lyrics | PaneKind::TrackInfo | PaneKind::Artwork | PaneKind::Visualizer => {
                 PaneCategory::Detail
             }
-            PaneKind::Equaliser | PaneKind::Settings | PaneKind::Empty => PaneCategory::Tools,
+            PaneKind::Equalizer | PaneKind::Settings | PaneKind::Empty => PaneCategory::Tools,
         }
     }
 
@@ -167,8 +200,8 @@ impl PaneKind {
             PaneKind::Lyrics => "words text karaoke",
             PaneKind::TrackInfo => "metadata tags details properties",
             PaneKind::Artwork => "cover art album picture image sleeve",
-            PaneKind::Visualiser => "spectrum waveform graphics visualizer",
-            PaneKind::Equaliser => "eq bands tone audio equalizer",
+            PaneKind::Visualizer => "spectrum waveform graphics visualizer",
+            PaneKind::Equalizer => "eq bands tone audio equalizer",
             PaneKind::Settings => "preferences options config",
             PaneKind::Empty => "blank none clear placeholder",
         }
@@ -204,6 +237,7 @@ impl PaneKind {
 pub enum PaneMessage {
     Queue(queue::Message),
     Timeline(timeline::Message),
+    Collections(collections::PanelMessage),
 }
 
 #[derive(Debug)]
@@ -211,6 +245,7 @@ pub enum PaneState {
     Queue(queue::State),
     Timeline(timeline::State),
     Artwork(artwork::State),
+    Collections(collections::State),
     Stateless,
 }
 
@@ -220,12 +255,12 @@ impl PaneState {
             PaneKind::Queue => Self::Queue(queue::State::default()),
             PaneKind::Timeline => Self::Timeline(timeline::State::default()),
             PaneKind::Artwork => Self::Artwork(artwork::State::default()),
+            PaneKind::Collections => Self::Collections(collections::State::default()),
             PaneKind::Library
             | PaneKind::Search
             | PaneKind::Albums
             | PaneKind::Artists
             | PaneKind::Playlists
-            | PaneKind::Collections
             | PaneKind::Folders
             | PaneKind::NowPlaying
             | PaneKind::Controls
@@ -233,8 +268,8 @@ impl PaneState {
             | PaneKind::History
             | PaneKind::Lyrics
             | PaneKind::TrackInfo
-            | PaneKind::Visualiser
-            | PaneKind::Equaliser
+            | PaneKind::Visualizer
+            | PaneKind::Equalizer
             | PaneKind::Settings
             | PaneKind::Empty => Self::Stateless,
         }
@@ -281,6 +316,9 @@ impl PaneStates {
             (Some(PaneState::Timeline(state)), PaneMessage::Timeline(message)) => {
                 timeline::update(state, &message);
             }
+            (Some(PaneState::Collections(state)), PaneMessage::Collections(message)) => {
+                collections::update(state, &message);
+            }
             _ => {}
         }
     }
@@ -289,6 +327,41 @@ impl PaneStates {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_short_list_reads_in_minutes() {
+        assert_eq!(span(0.0), "0 min");
+        assert_eq!(span(90.0), "2 min");
+        assert_eq!(span(59.0 * 60.0), "59 min");
+    }
+
+    #[test]
+    fn a_long_list_reads_in_hours() {
+        assert_eq!(span(60.0 * 60.0), "1 hr");
+        assert_eq!(span(90.0 * 60.0), "1 hr 30 min");
+        assert_eq!(span(3.0 * 60.0 * 60.0), "3 hr");
+    }
+
+    #[test]
+    fn a_nonsense_total_still_reads_as_a_span() {
+        assert_eq!(span(f32::NAN), "0 min");
+        assert_eq!(span(-500.0), "0 min");
+    }
+
+    #[test]
+    fn one_track_is_not_pluralized() {
+        assert_eq!(plural(1), "track");
+        assert_eq!(plural(0), "tracks");
+        assert_eq!(plural(9), "tracks");
+    }
+
+    /// The queue strip and the collections panel label a list the same way, so
+    /// the string both produce is checked once here rather than per pane.
+    #[test]
+    fn a_summary_names_the_count_and_the_run_time() {
+        assert_eq!(summary(1, 90.0), "1 track · 2 min");
+        assert_eq!(summary(12, 90.0 * 60.0), "12 tracks · 1 hr 30 min");
+    }
 
     #[test]
     fn every_kind_appears_exactly_once_in_all() {
@@ -333,8 +406,8 @@ mod tests {
     #[test]
     fn search_matches_keywords() {
         assert!(PaneKind::search("metadata").contains(&PaneKind::TrackInfo));
-        assert!(PaneKind::search("spectrum").contains(&PaneKind::Visualiser));
-        assert!(PaneKind::search("equalizer").contains(&PaneKind::Equaliser));
+        assert!(PaneKind::search("spectrum").contains(&PaneKind::Visualizer));
+        assert!(PaneKind::search("equalizer").contains(&PaneKind::Equalizer));
     }
 
     #[test]

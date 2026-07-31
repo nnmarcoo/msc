@@ -45,12 +45,12 @@
 //! be playing, selected, and hovered at once and the widget layers them.
 //!
 //! [`Query`] is the search text after trimming and lowercasing, and it exists so
-//! that normalisation happens once at construction rather than at each place that
+//! that normalization happens once at construction rather than at each place that
 //! filters. `contains_fold` needs its needle already lowercased, which as a bare
 //! convention is a precondition living only in the caller's head: a filter that
 //! forgot the `trim` or the `to_lowercase` would not fail, it would quietly match
-//! a different set of tracks than the pane beside it. Making the normalised query
-//! a type means the un-normalised one cannot be passed, and every pane filters by
+//! a different set of tracks than the pane beside it. Making the normalized query
+//! a type means the un-normalized one cannot be passed, and every pane filters by
 //! the same rule because there is only one rule to apply.
 //!
 //! Both filters are iterators rather than lists, so a caller that only wants ids
@@ -587,7 +587,7 @@ mod tests {
     }
 
     #[test]
-    fn a_query_normalises_once_however_it_was_typed() {
+    fn a_query_normalizes_once_however_it_was_typed() {
         let canonical = Query::new("monday");
         for typed in ["monday", "Monday", "MONDAY", "  monday  ", "\tMonday\n"] {
             assert_eq!(

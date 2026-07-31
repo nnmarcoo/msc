@@ -185,7 +185,18 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
             _ => artwork::view(shared.tracks, shared.artwork, None),
         },
         PaneKind::Collections => {
-            collections::view(shared.tracks, shared.visible_albums, shared.artwork)
+            static EMPTY: collections::State = collections::State::EMPTY;
+            let state = match pane.state {
+                Some(PaneState::Collections(state)) => state,
+                _ => &EMPTY,
+            };
+            collections::view(
+                shared.tracks,
+                shared.visible_albums,
+                shared.artwork,
+                state,
+                pane.id,
+            )
         }
         PaneKind::Volume => volume::view(shared.playback.volume, shared.playback.muted),
         PaneKind::Search => search::view(shared.tracks, shared.visible.len()),

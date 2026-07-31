@@ -5,9 +5,15 @@
 //! cache decides *what* to draw and is read every frame, while decoding is a pure
 //! function of a file and a size, run on a blocking thread and never touching the
 //! cache itself. [`crate::tasks`] is what joins them, and holds neither.
+//!
+//! [`palette`] is a third pure function, over an image rather than a file: the
+//! color a cover is mostly made of, for surfaces that want to be tinted by the
+//! record they show. It runs on the decode thread beside the resampling, since
+//! it wants the same master and costs a fraction of what the resample does.
 
 pub mod cache;
 pub mod decode;
+pub mod palette;
 
 pub use cache::{Art, ArtKey, Cache, Job, Source};
 pub use decode::{Decoded, decode};

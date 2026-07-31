@@ -320,7 +320,7 @@ featured artist.
 **Rows are never deleted.** The scan keeps marking absent files `missing = 1`.
 
 Rationale: playlist membership is user-authored data that cannot be re-derived. A drive
-left unmounted, a file moved during a reorganisation, or an external disk not plugged in
+left unmounted, a file moved during a reorganization, or an external disk not plugged in
 would otherwise cascade through `playlist_tracks` and silently shorten the user's
 playlists — damage they may not notice until long after. A stale row costs ~250 bytes;
 a deleted one costs information only the user could reconstruct. Keep the row.

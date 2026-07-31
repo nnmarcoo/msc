@@ -29,7 +29,7 @@
 //! nothing depends on that: each is rebindable to any key like everything else.
 //!
 //! The on-disk form is a table of action name to binding string rather than a
-//! serialisation of this type, so a config stays readable and hand-editable, and
+//! serialization of this type, so a config stays readable and hand-editable, and
 //! an unknown or malformed entry can be dropped without failing the whole file.
 //! An absent entry means "use the default", while an empty string means the user
 //! deliberately unbound it — a distinction a plain `Option` on disk would lose.
@@ -701,7 +701,7 @@ mod tests {
         let total = keys.len();
         keys.dedup();
 
-        assert_eq!(keys.len(), total, "two actions serialise to the same name");
+        assert_eq!(keys.len(), total, "two actions serialize to the same name");
     }
 
     #[test]

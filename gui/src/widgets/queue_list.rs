@@ -1,4 +1,4 @@
-//! A virtualised list of queued tracks, reorderable by dragging.
+//! A virtualized list of queued tracks, reorderable by dragging.
 //!
 //! A custom widget partly because a row is not worth an `Element`, as in
 //! [`crate::widgets::track_list`], but mostly because of the cursor. The queue was
@@ -18,7 +18,7 @@
 //! rather than fixed: nothing races, the row is an index and so unique, and a list
 //! that changes shape is re-measured on the next event like any other.
 //!
-//! Virtualisation works as [`crate::widgets::track_list`] does. The `viewport`
+//! Virtualization works as [`crate::widgets::track_list`] does. The `viewport`
 //! iced passes to `draw` is the visible slice in content coordinates, so the rows
 //! worth drawing are two divisions.
 //!
@@ -260,7 +260,7 @@ fn visible_range(bounds: Rectangle, viewport: &Rectangle, len: usize) -> std::op
 /// Where a drag from `from` landing in gap `gap` puts the track.
 ///
 /// Returns `None` when the drop would not move anything, so a caller can skip a
-/// no-op rather than having to recognise one.
+/// no-op rather than having to recognize one.
 pub fn drop_target(from: usize, gap: usize) -> Option<usize> {
     let to = if gap > from { gap - 1 } else { gap };
     (to != from).then_some(to)

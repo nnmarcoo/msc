@@ -71,7 +71,7 @@ pub struct Pane {
 }
 ```
 
-`Layout` is the **single source of truth**, serialised directly. No
+`Layout` is the **single source of truth**, serialized directly. No
 `Configuration` ↔ `LayoutNode` conversion pair; `pane_grid::State` is rebuilt
 from it when it changes, never the reverse.
 
@@ -168,7 +168,7 @@ pub enum KindSettings {
 }
 ```
 
-Serialised with the layout, so a saved layout captures both arrangement *and*
+Serialized with the layout, so a saved layout captures both arrangement *and*
 configuration.
 
 ## Persistence

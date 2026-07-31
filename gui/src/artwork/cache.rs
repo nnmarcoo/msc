@@ -84,6 +84,9 @@ pub struct Art {
     pub height: u32,
     pub pixels: Vec<u8>,
     pub source_edge: u32,
+    /// The color the cover is mostly made of, or `None` when it has none worth
+    /// naming. See [`crate::artwork::palette`].
+    pub color: Option<[u8; 3]>,
 }
 
 struct Master {
@@ -94,6 +97,7 @@ struct Master {
 pub struct Cache {
     sources: HashMap<i64, Option<ArtKey>>,
     extents: HashMap<ArtKey, u32>,
+    colors: HashMap<ArtKey, Option<[u8; 3]>>,
     masters: RefCell<LruCache<ArtKey, Master>>,
     master_bytes: RefCell<usize>,
     scaled: RefCell<LruCache<(ArtKey, u32), Handle>>,
@@ -112,6 +116,7 @@ impl Cache {
         Self {
             sources: HashMap::new(),
             extents: HashMap::new(),
+            colors: HashMap::new(),
             masters: RefCell::new(LruCache::unbounded()),
             master_bytes: RefCell::new(0),
             scaled: RefCell::new(LruCache::new(
@@ -144,6 +149,22 @@ impl Cache {
 
     pub fn resolved_empty(&self, track: i64) -> bool {
         self.sources.get(&track) == Some(&None)
+    }
+
+    /// The color a track's cover is mostly made of.
+    ///
+    /// `None` both while the art is still being read and when it turned out to
+    /// have no color worth naming, because a caller does either the same thing:
+    /// draw its own background. Distinguishing them would only let a surface
+    /// flicker from untinted to tinted, which is what it does anyway when the
+    /// decode lands.
+    ///
+    /// Unlike [`Cache::request`] this queues nothing. A color is a by-product
+    /// of art that some pane already asked for, so a surface wanting the tint
+    /// never causes a read of its own; it is tinted once the cover it is showing
+    /// has arrived, which is the same frame the cover appears in.
+    pub fn color(&self, track: i64) -> Option<[u8; 3]> {
+        self.colors.get(&self.source_of(track)?).copied().flatten()
     }
 
     pub fn is_idle(&self) -> bool {
@@ -183,6 +204,17 @@ impl Cache {
         });
 
         self.extents.insert(key, art.source_edge);
+
+        // A cover cut from a resident master carries no color, since the pass
+        // that first decoded it already named one and the pixels have not
+        // changed. Filing that absence would drop the color on the second size
+        // a cover is asked for, so a panel would lose its tint the moment the
+        // grid it sits in was resized.
+        if let Some(color) = art.color {
+            self.colors.insert(key, Some(color));
+        } else {
+            self.colors.entry(key).or_insert(None);
+        }
         let handle = Handle::from_rgba(art.width, art.height, art.pixels);
         self.scaled.borrow_mut().put((key, art.bucket), handle);
     }
@@ -215,6 +247,7 @@ impl Cache {
 
         let reachable: HashSet<ArtKey> = self.sources.values().flatten().copied().collect();
         self.extents.retain(|key, _| reachable.contains(key));
+        self.colors.retain(|key, _| reachable.contains(key));
 
         let mut masters = self.masters.borrow_mut();
         let mut total = self.master_bytes.borrow_mut();
@@ -333,6 +366,16 @@ mod tests {
             height: bucket,
             pixels: vec![0; bucket as usize * bucket as usize * 4],
             source_edge: 3000,
+            color: None,
+        }
+    }
+
+    /// What a first decode of a cover produces: pixels and the color named
+    /// from them.
+    fn colored(track: i64, key: ArtKey, bucket: u32, color: [u8; 3]) -> Art {
+        Art {
+            color: Some(color),
+            ..art(track, key, bucket)
         }
     }
 
@@ -345,6 +388,7 @@ mod tests {
             height: 0,
             pixels: Vec::new(),
             source_edge: 0,
+            color: None,
         }
     }
 
@@ -649,6 +693,74 @@ mod tests {
             cache.request(1, path(A), 200.0).is_some(),
             "evicting the master took the drawable handle with it"
         );
+    }
+
+    #[test]
+    fn a_covers_color_is_kept_for_the_track_that_carries_it() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), 256, [90, 40, 40]));
+
+        assert_eq!(cache.color(1), Some([90, 40, 40]));
+    }
+
+    #[test]
+    fn a_track_whose_art_has_not_been_read_has_no_color() {
+        let cache = Cache::new();
+        assert_eq!(cache.color(1), None);
+    }
+
+    #[test]
+    fn a_track_whose_cover_has_no_color_names_none() {
+        let mut cache = Cache::new();
+        cache.insert(art(1, ArtKey::of(&[1]), 256));
+
+        assert_eq!(cache.color(1), None);
+    }
+
+    /// A second size of a cover is cut from a resident master, and the decoder
+    /// does not name the color again for it. Filing that absence would drop the
+    /// tint the moment a pane was resized, so the panel would lose its color on
+    /// exactly the covers that had one.
+    #[test]
+    fn a_second_size_does_not_drop_the_color_already_named() {
+        let mut cache = Cache::new();
+        let key = ArtKey::of(&[1]);
+
+        cache.insert(colored(1, key, 256, [90, 40, 40]));
+        cache.insert(art(1, key, 512));
+
+        assert_eq!(
+            cache.color(1),
+            Some([90, 40, 40]),
+            "resizing the pane forgot what color the album was"
+        );
+    }
+
+    #[test]
+    fn tracks_sharing_a_cover_share_its_color() {
+        let mut cache = Cache::new();
+        let key = ArtKey::of(&[1]);
+
+        cache.insert(colored(1, key, 256, [90, 40, 40]));
+        cache.insert(art(2, key, 256));
+
+        assert_eq!(
+            cache.color(2),
+            Some([90, 40, 40]),
+            "a second track on the same album named a different color"
+        );
+    }
+
+    #[test]
+    fn a_rescan_releases_the_colors_of_tracks_that_are_gone() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), 256, [90, 40, 40]));
+        cache.insert(colored(2, ArtKey::of(&[2]), 256, [40, 40, 90]));
+
+        cache.forget(&[1]);
+
+        assert_eq!(cache.color(1), Some([90, 40, 40]));
+        assert_eq!(cache.color(2), None);
     }
 
     #[test]

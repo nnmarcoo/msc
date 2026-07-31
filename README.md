@@ -66,7 +66,7 @@ content yet.
   <tbody>
     <tr>
       <td>Library, Search, Queue, Controls, Timeline, Volume, Artwork, Collections</td>
-      <td>Albums, Artists, Playlists, Folders, Now Playing, History, Lyrics, Track Info, Visualiser, Equaliser, Settings</td>
+      <td>Albums, Artists, Playlists, Folders, Now Playing, History, Lyrics, Track Info, Visualizer, Equalizer, Settings</td>
     </tr>
   </tbody>
 </table>

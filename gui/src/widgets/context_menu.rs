@@ -5,7 +5,7 @@
 //! so it must be a true `Overlay` rather than a `stack!` layer.
 //!
 //! The panel and its `Tree` live in [`State`] and are rebuilt only when the
-//! labels change (`built_for`). This is load-bearing, not an optimisation: a
+//! labels change (`built_for`). This is load-bearing, not an optimization: a
 //! menu row keeps its hover flag in tree state, so building a fresh `Tree` each
 //! frame, as this first did, discards that flag every frame and the rows never
 //! light up or register a press. Presses travel back through a local `Shell` as

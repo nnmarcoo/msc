@@ -1,7 +1,7 @@
 //! Layout as plain data.
 //!
 //! This tree is the single source of truth for how panes are arranged, and it
-//! is what gets serialised. The rendered widget is built from it every frame,
+//! is what gets serialized. The rendered widget is built from it every frame,
 //! never the reverse, so there is only ever one representation to keep correct.
 //!
 //! Splits size proportionally through `Split`; pixel locks live on the panes as

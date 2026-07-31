@@ -107,11 +107,11 @@ fn strip<'a>(count: usize, total: f32, bindings: &Bindings) -> Element<'a, AppMe
     let label = if count == 0 {
         "Nothing queued".to_owned()
     } else {
-        format!("{} {} · {}", count, plural(count), span(total))
+        crate::pane::summary(count, total)
     };
 
     let line = row![
-        text(label).size(LABEL_FONT_SIZE).style(dim_style),
+        text(label).size(LABEL_FONT_SIZE).style(styles::dim_text),
         Space::new().width(Length::Fill),
         button(text("Clear").size(LABEL_FONT_SIZE))
             .on_press(bindings.clear.clone())
@@ -126,45 +126,11 @@ fn strip<'a>(count: usize, total: f32, bindings: &Bindings) -> Element<'a, AppMe
         .into()
 }
 
-fn plural(count: usize) -> &'static str {
-    if count == 1 { "track" } else { "tracks" }
-}
-
-/// A total run time, in the largest unit that keeps it short.
-fn span(seconds: f32) -> String {
-    if !seconds.is_finite() || seconds <= 0.0 {
-        return "0 min".to_owned();
-    }
-    let minutes = (seconds / 60.0).round() as u64;
-    if minutes < 60 {
-        return format!("{minutes} min");
-    }
-    let (hours, rest) = (minutes / 60, minutes % 60);
-    if rest == 0 {
-        format!("{hours} hr")
-    } else {
-        format!("{hours} hr {rest} min")
-    }
-}
-
 fn empty<'a>() -> Element<'a, AppMessage> {
-    container(text("Queue is empty").size(13.0).style(dim_style))
+    container(text("Queue is empty").size(13.0).style(styles::dim_text))
         .center_x(Length::Fill)
         .center_y(Length::Fill)
         .into()
-}
-
-fn dim_style(theme: &iced::Theme) -> text::Style {
-    text::Style {
-        color: Some(
-            theme
-                .extended_palette()
-                .background
-                .base
-                .text
-                .scale_alpha(0.6),
-        ),
-    }
 }
 
 #[cfg(test)]
@@ -178,32 +144,5 @@ mod tests {
 
         update(&mut state, &Message::ToggleHistory);
         assert!(state.show_history);
-    }
-
-    #[test]
-    fn a_short_queue_reads_in_minutes() {
-        assert_eq!(span(0.0), "0 min");
-        assert_eq!(span(90.0), "2 min");
-        assert_eq!(span(59.0 * 60.0), "59 min");
-    }
-
-    #[test]
-    fn a_long_queue_reads_in_hours() {
-        assert_eq!(span(60.0 * 60.0), "1 hr");
-        assert_eq!(span(90.0 * 60.0), "1 hr 30 min");
-        assert_eq!(span(3.0 * 60.0 * 60.0), "3 hr");
-    }
-
-    #[test]
-    fn a_nonsense_total_still_reads_as_a_span() {
-        assert_eq!(span(f32::NAN), "0 min");
-        assert_eq!(span(-500.0), "0 min");
-    }
-
-    #[test]
-    fn one_track_is_not_pluralised() {
-        assert_eq!(plural(1), "track");
-        assert_eq!(plural(0), "tracks");
-        assert_eq!(plural(9), "tracks");
     }
 }

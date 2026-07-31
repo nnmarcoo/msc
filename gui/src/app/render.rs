@@ -41,8 +41,8 @@
 //! The distinction is invisible on screen, because it depends on tree depth
 //! rather than on anything the pane grid shows: the seam beside a locked pane is
 //! draggable, while the seam beside a rigid *group* containing that same pane is
-//! not. The three states are therefore drawn in three different colours, and the
-//! disabled colour is reserved for `Inert` alone. `Pinned` and `Inert` once
+//! not. The three states are therefore drawn in three different colors, and the
+//! disabled color is reserved for `Inert` alone. `Pinned` and `Inert` once
 //! shared it while only `Inert` refused drags, which left a seam that looked
 //! dead and moved anyway.
 
@@ -518,15 +518,15 @@ mod tests {
     #[test]
     fn the_three_states_draw_differently() {
         let theme = iced::Theme::Dark;
-        let colour = |state: DividerState| {
+        let color = |state: DividerState| {
             state.style()(&theme)
                 .background
                 .expect("a seam always paints a line")
         };
         let (free, pinned, inert) = (
-            colour(DividerState::Free),
-            colour(DividerState::Pinned),
-            colour(DividerState::Inert),
+            color(DividerState::Free),
+            color(DividerState::Pinned),
+            color(DividerState::Inert),
         );
         assert_ne!(free, pinned);
         assert_ne!(free, inert);

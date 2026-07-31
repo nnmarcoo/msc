@@ -27,12 +27,17 @@
 //! cover into 256. The encode direction takes floats and has no such domain, so
 //! it pays for a real `powf` per channel; that asymmetry is most of the added
 //! cost.
+//!
+//! The dominant color is taken here too, from the same master, because it wants
+//! an image already in memory and costs a fraction of the resample beside it.
+//! It is read from the master rather than from the scaled copy so that every
+//! size of one cover names the same color; see [`crate::artwork::palette`].
 
 use std::sync::{Arc, LazyLock};
 
 use image::{Rgba32FImage, RgbaImage, imageops::FilterType};
 
-use crate::artwork::{Art, ArtKey, Job, Source};
+use crate::artwork::{Art, ArtKey, Job, Source, palette};
 
 #[derive(Debug, Clone)]
 pub struct Decoded {
@@ -51,6 +56,7 @@ impl Decoded {
                 height: 0,
                 pixels: Vec::new(),
                 source_edge: 0,
+                color: None,
             },
             master: None,
         }
@@ -82,6 +88,19 @@ pub fn decode(job: &Job, master: Option<Source>) -> Decoded {
         resample(master.as_ref(), side(width), side(height))
     };
 
+    // Only for a cover being seen for the first time. A second size of one
+    // already decoded is cut from a resident master, and the cache has filed
+    // that image's color since the first pass; recomputing it would be the same
+    // answer for the same pixels. `None` from a re-decode therefore means "ask
+    // the cache", not "this cover has no color", which is why
+    // [`crate::artwork::Cache::insert`] keeps the color it already holds rather
+    // than overwriting it.
+    //
+    // Taken from the master rather than from `scaled`, so every size of one
+    // cover names the same color. Reducing a 64px thumbnail again would let a
+    // small pane and a large one disagree about what an album looks like.
+    let color = fresh.then(|| palette::dominant(master.as_ref())).flatten();
+
     Decoded {
         art: Art {
             track: job.track,
@@ -91,6 +110,7 @@ pub fn decode(job: &Job, master: Option<Source>) -> Decoded {
             height: scaled.height(),
             pixels: scaled.into_raw(),
             source_edge,
+            color,
         },
         master: fresh.then_some((key, master)),
     }
@@ -226,7 +246,7 @@ mod tests {
     }
 
     #[test]
-    fn a_flat_colour_survives_the_round_trip() {
+    fn a_flat_color_survives_the_round_trip() {
         for level in [1u8, 40, 128, 200, 254] {
             let flat = RgbaImage::from_pixel(8, 8, Rgba([level, level, level, 255]));
             let out = resample(&flat, 4, 4).get_pixel(0, 0).0[0];
