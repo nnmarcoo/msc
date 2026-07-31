@@ -93,6 +93,15 @@
 //! cannot disagree about what the listener hears. Naming a level unmutes, since
 //! a drag is the user saying what they want to hear.
 //!
+//! `NudgeVolume` is a step rather than a level because the keyboard has no
+//! position to name, and it steps from `audible_volume` rather than from the
+//! stored level so that the volume keys move the number the listener is hearing.
+//! Nudging up from muted therefore lands one step above silence rather than
+//! restoring the old level, which is the same thing the slider does when dragged
+//! while muted: it is a level being named, and naming a level unmutes. The size
+//! of a step is [`crate::widgets::volume::STEP`], shared with the slider's wheel
+//! so that a key and a wheel click move the level equally.
+//!
 //! `config_dirty` exists because a volume drag names a new level on every
 //! pointer move, and saving each one rewrote the whole config file per frame.
 //! Changes mark it instead and a subscription flushes once a second while it is
@@ -166,6 +175,7 @@ use crate::pane::{PaneKind, PaneMessage, PaneStates, view as pane_view};
 use crate::preferences::{self, PreferenceMessage, PreferenceOutcome, PreferenceState};
 use crate::styles;
 use crate::tasks;
+use crate::widgets::volume;
 
 pub struct App {
     library: Library,
@@ -270,6 +280,7 @@ pub enum Message {
     Seek(f32),
     SeekReleased,
     Volume(f32),
+    NudgeVolume(f32),
     ToggleMute,
     CycleLoop,
     Shuffle,
@@ -628,6 +639,7 @@ impl App {
                 }
             }
             Message::Volume(volume) => self.set_volume(volume),
+            Message::NudgeVolume(step) => self.set_volume(self.audible_volume() + step),
             Message::ToggleMute => self.toggle_mute(),
             Message::CycleLoop => {
                 self.player.cycle_loop_mode();
@@ -682,6 +694,7 @@ impl App {
             | Message::Seek(_)
             | Message::SeekReleased
             | Message::Volume(_)
+            | Message::NudgeVolume(_)
             | Message::ToggleMute
             | Message::CycleLoop
             | Message::Shuffle
@@ -958,6 +971,8 @@ impl App {
             Some(Action::Next) => Task::done(Message::Next),
             Some(Action::Previous) => Task::done(Message::Previous),
             Some(Action::ToggleMute) => Task::done(Message::ToggleMute),
+            Some(Action::VolumeUp) => Task::done(Message::NudgeVolume(volume::STEP)),
+            Some(Action::VolumeDown) => Task::done(Message::NudgeVolume(-volume::STEP)),
             Some(Action::CycleLoop) => Task::done(Message::CycleLoop),
             Some(Action::Shuffle) => Task::done(Message::Shuffle),
             Some(Action::TogglePreferences) => Task::done(Message::TogglePreferences),

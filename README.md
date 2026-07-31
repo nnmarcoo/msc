@@ -83,6 +83,7 @@ defaults.
   <tbody>
     <tr><td><kbd>Space</kbd></td><td>Play / pause</td></tr>
     <tr><td><kbd>←</kbd> / <kbd>→</kbd></td><td>Previous / next track</td></tr>
+    <tr><td><kbd>↑</kbd> / <kbd>↓</kbd></td><td>Volume up / down</td></tr>
     <tr><td><kbd>m</kbd></td><td>Mute</td></tr>
     <tr><td><kbd>r</kbd></td><td>Cycle loop mode</td></tr>
     <tr><td><kbd>h</kbd></td><td>Shuffle queue</td></tr>

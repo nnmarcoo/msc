@@ -20,6 +20,11 @@
 //! setting the level and releasing anywhere ends it. That is why `dragging` is
 //! widget state rather than being inferred from the cursor being over the rail.
 //!
+//! [`STEP`] is public because the wheel here and the volume keys in
+//! [`crate::app`] are the same gesture reached two ways, and one nudge should
+//! move the level by the same amount whichever the listener used. Two constants
+//! of equal value would let a later tweak to one silently leave the other behind.
+//!
 //! The widget never keeps its own copy of the level, so a level set here and one
 //! set from a second volume pane cannot drift apart. Muting is likewise not its
 //! concern: a muted player is drawn by handing the rail a zero, so the slider
@@ -186,8 +191,7 @@ impl<Message> Widget<Message, Theme, Renderer> for Volume<'_, Message> {
                     mouse::ScrollDelta::Pixels { y, .. } => y / PIXELS_PER_LINE,
                 };
                 if steps != 0.0 {
-                    let level =
-                        (self.level + steps * WHEEL_STEP).clamp(0.0, verse_core::VOLUME_MAX);
+                    let level = (self.level + steps * STEP).clamp(0.0, verse_core::VOLUME_MAX);
                     shell.publish((self.on_op)(Op::Set(level)));
                     shell.publish((self.on_op)(Op::Committed));
                     shell.capture_event();
@@ -265,7 +269,7 @@ impl<Message> Widget<Message, Theme, Renderer> for Volume<'_, Message> {
     }
 }
 
-const WHEEL_STEP: f32 = 0.05;
+pub const STEP: f32 = 0.05;
 const PIXELS_PER_LINE: f32 = 60.0;
 
 fn fill(renderer: &mut Renderer, bounds: Rectangle, color: Color, radius: f32) {

@@ -58,6 +58,8 @@ pub enum Action {
     Next,
     Previous,
     ToggleMute,
+    VolumeUp,
+    VolumeDown,
     CycleLoop,
     Shuffle,
     ToggleEditMode,
@@ -93,6 +95,8 @@ impl Action {
             Self::Next => "Next track".into(),
             Self::Previous => "Previous track".into(),
             Self::ToggleMute => "Mute".into(),
+            Self::VolumeUp => "Volume up".into(),
+            Self::VolumeDown => "Volume down".into(),
             Self::CycleLoop => "Cycle loop mode".into(),
             Self::Shuffle => "Shuffle queue".into(),
             Self::ToggleEditMode => "Edit mode".into(),
@@ -107,6 +111,8 @@ impl Action {
             Self::Next => "Skip to the next track in the queue",
             Self::Previous => "Go back to the previous track",
             Self::ToggleMute => "Silence playback without losing the volume level",
+            Self::VolumeUp => "Raise the volume a step, unmuting if muted",
+            Self::VolumeDown => "Lower the volume a step, unmuting if muted",
             Self::CycleLoop => "Cycle through off, repeat queue, and repeat track",
             Self::Shuffle => "Shuffle the tracks waiting in the queue",
             Self::ToggleEditMode => "Show the pane handles, split buttons, and locks",
@@ -121,6 +127,8 @@ impl Action {
             | Self::Next
             | Self::Previous
             | Self::ToggleMute
+            | Self::VolumeUp
+            | Self::VolumeDown
             | Self::CycleLoop
             | Self::Shuffle => KeyCategory::Playback,
             Self::ToggleEditMode | Self::TogglePreferences => KeyCategory::Interface,
@@ -134,6 +142,8 @@ impl Action {
             Self::Next,
             Self::Previous,
             Self::ToggleMute,
+            Self::VolumeUp,
+            Self::VolumeDown,
             Self::CycleLoop,
             Self::Shuffle,
             Self::ToggleEditMode,
@@ -149,6 +159,8 @@ impl Action {
             Self::Next => "next".into(),
             Self::Previous => "previous".into(),
             Self::ToggleMute => "toggle_mute".into(),
+            Self::VolumeUp => "volume_up".into(),
+            Self::VolumeDown => "volume_down".into(),
             Self::CycleLoop => "cycle_loop".into(),
             Self::Shuffle => "shuffle".into(),
             Self::ToggleEditMode => "toggle_edit_mode".into(),
@@ -384,6 +396,8 @@ impl Default for Keymap {
         bindings.insert(Action::Next, plain(key::Code::ArrowRight));
         bindings.insert(Action::Previous, plain(key::Code::ArrowLeft));
         bindings.insert(Action::ToggleMute, plain(key::Code::KeyM));
+        bindings.insert(Action::VolumeUp, plain(key::Code::ArrowUp));
+        bindings.insert(Action::VolumeDown, plain(key::Code::ArrowDown));
         bindings.insert(Action::CycleLoop, plain(key::Code::KeyR));
         bindings.insert(Action::Shuffle, plain(key::Code::KeyH));
         bindings.insert(Action::ToggleEditMode, plain(key::Code::KeyE));
@@ -528,6 +542,21 @@ mod tests {
             keymap.resolve(pressed(key::Code::Space), keyboard::Modifiers::empty()),
             Some(Action::PlayPause)
         );
+    }
+
+    #[test]
+    fn the_arrow_keys_are_the_transport_and_the_volume() {
+        let keymap = Keymap::default();
+        let empty = keyboard::Modifiers::empty();
+
+        for (code, action) in [
+            (key::Code::ArrowUp, Action::VolumeUp),
+            (key::Code::ArrowDown, Action::VolumeDown),
+            (key::Code::ArrowRight, Action::Next),
+            (key::Code::ArrowLeft, Action::Previous),
+        ] {
+            assert_eq!(keymap.resolve(pressed(code), empty), Some(action));
+        }
     }
 
     #[test]
