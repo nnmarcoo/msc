@@ -125,7 +125,7 @@ struct State {
     last_press: Option<(usize, std::time::Instant)>,
 }
 
-/// A press on a grip that has not yet travelled far enough to be a drag.
+/// A press on a grip that has not yet traveled far enough to be a drag.
 #[derive(Debug, Clone, Copy)]
 struct Armed {
     upcoming: usize,
@@ -616,7 +616,7 @@ fn draw_row(
     }
 }
 
-/// The two text baselines of a row, centred as a pair.
+/// The two text baselines of a row, centered as a pair.
 fn two_lines(row: Rectangle) -> (f32, f32) {
     let block = TITLE_SIZE + LINE_GAP + LABEL_SIZE;
     let top = row.y + (row.height - block) / 2.0;
@@ -965,7 +965,7 @@ mod tests {
     }
 
     #[test]
-    fn the_text_lines_are_centred_as_a_pair() {
+    fn the_text_lines_are_centered_as_a_pair() {
         let row = Rectangle {
             x: 0.0,
             y: 0.0,

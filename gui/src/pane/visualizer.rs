@@ -25,8 +25,12 @@ use crate::pane::settings::Visualizer;
 use crate::styles::PAD;
 use crate::widgets::spectrum::Spectrum;
 
-pub fn view<'a>(bins: [f32; NUM_BINS], settings: Visualizer) -> Element<'a, Message> {
-    container(Spectrum::new(bins, settings))
+pub fn view<'a>(
+    bins: [f32; NUM_BINS],
+    settings: Visualizer,
+    cover: Option<[u8; 3]>,
+) -> Element<'a, Message> {
+    container(Spectrum::new(bins, settings, cover))
         .padding(PAD)
         .width(Length::Fill)
         .height(Length::Fill)

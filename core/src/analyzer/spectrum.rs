@@ -1,7 +1,31 @@
+//! The FFT bands the visualizer draws: log-spaced, AGC-normalized, one set of
+//! levels per [`FFT_SIZE`] samples.
+//!
+//! [`NUM_BINS`] is the resolution ceiling for everything downstream, because the
+//! GUI folds these bands down to the bar count a pane can show and never
+//! interpolates past them. It is 64 rather than 32 because 32 put that ceiling
+//! below what a wide pane asks for: the spectrum pane's density setting stopped
+//! changing anything once the pane was wide enough to want 32 bars, which on a
+//! normal window is most of the time.
+//!
+//! It is not higher than 64 because [`FFT_SIZE`] is what actually limits the low
+//! end. The bands are log-spaced but the transform's own bins are linear, so at
+//! 44.1kHz each is ~21.5Hz wide and the bands near [`MIN_FREQ`] are the first to
+//! land on the same one. At 64 bands seven of them share a bin with a neighbor
+//! and 62 of the 64 ranges are still distinct; at 128 that is 28, and the bass
+//! end becomes copies of one value dressed up as detail. Widening the window
+//! instead would buy resolution at the cost of latency, which a visualizer feels
+//! more than it feels a coarse bass.
+//!
+//! Anything holding a `[f32; NUM_BINS]` writes its own `Default` rather than
+//! deriving one: the standard library implements that trait for arrays only up
+//! to 32, which is the length this used to be, so raising it turned a derive
+//! that had always worked into an error some distance from here.
+
 use rustfft::{Fft, FftPlanner, num_complex::Complex};
 use std::sync::Arc;
 
-pub const NUM_BINS: usize = 32;
+pub const NUM_BINS: usize = 64;
 
 const FFT_SIZE: usize = 2048;
 const MIN_FREQ: f32 = 60.0;

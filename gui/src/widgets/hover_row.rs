@@ -2,7 +2,7 @@
 //! holds a control only while the cursor is over it.
 //!
 //! It is a widget rather than a `container` with a style function because both
-//! behaviours need hover state during `draw`, and a style function is handed a
+//! behaviors need hover state during `draw`, and a style function is handed a
 //! `Status` for the widget it styles, not for a row it happens to sit inside. A
 //! `mouse_area` could report the hover, but only by routing it through a message
 //! and a rebuild, which is a frame late and puts per-row cursor state in the
@@ -14,7 +14,7 @@
 //! shift as the cursor arrives, which reads as the row flinching away.
 //!
 //! `size` delegates to the label rather than filling, because a settings list
-//! wants rows as tall as their content; the row then centres a shorter trailing
+//! wants rows as tall as their content; the row then centers a shorter trailing
 //! control against a taller label rather than stretching it.
 //!
 //! Children are ordered label, trailing, hover, which is what `hover_index`
@@ -144,7 +144,7 @@ where
             height = height.max(node.size().height);
         }
 
-        let centred = |node: layout::Node, x: f32| {
+        let centered = |node: layout::Node, x: f32| {
             let y = ((height - node.size().height) / 2.0).round();
             node.move_to((x, y))
         };
@@ -152,11 +152,11 @@ where
         let mut nodes = vec![label];
         if let Some(node) = trailing {
             let x = inset + label_size.width + slot + BAR_GAP;
-            nodes.push(centred(node, x));
+            nodes.push(centered(node, x));
         }
         if let Some(node) = hover {
             let x = inset + label_size.width + BAR_GAP + ((self.slot - node.size().width) / 2.0);
-            nodes.push(centred(node, x.round()));
+            nodes.push(centered(node, x.round()));
         }
 
         layout::Node::with_children(

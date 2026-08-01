@@ -3,7 +3,7 @@
 //! A custom widget rather than a row of buttons because rating is one gesture
 //! across five targets, not five independent ones: the row previews the value
 //! under the pointer, so hovering the third star must light the first two as
-//! well. Buttons would each have to be told what their neighbours were doing.
+//! well. Buttons would each have to be told what their neighbors were doing.
 //! Handling the row as a unit also makes the hit target a simple division of
 //! the row's width, which is what lets the stars stay small without becoming
 //! hard to aim at.

@@ -40,7 +40,7 @@
 //!
 //! Clicking a tile opens a panel beneath *its row*, holding the collection's
 //! cover, its total running time, and its tracks. Beneath the row rather than
-//! beside the tile because a panel that displaced its neighbours would reflow the
+//! beside the tile because a panel that displaced its neighbors would reflow the
 //! grid, and one row of covers pushed down is the smallest movement that can
 //! show something the width of the pane.
 //!
@@ -600,7 +600,7 @@ fn cover<'a>(
 /// because a control small enough to fit several of over a cover is too small to
 /// hit reliably, and these two are what a cover is usually clicked for.
 ///
-/// They sit centred at the foot of the tile, over a scrim that spans the whole
+/// They sit centered at the foot of the tile, over a scrim that spans the whole
 /// cover and fades out towards the top; see [`styles::over_art_style`].
 fn controls<'a>(shown: usize, kind: Kind) -> Element<'a, Message> {
     let buttons = row![

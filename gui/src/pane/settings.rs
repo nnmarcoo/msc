@@ -35,10 +35,29 @@
 //! [`Density`] names a target pitch in pixels rather than a bar count, so the
 //! count still falls out of the pane's width: a denser setting means more bars
 //! in the same space rather than a fixed number that stops fitting as the pane
-//! narrows. [`Caps`] is deliberately independent of the global rounded-corners
+//! narrows. The three pitches are spread far enough apart that a pane has to be
+//! genuinely wide before two of them ask for more bars than
+//! [`verse_core::NUM_BINS`] and start drawing the same picture; the finest one
+//! reaching that ceiling first is the setting working, since "as much detail as
+//! the transform resolved" is what it means, but two of them arriving together
+//! is the setting quietly doing nothing, which is what a coarse pitch of 20
+//! rather than 22 used to do at exactly the width a maximized window gives.
+//!
+//! [`Caps`] is deliberately independent of the global rounded-corners
 //! preference — that one is about panels, whose corners are large enough for a
 //! single radius to suit them all, where a bar a few pixels wide needs its own
 //! answer or ends up square or absurdly domed.
+//!
+//! [`Caps::radius`] rounds the top corners only. A bar sits on the pane's
+//! baseline, so rounding all four lifts its bottom edge off that line and the
+//! row reads as floating rather than standing. It also takes the bar's height
+//! and does its own clamping, because the caller cannot do it correctly: a
+//! resting bar is a couple of pixels tall and much wider than that, so a rule
+//! written against width alone domes it sideways, and one that clamps to half
+//! the height leaves every quiet bar identical under all three settings — which
+//! is most of them, most of the time. Clamping to the full height rather than
+//! half is what a top-only cap allows, since the two curves grow from opposite
+//! corners and never meet.
 //!
 //! [`Settings::as_visualizer`] returns an `Option` that is infallible while
 //! there is one variant, which is why clippy wants it gone. It stays because the
@@ -48,6 +67,7 @@
 
 use std::collections::BTreeMap;
 
+use iced::border::{self, Radius};
 use serde::{Deserialize, Serialize};
 
 use super::PaneKind;
@@ -125,7 +145,7 @@ impl Density {
         match self {
             Self::Fine => 7.0,
             Self::Normal => 12.0,
-            Self::Coarse => 20.0,
+            Self::Coarse => 22.0,
         }
     }
 
@@ -150,12 +170,14 @@ pub enum Caps {
 impl Caps {
     pub const ALL: [Self; 3] = [Self::Square, Self::Soft, Self::Round];
 
-    pub fn radius(self, width: f32) -> f32 {
-        match self {
+    pub fn radius(self, width: f32, height: f32) -> Radius {
+        let radius = match self {
             Self::Square => 0.0,
             Self::Soft => (width * 0.2).min(2.0),
             Self::Round => width / 2.0,
-        }
+        };
+
+        border::top(radius.min(width / 2.0).min(height).max(0.0))
     }
 
     pub fn label(self) -> &'static str {
@@ -174,17 +196,23 @@ pub enum Tint {
     #[default]
     Amplitude,
     Spectrum,
+    Artwork,
 }
 
 impl Tint {
-    pub const ALL: [Self; 3] = [Self::Flat, Self::Amplitude, Self::Spectrum];
+    pub const ALL: [Self; 4] = [Self::Flat, Self::Amplitude, Self::Spectrum, Self::Artwork];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::Flat => "Flat",
             Self::Amplitude => "By level",
             Self::Spectrum => "By frequency",
+            Self::Artwork => "From artwork",
         }
+    }
+
+    pub fn needs_artwork(self) -> bool {
+        self == Self::Artwork
     }
 }
 
@@ -277,10 +305,12 @@ mod tests {
         }
     }
 
+    const TALL: f32 = 400.0;
+
     #[test]
     fn square_caps_are_actually_square() {
         for width in [1.0, 6.0, 40.0] {
-            assert!(Caps::Square.radius(width).abs() < f32::EPSILON);
+            assert!(Caps::Square.radius(width, TALL).top_left.abs() < f32::EPSILON);
         }
     }
 
@@ -289,7 +319,7 @@ mod tests {
         for caps in Caps::ALL {
             for width in [1.0, 3.0, 12.0, 80.0] {
                 assert!(
-                    caps.radius(width) <= width / 2.0 + f32::EPSILON,
+                    caps.radius(width, TALL).top_left <= width / 2.0 + f32::EPSILON,
                     "{caps:?} at {width}px asked for more than a half-width dome"
                 );
             }
@@ -299,14 +329,85 @@ mod tests {
     #[test]
     fn soft_caps_stay_subtle_on_a_wide_bar() {
         assert!(
-            Caps::Soft.radius(80.0) <= 2.0,
+            Caps::Soft.radius(80.0, TALL).top_left <= 2.0,
             "a soft cap should not become a dome just because the bar is wide"
         );
-        assert!(Caps::Soft.radius(80.0) < Caps::Round.radius(80.0));
+        assert!(Caps::Soft.radius(80.0, TALL).top_left < Caps::Round.radius(80.0, TALL).top_left);
     }
 
     #[test]
-    fn every_choice_is_labelled() {
+    fn a_bar_keeps_its_corners_on_the_baseline() {
+        for caps in Caps::ALL {
+            let radius = caps.radius(12.0, TALL);
+            assert!(
+                radius.bottom_left.abs() < f32::EPSILON && radius.bottom_right.abs() < f32::EPSILON,
+                "{caps:?} rounded the bottom of the bar off its baseline"
+            );
+        }
+    }
+
+    #[test]
+    fn a_rounded_cap_is_visible_on_a_bar_at_rest() {
+        for caps in [Caps::Soft, Caps::Round] {
+            assert!(
+                caps.radius(10.0, 2.0).top_left > Caps::Square.radius(10.0, 2.0).top_left,
+                "{caps:?} drew square on a resting bar, where the bars spend most of their time"
+            );
+        }
+    }
+
+    #[test]
+    fn the_caps_separate_once_a_bar_is_tall_enough_to_show_them() {
+        let (square, soft, round) = (
+            Caps::Square.radius(10.0, TALL).top_left,
+            Caps::Soft.radius(10.0, TALL).top_left,
+            Caps::Round.radius(10.0, TALL).top_left,
+        );
+
+        assert!(
+            square < soft && soft < round,
+            "a tall bar drew {square}/{soft}/{round}"
+        );
+    }
+
+    /// A degenerate bar must not put a NaN into a border radius: the trailing
+    /// `max(0.0)` is what guarantees it, since `f32::max` answers with the
+    /// non-NaN side, and that is easy to drop when rearranging the clamp.
+    #[test]
+    fn a_nonsense_bar_still_gives_a_usable_radius() {
+        for caps in Caps::ALL {
+            for (width, height) in [
+                (f32::NAN, 10.0),
+                (10.0, f32::NAN),
+                (-5.0, 10.0),
+                (10.0, -5.0),
+                (f32::INFINITY, 10.0),
+            ] {
+                let radius = caps.radius(width, height).top_left;
+                assert!(
+                    radius.is_finite() && radius >= 0.0,
+                    "{caps:?} on a {width}x{height} bar asked for {radius}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_cap_never_outgrows_the_bar_it_tops() {
+        for caps in Caps::ALL {
+            for (width, height) in [(10.0, 0.5), (2.0, 2.0), (40.0, 3.0), (1.0, 90.0)] {
+                let radius = caps.radius(width, height);
+                assert!(
+                    radius.top_left >= 0.0 && radius.top_left <= height + f32::EPSILON,
+                    "{caps:?} on a {width}x{height} bar asked for {}",
+                    radius.top_left
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn every_choice_is_labeled() {
         for density in Density::ALL {
             assert!(!density.label().is_empty());
         }
@@ -340,5 +441,44 @@ mod tests {
         let back: PaneSettings = toml::from_str(&text).expect("settings parse");
 
         assert_eq!(back, settings);
+    }
+
+    /// Every choice has to survive the layout file, not only the one the test
+    /// above happens to name, or adding a variant silently breaks persistence
+    /// for whoever picks it.
+    #[test]
+    fn every_choice_survives_a_round_trip() {
+        for density in Density::ALL {
+            for caps in Caps::ALL {
+                for tint in Tint::ALL {
+                    let mut settings = PaneSettings::default();
+                    settings.set(Settings::Visualizer(Visualizer {
+                        density,
+                        caps,
+                        tint,
+                        peak_hold: true,
+                    }));
+
+                    let text = toml::to_string(&settings).expect("settings serialize");
+                    let back: PaneSettings = toml::from_str(&text).expect("settings parse");
+
+                    assert_eq!(
+                        back, settings,
+                        "{density:?}/{caps:?}/{tint:?} did not survive"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn only_the_artwork_tint_asks_for_a_cover() {
+        for tint in Tint::ALL {
+            assert_eq!(
+                tint.needs_artwork(),
+                tint == Tint::Artwork,
+                "{tint:?} disagrees about whether it needs a cover looked up"
+            );
+        }
     }
 }

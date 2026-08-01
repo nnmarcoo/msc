@@ -218,8 +218,8 @@ fn visualizer_section<'a>(id: PaneId, current: Visualizer) -> Element<'a, Messag
                 }),
             ),
             setting(
-                "Colour",
-                "What decides each bar's colour",
+                "Color",
+                "What decides each bar's color",
                 choices(&Tint::ALL, current.tint, move |next| {
                     update(Visualizer {
                         tint: next,

@@ -4,7 +4,7 @@
 //! the queue stays valid across a rescan.
 //!
 //! Two ways to move forward, and they are not interchangeable. [`Queue::advance`]
-//! honours the loop mode and is what finishing a track uses. [`Queue::skip`]
+//! honors the loop mode and is what finishing a track uses. [`Queue::skip`]
 //! ignores it, and is what an unplayable track uses: under `Single` an advance
 //! would retry the same broken file forever, and under `Queue` it would cycle
 //! the whole list looking for something playable.

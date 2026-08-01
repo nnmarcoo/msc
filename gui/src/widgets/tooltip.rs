@@ -26,7 +26,7 @@
 //! This reasons about the viewport, not about siblings. What saves the column case
 //! is that a stack of buttons is tall and narrow, leaving the horizontal sides
 //! free — a consequence of the geometry rather than a rule about columns, which is
-//! why nothing here mentions them. A tooltip can still cover a neighbour in a
+//! why nothing here mentions them. A tooltip can still cover a neighbor in a
 //! layout that puts one where the viewport looks empty.
 //!
 //! # Why it draws the label itself
@@ -349,15 +349,15 @@ impl<Message> overlay::Overlay<Message, iced::Theme, iced::Renderer> for Label<'
         let label = node.bounds().size();
         let anchor = self.anchor;
 
-        let centred_x = anchor.x + (anchor.width - label.width) / 2.0;
-        let centred_y = anchor.y + (anchor.height - label.height) / 2.0;
+        let centered_x = anchor.x + (anchor.width - label.width) / 2.0;
+        let centered_y = anchor.y + (anchor.height - label.height) / 2.0;
 
         let position = match self.side {
-            Position::Bottom => iced::Point::new(centred_x, anchor.y + anchor.height + PAD),
-            Position::Left => iced::Point::new(anchor.x - label.width - PAD, centred_y),
-            Position::Right => iced::Point::new(anchor.x + anchor.width + PAD, centred_y),
+            Position::Bottom => iced::Point::new(centered_x, anchor.y + anchor.height + PAD),
+            Position::Left => iced::Point::new(anchor.x - label.width - PAD, centered_y),
+            Position::Right => iced::Point::new(anchor.x + anchor.width + PAD, centered_y),
             Position::Top | Position::FollowCursor => {
-                iced::Point::new(centred_x, anchor.y - label.height - PAD)
+                iced::Point::new(centered_x, anchor.y - label.height - PAD)
             }
         };
 
@@ -424,7 +424,7 @@ mod tests {
     }
 
     #[test]
-    fn a_button_with_room_above_is_labelled_above() {
+    fn a_button_with_room_above_is_labeled_above() {
         assert_eq!(
             Placement::pick(anchor(400.0, 300.0), viewport(), label()),
             Position::Top
@@ -432,7 +432,7 @@ mod tests {
     }
 
     #[test]
-    fn a_button_against_the_top_is_labelled_below() {
+    fn a_button_against_the_top_is_labeled_below() {
         assert_eq!(
             Placement::pick(anchor(400.0, 0.0), viewport(), label()),
             Position::Bottom
@@ -440,13 +440,13 @@ mod tests {
     }
 
     #[test]
-    fn a_button_filling_the_height_is_labelled_beside() {
+    fn a_button_filling_the_height_is_labeled_beside() {
         let tall = Rectangle::new(iced::Point::new(400.0, 0.0), Size::new(30.0, 600.0));
         assert_eq!(Placement::pick(tall, viewport(), label()), Position::Right);
     }
 
     #[test]
-    fn a_button_against_the_right_edge_is_labelled_left() {
+    fn a_button_against_the_right_edge_is_labeled_left() {
         let tall = Rectangle::new(iced::Point::new(770.0, 0.0), Size::new(30.0, 600.0));
         assert_eq!(Placement::pick(tall, viewport(), label()), Position::Left);
     }

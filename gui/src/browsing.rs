@@ -19,7 +19,7 @@
 //! two panes of the same kind must be able to disagree about it.
 //!
 //! Albums appear here despite the state being keyed on track ids, because an
-//! album's search behaviour is defined entirely by its tracks: `matching_albums`
+//! album's search behavior is defined entirely by its tracks: `matching_albums`
 //! keeps an album when any of its tracks matches, so it is the track filter with
 //! a grouping step rather than a second rule. What is *not* here is navigation
 //! over the album list itself, which is [`verse_core::Library`]'s: this module

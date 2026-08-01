@@ -189,7 +189,7 @@ pub fn over_art_svg_style(_theme: &Theme, status: svg::Status) -> svg::Style {
 ///
 /// Its hover fill is white at low alpha rather than the palette's, for the same
 /// reason the icon is white: a theme-colored chip over a black scrim reads as a
-/// grey box stuck on the sleeve.
+/// gray box stuck on the sleeve.
 ///
 /// The control keeps its radius where the tile does not: it is a small chip well
 /// inside the cover rather than a layer sharing the tile's edge, so its curve
@@ -217,7 +217,7 @@ pub fn over_art_button_style(_theme: &Theme, status: button::Status) -> button::
 /// the far end stays a surface the theme owns, which is where the track list
 /// sits and where text has to stay readable.
 ///
-/// `None` leaves the panel its plain background. A greyscale sleeve names no
+/// `None` leaves the panel its plain background. A grayscale sleeve names no
 /// color, and neither does one whose art has not been read yet — see
 /// [`crate::artwork::Cache::color`] — so the panel is untinted until the cover
 /// it is showing arrives, and then tints in the same frame the cover appears.

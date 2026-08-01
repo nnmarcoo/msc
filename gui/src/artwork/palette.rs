@@ -11,7 +11,7 @@
 //! the master the decoder already holds, so this costs no extra read.
 //!
 //! The color wanted is not the one covering the most of the sleeve. That is
-//! almost always a backdrop — a wash of grey sky, a black field, a beige paper
+//! almost always a backdrop — a wash of gray sky, a black field, a beige paper
 //! stock — and tinting a panel with it says nothing about the record. What the
 //! eye names is the vivid part, even when it is a quarter of the cover: the
 //! orange of a sunset, the pink of a portrait. So the sleeve is reduced to a
@@ -53,8 +53,8 @@
 //! A sleeve with no vivid color anywhere scores nothing. Rather than give up,
 //! the largest candidate with any tint at all is taken, so a muted record still
 //! gets a panel of its own color. Only a sleeve with no color whatsoever — true
-//! greyscale — falls through to [`None`], and the panel keeps its own background
-//! rather than being tinted grey.
+//! grayscale — falls through to [`None`], and the panel keeps its own background
+//! rather than being tinted gray.
 //!
 //! The winner is finally fitted to sit behind text. What is capped is luminance,
 //! not lightness: contrast depends on the former, and the two differ by a factor
@@ -63,7 +63,7 @@
 //! a cover already dark enough keeps the depth it came with. Pinning every tint
 //! to one depth was tried and it flattened a wall of covers to a single shade,
 //! which lost exactly the variety the tinting is for. A floor underneath catches
-//! the near-black, and a saturation floor catches the near-grey, so no panel
+//! the near-black, and a saturation floor catches the near-gray, so no panel
 //! comes back looking like an accident.
 //!
 //! The ceiling is reached by bisecting lightness, since luminance has no closed
@@ -81,9 +81,9 @@
 //! it has, and the `TARGET_` pair is what the scoring aims at. The `MIN_SCORED_`
 //! and `MAX_SCORED_` bounds exclude what no viewer would name a sleeve by, and
 //! [`MIN_FALLBACK_SATURATION`] is the lower bar the fallback settles for — below
-//! it lies a grey the theme's own background says better. [`MAX_LUMINANCE`] is
+//! it lies a gray the theme's own background says better. [`MAX_LUMINANCE`] is
 //! the ceiling described above, and [`MIN_LIGHTNESS`] with [`MIN_SATURATION`]
-//! are the floors that keep a near-black or near-grey sleeve from tinting a
+//! are the floors that keep a near-black or near-gray sleeve from tinting a
 //! panel to nothing.
 
 use image::RgbaImage;
@@ -297,7 +297,7 @@ fn luminance([r, g, b]: [u8; 3]) -> f32 {
     0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b)
 }
 
-fn to_hsl([r, g, b]: [u8; 3]) -> (f32, f32, f32) {
+pub fn to_hsl([r, g, b]: [u8; 3]) -> (f32, f32, f32) {
     let (r, g, b) = (
         f32::from(r) / 255.0,
         f32::from(g) / 255.0,
@@ -327,7 +327,7 @@ fn to_hsl([r, g, b]: [u8; 3]) -> (f32, f32, f32) {
     (hue.rem_euclid(1.0), saturation.clamp(0.0, 1.0), lightness)
 }
 
-fn from_hsl(hue: f32, saturation: f32, lightness: f32) -> [u8; 3] {
+pub fn from_hsl(hue: f32, saturation: f32, lightness: f32) -> [u8; 3] {
     let range = (1.0 - (2.0 * lightness - 1.0).abs()) * saturation;
     let second = range * (1.0 - ((hue * 6.0) % 2.0 - 1.0).abs());
     let base = lightness - range / 2.0;
@@ -454,7 +454,7 @@ mod tests {
 
     /// The reason a median cut is used rather than counting exact values:
     /// photographic art repeats almost no pixel exactly, so the majority color
-    /// must win even when spread over neighbouring shades.
+    /// must win even when spread over neighboring shades.
     #[test]
     fn the_majority_color_wins_over_a_spread_of_shades() {
         let mut image = RgbaImage::from_pixel(SAMPLE, SAMPLE, Rgba([40, 40, 200, 255]));
@@ -473,11 +473,11 @@ mod tests {
     }
 
     #[test]
-    fn a_greyscale_cover_has_no_color_to_name() {
-        for grey in [30u8, 128, 200] {
+    fn a_grayscale_cover_has_no_color_to_name() {
+        for gray in [30u8, 128, 200] {
             assert!(
-                dominant(&filled([grey, grey, grey, 255])).is_none(),
-                "a grey sleeve at {grey} named a color, so the panel would be \
+                dominant(&filled([gray, gray, gray, 255])).is_none(),
+                "a gray sleeve at {gray} named a color, so the panel would be \
                  tinted to something the theme already is"
             );
         }

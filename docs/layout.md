@@ -216,7 +216,7 @@ Three ways to get fixed-size panes given `pane_grid`'s ratio-only splits.
 ### Option A — Shell + pane_grid
 
 Fixed regions live **outside** the grid, in a plain `row!`/`column!` with
-explicit `Length::Fixed`. `pane_grid` fills the remaining centre area.
+explicit `Length::Fixed`. `pane_grid` fills the remaining center area.
 
 ```
 ┌─────────────────────────────────────┐
@@ -233,7 +233,7 @@ explicit `Length::Fixed`. `pane_grid` fills the remaining centre area.
 - **For:** uses `pane_grid` as designed; no custom layout code; resize/drag/split
   all work inside the grid for free.
 - **Against:** fixed regions are not user-repositionable. The sidebar cannot be
-  dragged into the centre.
+  dragged into the center.
 
 ### Option B — Custom layout widget
 
@@ -277,7 +277,7 @@ actually matter.
 
 1. `layout.rs` — `Layout`, `Node`, `PaneId`, `Sizing`, serde. No iced types.
 2. `pane/mod.rs` — `PaneKind`, `PaneState`, `PaneMessage`, per-kind modules.
-3. Render via Option A; wire `pane_grid` for the centre region.
+3. Render via Option A; wire `pane_grid` for the center region.
 4. Edit mode — header menus, split, close, change kind.
 5. Per-pane settings popovers.
 6. Named layout presets and persistence.

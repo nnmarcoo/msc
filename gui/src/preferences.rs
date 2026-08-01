@@ -30,7 +30,7 @@
 //! Neither reset touches `layouts` or `active_layout`, which is why `ResetAll`
 //! names its fields rather than assigning a whole `Config::default()`. Panes the
 //! user arranged are work, not a setting that drifted, and no arrangement is
-//! reachable from this view to undo; wiping them from a button labelled "Reset
+//! reachable from this view to undo; wiping them from a button labeled "Reset
 //! all settings" would destroy the most expensive thing in the file.
 
 use iced::alignment::{Horizontal, Vertical};

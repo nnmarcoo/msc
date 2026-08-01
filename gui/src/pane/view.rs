@@ -23,7 +23,7 @@
 //! gets built at all, and it would also invalidate the pane whose modal was
 //! open. Moving the kind picker out is what let [`ControlForm`] drop from three
 //! forms to two — the picker was the only control whose width depended on the
-//! kind, which is why a "labelled" form had to exist to measure it, and the row
+//! kind, which is why a "labeled" form had to exist to measure it, and the row
 //! is four identical icon buttons now.
 //!
 //! The gear carries the pane's measured size in its message, because the
@@ -40,6 +40,14 @@
 //! to something new does not lengthen every signature between the app and the
 //! pane. The settings are borrowed rather than owned so [`Pane`] stays `Copy`;
 //! they live in the layout for exactly as long as the frame does.
+//!
+//! [`Playback::bins`] is an owned array and so pushes [`Shared`] past the size
+//! clippy wants passed by reference. It stays by value because the analyzer
+//! publishes through a triple buffer: reading it yields an owned
+//! [`verse_core::VisData`] with nothing behind it to borrow from, and `view`
+//! returns an `Element` tied to `&self`, so a borrowed field would have to point
+//! at a local that the returned tree outlives. Copying the bins once per frame
+//! is what that costs, against a widget tree the same frame rebuilds entirely.
 //!
 //! `Shared::visible` is the filtered rows, computed once in [`crate::app`] and
 //! lent to every pane that lists tracks. Each pane calling `Context::visible`
@@ -90,13 +98,25 @@ pub struct DragContext {
     pub drop_zone: Option<DropZone>,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct Playback {
     pub is_playing: bool,
     pub position: f32,
     pub volume: f32,
     pub muted: bool,
     pub bins: [f32; NUM_BINS],
+}
+
+impl Default for Playback {
+    fn default() -> Self {
+        Self {
+            is_playing: false,
+            position: 0.0,
+            volume: 0.0,
+            muted: false,
+            bins: [0.0; NUM_BINS],
+        }
+    }
 }
 
 #[derive(Clone, Copy)]
@@ -116,6 +136,7 @@ pub struct Pane<'a> {
     pub settings: &'a PaneSettings,
 }
 
+#[allow(clippy::large_types_passed_by_value)]
 pub fn view<'a>(
     pane: Pane<'a>,
     edit_mode: bool,
@@ -142,6 +163,7 @@ pub fn view<'a>(
     layers.into()
 }
 
+#[allow(clippy::large_types_passed_by_value)]
 fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
     match pane.kind {
         PaneKind::Controls => controls::view(shared.playback.is_playing),
@@ -211,7 +233,27 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
                 pane.id,
             )
         }
-        PaneKind::Visualizer => visualizer::view(shared.playback.bins, pane.settings.visualizer()),
+        PaneKind::Visualizer => {
+            let settings = pane.settings.visualizer();
+            let cover = settings
+                .tint
+                .needs_artwork()
+                .then(|| {
+                    // Nothing playing is a real answer rather than one still
+                    // arriving, so the tint held across track changes is
+                    // dropped here rather than outliving the last track.
+                    let Some(id) = shared.tracks.playing else {
+                        shared.artwork.forget_tint();
+                        return None;
+                    };
+
+                    let track = shared.tracks.library.track(id)?;
+                    shared.artwork.tint(id, track.path())
+                })
+                .flatten();
+
+            visualizer::view(shared.playback.bins, settings, cover)
+        }
         PaneKind::Volume => volume::view(shared.playback.volume, shared.playback.muted),
         PaneKind::Search => search::view(shared.tracks, shared.visible.len()),
         _ => container(text(pane.kind.title()).size(18))

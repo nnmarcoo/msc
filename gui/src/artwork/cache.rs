@@ -103,6 +103,7 @@ pub struct Cache {
     scaled: RefCell<LruCache<(ArtKey, u32), Handle>>,
     wanted: RefCell<Vec<Job>>,
     pending: RefCell<Vec<(i64, u32)>>,
+    last_tint: RefCell<Option<[u8; 3]>>,
 }
 
 impl Default for Cache {
@@ -124,6 +125,7 @@ impl Cache {
             )),
             wanted: RefCell::new(Vec::new()),
             pending: RefCell::new(Vec::new()),
+            last_tint: RefCell::new(None),
         }
     }
 
@@ -165,6 +167,76 @@ impl Cache {
     /// has arrived, which is the same frame the cover appears in.
     pub fn color(&self, track: i64) -> Option<[u8; 3]> {
         self.colors.get(&self.source_of(track)?).copied().flatten()
+    }
+
+    /// The color of a track's cover, reading it if nobody else has.
+    ///
+    /// [`Cache::color`] answers only for a track some pane already drew art
+    /// for, because `sources` is keyed per track and only a completed decode
+    /// fills it in. A surface that wants the tint *without* showing the cover
+    /// has nothing to piggyback on: the second track of an album is a different
+    /// id from the first, so it comes back untinted even though the album's
+    /// color is already known under the same [`ArtKey`].
+    ///
+    /// So this queues a read like [`Cache::request`] does, at the smallest rung
+    /// of [`LADDER`]. The color is taken from a 64x64 reduction anyway, so the
+    /// bucket that answers it is the cheapest one there is, and asking for it
+    /// costs nothing beyond the master decode any other pane would have forced.
+    ///
+    /// A track already in `sources` is answered from `colors` without queueing,
+    /// whether or not it named a color. That entry is written only once a decode
+    /// has finished, so it is the signal that the work is *done* rather than
+    /// merely started — [`Cache::want`] dedupes against what is queued and in
+    /// flight but not against what has already been read, so queueing on a
+    /// resolved track would ask for the same cover again on every frame.
+    ///
+    /// While a track is still unread the last color named is held, the way
+    /// [`crate::pane::artwork::State`] holds the last cover drawn and for the
+    /// same reason: a track change takes a frame or two to resolve, and a
+    /// surface tinted by the cover would otherwise snap back to its untinted
+    /// self and back again on every change — most visibly between two tracks of
+    /// one album, where the color that arrives is the one that just left.
+    ///
+    /// The hold lives here rather than in the pane because a color, unlike a
+    /// scaled handle, is a property of the record rather than of the surface
+    /// showing it: every consumer wants the same answer, so there is one slot
+    /// rather than one per pane, and a visualizer can stay
+    /// [`crate::pane::PaneState::Stateless`]. It is dropped by
+    /// [`Cache::forget_tint`] on the answers that mean there is nothing to show
+    /// rather than nothing yet — a track read to carry no art, and, from the
+    /// caller, nothing playing at all.
+    pub fn tint(&self, track: i64, path: &Path) -> Option<[u8; 3]> {
+        match self.sources.get(&track).copied() {
+            // Read, and it named a color: that is the answer, and the one to
+            // hold over the next track's gap.
+            Some(Some(key)) => {
+                let color = self.colors.get(&key).copied().flatten();
+                if color.is_some() {
+                    *self.last_tint.borrow_mut() = color;
+                    return color;
+                }
+                self.forget_tint();
+                None
+            }
+            // Read, and there is no art at all. Nothing is coming, so the held
+            // color would sit there for the length of the track.
+            Some(None) => {
+                self.forget_tint();
+                None
+            }
+            // Not read yet. The cover is usually the one already on screen, so
+            // hold what was last named until this track answers for itself.
+            None => {
+                self.want(track, path, LADDER[0]);
+                *self.last_tint.borrow()
+            }
+        }
+    }
+
+    /// Drop the held tint, for the answers that mean there is genuinely nothing
+    /// to show rather than nothing *yet*.
+    pub fn forget_tint(&self) {
+        *self.last_tint.borrow_mut() = None;
     }
 
     pub fn is_idle(&self) -> bool {
@@ -748,6 +820,179 @@ mod tests {
             cache.color(2),
             Some([90, 40, 40]),
             "a second track on the same album named a different color"
+        );
+    }
+
+    /// The bug this method exists for: a pane that wants only the tint has no
+    /// art of its own on screen to piggyback on, so the second track of an
+    /// album — a different id, the same cover — found nothing filed under it and
+    /// fell back to the theme partway through a record.
+    #[test]
+    fn a_tint_asks_for_a_cover_nobody_else_has_read() {
+        let cache = Cache::new();
+
+        assert_eq!(cache.tint(1, path(A)), None, "nothing is known yet");
+        assert_eq!(
+            cache.wanted.borrow().len(),
+            1,
+            "wanting the tint queued no read, so it would never arrive"
+        );
+    }
+
+    #[test]
+    fn a_tint_answers_once_the_cover_it_asked_for_lands() {
+        let mut cache = Cache::new();
+        cache.tint(1, path(A));
+        cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));
+
+        assert_eq!(cache.tint(1, path(A)), Some([90, 40, 40]));
+    }
+
+    /// The exact symptom: track one of an album tints, track two does not.
+    #[test]
+    fn the_next_track_of_an_album_keeps_the_tint() {
+        let mut cache = Cache::new();
+        let key = ArtKey::of(&[1]);
+        cache.insert(colored(1, key, 256, [90, 40, 40]));
+
+        assert_eq!(cache.tint(2, path(B)), None, "track two is not read yet");
+        cache.insert(art(2, key, LADDER[0]));
+
+        assert_eq!(
+            cache.tint(2, path(B)),
+            Some([90, 40, 40]),
+            "the album's second track lost the tint the first one had"
+        );
+    }
+
+    /// The gap a track change opens: the next track is unread for a frame or
+    /// two, and without a hold the tint drops to nothing and comes straight
+    /// back — a visible flash, worst between two tracks of one album where the
+    /// color never actually changed.
+    #[test]
+    fn a_track_change_holds_the_last_tint_until_the_next_one_lands() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));
+        assert_eq!(cache.tint(1, path(A)), Some([90, 40, 40]));
+
+        assert_eq!(
+            cache.tint(2, path(B)),
+            Some([90, 40, 40]),
+            "the tint blinked out while the next track was still being read"
+        );
+    }
+
+    #[test]
+    fn the_held_tint_gives_way_to_the_one_that_arrives() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));
+        cache.tint(1, path(A));
+
+        cache.tint(2, path(B));
+        cache.insert(colored(2, ArtKey::of(&[2]), LADDER[0], [40, 40, 90]));
+
+        assert_eq!(
+            cache.tint(2, path(B)),
+            Some([40, 40, 90]),
+            "the held tint outlived the cover it was bridging to"
+        );
+    }
+
+    /// Held only across a gap, not across an answer: a track read to have no
+    /// art would otherwise wear the previous record's color for its whole
+    /// length.
+    #[test]
+    fn a_track_with_no_art_drops_the_held_tint() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));
+        cache.tint(1, path(A));
+
+        cache.insert(nothing(2, LADDER[0]));
+
+        assert_eq!(
+            cache.tint(2, path(B)),
+            None,
+            "a track with no cover kept the previous record's color"
+        );
+    }
+
+    #[test]
+    fn a_cover_that_names_no_color_drops_the_held_tint() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));
+        cache.tint(1, path(A));
+
+        cache.insert(art(2, ArtKey::of(&[2]), LADDER[0]));
+
+        assert_eq!(
+            cache.tint(2, path(B)),
+            None,
+            "a grayscale cover kept the previous record's color"
+        );
+    }
+
+    #[test]
+    fn forgetting_the_tint_leaves_nothing_to_bridge_with() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));
+        cache.tint(1, path(A));
+
+        cache.forget_tint();
+
+        assert_eq!(
+            cache.tint(2, path(B)),
+            None,
+            "the tint held on after the player had nothing to show"
+        );
+    }
+
+    /// A held tint survives a track that was never asked about — nobody read
+    /// it, so nothing contradicted the hold. That is the bridge working, but it
+    /// means the hold is only as fresh as the last question asked of it.
+    #[test]
+    fn the_hold_only_answers_for_tracks_it_was_asked_about() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));
+        cache.tint(1, path(A));
+
+        cache.insert(nothing(2, LADDER[0]));
+
+        assert_eq!(
+            cache.tint(3, path(B)),
+            Some([90, 40, 40]),
+            "a track nobody asked about should not disturb the bridge"
+        );
+    }
+
+    /// `want` dedupes against what is queued and in flight, but not against what
+    /// has already been read, so a resolved track must not reach it at all.
+    #[test]
+    fn a_tint_stops_asking_once_its_cover_has_been_read() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));
+
+        for _ in 0..8 {
+            cache.tint(1, path(A));
+        }
+
+        assert!(
+            cache.wanted.borrow().is_empty(),
+            "a resolved cover was queued again, so every frame asks for it anew"
+        );
+    }
+
+    #[test]
+    fn a_tint_stops_asking_for_a_cover_that_turned_out_to_have_none() {
+        let mut cache = Cache::new();
+        cache.insert(nothing(1, LADDER[0]));
+
+        for _ in 0..8 {
+            assert_eq!(cache.tint(1, path(A)), None);
+        }
+
+        assert!(
+            cache.wanted.borrow().is_empty(),
+            "a track known to have no art was asked for again"
         );
     }
 

@@ -8,8 +8,16 @@
 //! bars widen rather than multiply, because interpolating beyond the bins would
 //! invent detail the transform never resolved.
 //!
+//! That ceiling is why [`NUM_BINS`] is a question about the density setting and
+//! not only about the analyzer. Every width at which two densities both ask for
+//! more bars than there are bins is a width where they draw the same picture and
+//! the setting does nothing; when the ceiling was 32 that was most of a normal
+//! window, and the picker moved without the pane changing. Raising it moves the
+//! collapse out past any pane a real layout produces, which is the only fix that
+//! keeps the no-interpolation rule above.
+//!
 //! Folding takes the maximum of each group, not the mean. Averaging a peak
-//! against its quiet neighbours pulls transients down, and the visible result is
+//! against its quiet neighbors pulls transients down, and the visible result is
 //! a display that reads as sluggish next to the audio; the max keeps a
 //! transient's height at every density, so the same music has the same shape
 //! whether the pane is showing 4 bars or 32.
@@ -34,27 +42,91 @@
 //! bar. [`MIN_BAR`] then guarantees a bar is never thinner than a pixel, since a
 //! sub-pixel quad is a rounding artifact rather than a bar.
 //!
+//! Below [`COMPACT_WIDTH`] the pitch rule is abandoned for a flat
+//! [`COMPACT_BARS`]. A pane can be dragged down to [`crate::layout::MIN_PANE`],
+//! and at that size the pitch still asks for several bars in a strip barely wide
+//! enough for one: the result is a row of hairlines that flicker rather than a
+//! spectrum anyone can read. Three is the fewest that still says something a
+//! level meter does not — [`group`] splits the bins evenly, so they land on bass,
+//! mid and treble — and at that count each block is wide enough to have a
+//! readable height even in the narrowest pane the layout permits. The cutoff is
+//! a floor on the count rather than a separate drawing path, so folding, color,
+//! caps and the peak markers all keep working with no second implementation to
+//! keep in step.
+//!
 //! Every bar keeps [`FLOOR`] of height at silence. A spectrum that renders
 //! nothing at all is indistinguishable from a pane that has failed to draw, and
 //! the resting line also gives the rounded caps something to sit on.
 //!
 //! The widget paints no background. The pane chrome owns that, and the previous
 //! version filling its own bounds is what made it fight the rounded corners.
-//! Colour comes from the palette for the same reason: a hardcoded ramp toward
-//! grey inverted its meaning under a light theme. Every tint interpolates
-//! between two palette colours, so all three stay part of the theme; what
+//! Color comes from the palette for the same reason: a hardcoded ramp toward
+//! gray inverted its meaning under a light theme. Every tint interpolates
+//! between two palette colors, so all three stay part of the theme; what
 //! differs is only what drives the interpolation — nothing, the bar's level, or
 //! its position across the row. `Flat` sits at the strong tone rather than the
 //! weak one, since with no ramp to climb the weak end leaves every bar washed
 //! out, and `Spectrum` divides by one less than the count, so a lone bar takes
 //! the start of the ramp rather than dividing by zero.
 //!
-//! Peak markers are drawn in the palette's text colour rather than the bar's
-//! own. A marker in the bar's colour is invisible under `Flat`, where every bar
-//! is already exactly that colour, and only accidentally visible under the other
-//! two. They are suppressed entirely while the peak is still inside its bar,
-//! where the marker would read as a brighter stripe across the top rather than
-//! as a marker.
+//! `Amplitude` spends the whole ramp rather than a fraction of it. Scaling the
+//! interpolation down meant a bar at full scale still stopped short of the
+//! strong tone, so the color the setting exists to reach was one nothing could
+//! ever show. `Spectrum` runs primary to danger because those are the two the
+//! palette guarantees are far apart: several themes verse ships — Nord most
+//! plainly — pick an accent and a success color that are both muted greens, and
+//! a ramp between them is a ramp the eye cannot read. A theme whose accent and
+//! error color looked alike would be unusable well before this widget noticed.
+//!
+//! `Artwork` takes the hue of the playing record's cover and nothing else. The
+//! color the cache names is fitted to sit *behind* text — capped near luminance
+//! 0.09 — so drawing bars in it directly puts them barely above a dark theme's
+//! background and far below a light one's. Lightness and the ramp's two ends
+//! therefore still come from the theme's own primary, exactly as `Amplitude`
+//! does, and only the hue and a saturation floor come from the sleeve. The
+//! result is as readable on every theme as the default tint, while still being
+//! recognizably the record's color.
+//!
+//! The cover contributes a hue only when it has one: below
+//! [`COVER_MIN_SATURATION`] a sleeve is gray, its hue is whatever rounding
+//! produced, and tinting to it would be arbitrary rather than characteristic. A
+//! gray sleeve, a track with no art, and a stopped player all fall back to the
+//! theme ramp, so the pane always draws something deliberate. The color arrives
+//! from [`crate::artwork::Cache`] already extracted — the pane looks it up only
+//! when this tint is selected, and never touches an image itself.
+//!
+//! Which two colors a tint runs between depends on the theme, the setting and
+//! the cover, and none of those change between the bars of one frame, so
+//! [`Ramp`] resolves them once and each bar only walks the interpolation. Doing
+//! it per bar meant re-reading the extended palette up to [`NUM_BINS`] times a
+//! frame and, under `Artwork`, running two HSL round-trips per bar to reach the
+//! same answer every time.
+//!
+//! A peak marker is the bar's own color lifted [`PEAK_LIFT`] toward the
+//! palette's text. Drawing it in the text color outright made it a white line
+//! on a dark theme and a black one on a light theme, which read as a piece of
+//! window chrome that had strayed into the visualization rather than as part of
+//! it; going the whole way to the bar's color is the opposite failure, since
+//! under `Flat` every bar is already exactly that and the marker disappears.
+//! Meeting partway keeps it inside the spectrum's palette while leaving it
+//! plainly brighter than what it sits above, at every tint.
+//!
+//! Markers are suppressed while the peak is still inside its bar, where the
+//! marker would read as a brighter stripe across the top rather than as a
+//! marker, and [`PEAK_GAP`] holds a hairline of background under one that is
+//! only just clear. Without it a marker one pixel above its bar still touched
+//! it, which looks like a bar with a lighter cap rather than a mark floating
+//! over one.
+//!
+//! [`State`] is a fixed [`NUM_BINS`] array and a count rather than a collection
+//! sized to the bars in use, because the bar count is capped at that same
+//! ceiling: the worst case is a few hundred bytes, known at compile time. That
+//! keeps the whole marker path free of allocation, which matters most exactly
+//! when it runs hardest — a divider drag changes the bar count on every frame,
+//! and a growing collection would reallocate on each one. `forget` and a resize
+//! both become a single write to the count, and [`State::markers`] hands the
+//! renderer the live prefix so a stale marker past the current count cannot be
+//! drawn.
 //!
 //! The markers live in the widget's own [`State`] because a marker is defined by
 //! what the bars did *before* this frame, and they advance in `update` rather
@@ -64,6 +136,28 @@
 //! frame; [`PEAK_FALL`] is therefore per frame rather than per second. A resize
 //! seeds the new bars from what the audio is doing now, so widening a pane does
 //! not drop a row of markers in from the floor.
+//!
+//! A peak holds still for [`PEAK_HANG`] frames before it starts to move, and
+//! then falls at [`PEAK_FALL`] scaled by [`PEAK_ACCEL`] for every frame it has
+//! been falling, rather than at a constant rate. That tick is 16ms, so the
+//! previous constant of 0.03 per frame took a peak from the top to the floor in
+//! about half a second — fast enough that the marker was always sitting on its
+//! own bar, which is why the setting looked like it did nothing. The hang is
+//! what makes a peak legible at all, since a mark that leaves the instant the
+//! note does is never still long enough to be read, and the acceleration is what
+//! stops the much slower rate that requires from leaving stale marks over quiet
+//! passages: a marker is still near the top a second after its note and has
+//! caught back down to the music within about three, while one being renewed
+//! every few frames never gets past the start of its fall. Each bar keeps its
+//! own rate, reset on every new peak, so a bar being driven hard and a bar that
+//! has gone quiet do not share a fall speed.
+//!
+//! Turning the setting off clears that state rather than leaving `update` early.
+//! Peaks the widget stops advancing are still peaks it remembers, so a pane
+//! switched off and back on drew the markers from whenever it was switched off —
+//! a row of stale marks sitting above bars that had long since moved. Clearing
+//! makes coming back identical to arriving for the first time, which is what the
+//! resize path already does.
 
 use iced::advanced::renderer::{self, Quad};
 use iced::advanced::widget::tree::{self, Tree};
@@ -74,6 +168,7 @@ use iced::{
 
 use verse_core::NUM_BINS;
 
+use crate::artwork::palette;
 use crate::pane::settings::{Tint, Visualizer};
 
 const GAP_RATIO: f32 = 0.25;
@@ -81,24 +176,42 @@ const GAP_RATIO: f32 = 0.25;
 const MIN_BARS: usize = 4;
 const MIN_BAR: f32 = 1.0;
 
+const COMPACT_BARS: usize = 3;
+const COMPACT_WIDTH: f32 = 96.0;
+
 const FLOOR: f32 = 2.0;
 
 const MIN_HEIGHT: f32 = 24.0;
 
-const TINT: f32 = 0.55;
-
 const PEAK_THICKNESS: f32 = 2.0;
 
-const PEAK_FALL: f32 = 0.03;
+const PEAK_HANG: u8 = 30;
+
+const PEAK_FALL: f32 = 0.003;
+
+const PEAK_ACCEL: f32 = 1.02;
+
+const PEAK_GAP: f32 = 1.0;
+
+const PEAK_LIFT: f32 = 0.45;
+
+const COVER_MIN_SATURATION: f32 = 0.08;
+
+const COVER_SATURATION: f32 = 0.55;
 
 pub struct Spectrum {
     bins: [f32; NUM_BINS],
     settings: Visualizer,
+    cover: Option<[u8; 3]>,
 }
 
 impl Spectrum {
-    pub fn new(bins: [f32; NUM_BINS], settings: Visualizer) -> Self {
-        Self { bins, settings }
+    pub fn new(bins: [f32; NUM_BINS], settings: Visualizer, cover: Option<[u8; 3]>) -> Self {
+        Self {
+            bins,
+            settings,
+            cover,
+        }
     }
 
     pub const fn min_height() -> f32 {
@@ -106,45 +219,104 @@ impl Spectrum {
     }
 }
 
-#[derive(Default)]
+#[derive(Clone, Copy)]
+struct Peak {
+    level: f32,
+    hang: u8,
+    fall: f32,
+}
+
+impl Peak {
+    const fn held(level: f32) -> Self {
+        Self {
+            level,
+            hang: PEAK_HANG,
+            fall: PEAK_FALL,
+        }
+    }
+
+    fn advance(&mut self, level: f32) {
+        if level >= self.level {
+            *self = Self::held(level);
+        } else if self.hang > 0 {
+            self.hang -= 1;
+        } else {
+            self.level = (self.level - self.fall).max(level);
+            self.fall *= PEAK_ACCEL;
+        }
+    }
+}
+
+/// The markers, one per bar, in a fixed array rather than a `Vec`.
+///
+/// A bar count is capped at [`NUM_BINS`], so the worst case is small and known
+/// at compile time. Sizing to it costs a few hundred bytes of widget state and
+/// buys a marker path that never allocates: a resize rewrites `bars` and the
+/// prefix in place where growing a `Vec` would reallocate on every step of a
+/// divider drag, which is exactly when this runs most.
 struct State {
-    peaks: Vec<f32>,
+    peaks: [Peak; NUM_BINS],
+    bars: usize,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            peaks: [Peak::held(0.0); NUM_BINS],
+            bars: 0,
+        }
+    }
 }
 
 impl State {
-    fn advance(&mut self, bins: &[f32; NUM_BINS], bars: usize) {
-        if self.peaks.len() != bars {
-            self.peaks = (0..bars).map(|i| amplitude(bins, i, bars)).collect();
-            return;
-        }
+    fn forget(&mut self) {
+        self.bars = 0;
+    }
 
-        for (index, peak) in self.peaks.iter_mut().enumerate() {
+    fn markers(&self) -> &[Peak] {
+        &self.peaks[..self.bars]
+    }
+
+    fn advance(&mut self, bins: &[f32; NUM_BINS], bars: usize) {
+        let bars = bars.min(NUM_BINS);
+        let seeding = self.bars != bars;
+        self.bars = bars;
+
+        for (index, peak) in self.peaks[..bars].iter_mut().enumerate() {
             let level = amplitude(bins, index, bars);
-            *peak = if level >= *peak {
-                level
+            if seeding {
+                *peak = Peak::held(level);
             } else {
-                (*peak - PEAK_FALL).max(level)
-            };
+                peak.advance(level);
+            }
         }
     }
 }
 
 fn bar_count(width: f32, pitch: f32) -> usize {
-    if !width.is_finite() || width <= 0.0 || pitch <= 0.0 {
-        return MIN_BARS;
+    if !width.is_finite() || width < COMPACT_WIDTH || pitch <= 0.0 {
+        return COMPACT_BARS;
     }
+
     ((width / pitch) as usize).clamp(MIN_BARS, NUM_BINS)
 }
 
+/// The bins one bar folds together, as a half-open range.
+///
+/// `bars` is never zero — every path here comes from [`bar_count`], whose
+/// smallest answer is [`COMPACT_BARS`] — but the division would panic rather
+/// than misdraw if that ever stopped being true, so it is floored rather than
+/// left to chance.
 fn group(index: usize, bars: usize) -> (usize, usize) {
+    let bars = bars.max(1);
     let start = index * NUM_BINS / bars;
     let end = (index + 1) * NUM_BINS / bars;
-    (start, end.max(start + 1))
+    (start.min(NUM_BINS), end.clamp(start + 1, NUM_BINS))
 }
 
 fn amplitude(bins: &[f32; NUM_BINS], index: usize, bars: usize) -> f32 {
     let (start, end) = group(index, bars);
-    bins[start..end.min(NUM_BINS)]
+    bins[start..end]
         .iter()
         .copied()
         .fold(0.0f32, f32::max)
@@ -166,32 +338,94 @@ fn bar_rect(bounds: Rectangle, index: usize, bars: usize, amplitude: f32) -> Rec
     }
 }
 
-fn bar_color(theme: &Theme, tint: Tint, amplitude: f32, index: usize, bars: usize) -> Color {
-    let palette = theme.extended_palette();
+/// The two ends a tint interpolates between, resolved once per frame.
+///
+/// Every tint is a walk between two colors, and which two depends only on the
+/// theme, the setting and the cover — none of which change across the bars of
+/// one frame. Resolving them per bar meant re-reading the extended palette up
+/// to [`NUM_BINS`] times and, under `Artwork`, running two HSL round-trips per
+/// bar to answer the same question every time.
+#[derive(Clone, Copy)]
+struct Ramp {
+    quiet: Color,
+    loud: Color,
+}
 
-    let t = match tint {
-        Tint::Flat => 0.0,
-        Tint::Amplitude => amplitude.clamp(0.0, 1.0) * TINT,
-        Tint::Spectrum => {
-            if bars <= 1 {
-                0.0
-            } else {
-                index as f32 / (bars - 1) as f32
-            }
+impl Ramp {
+    fn new(theme: &Theme, tint: Tint, cover: Option<[u8; 3]>) -> Self {
+        let palette = theme.extended_palette();
+        let (quiet, loud) = match tint {
+            Tint::Flat => (palette.primary.strong.color, palette.primary.strong.color),
+            Tint::Amplitude => (palette.primary.weak.color, palette.primary.strong.color),
+            Tint::Spectrum => (palette.primary.strong.color, palette.danger.strong.color),
+            Tint::Artwork => cover
+                .and_then(|cover| Self::from_cover(theme, cover))
+                .unwrap_or((palette.primary.weak.color, palette.primary.strong.color)),
+        };
+
+        Self { quiet, loud }
+    }
+
+    fn from_cover(theme: &Theme, cover: [u8; 3]) -> Option<(Color, Color)> {
+        let (hue, saturation, _) = palette::to_hsl(cover);
+
+        if saturation < COVER_MIN_SATURATION {
+            return None;
         }
-    };
 
-    let (quiet, loud) = match tint {
-        Tint::Flat => (palette.primary.strong.color, palette.primary.strong.color),
-        Tint::Amplitude => (palette.primary.weak.color, palette.primary.strong.color),
-        Tint::Spectrum => (palette.primary.strong.color, palette.success.strong.color),
-    };
+        let palette = theme.extended_palette();
+        let saturation = saturation.max(COVER_SATURATION);
+        let lift = |reference: Color| {
+            let (_, _, lightness) = palette::to_hsl(to_bytes(reference));
+            from_hsl(hue, saturation, lightness)
+        };
 
-    Color::from_rgb(
-        quiet.r + (loud.r - quiet.r) * t,
-        quiet.g + (loud.g - quiet.g) * t,
-        quiet.b + (loud.b - quiet.b) * t,
-    )
+        Some((
+            lift(palette.primary.weak.color),
+            lift(palette.primary.strong.color),
+        ))
+    }
+
+    fn at(self, tint: Tint, amplitude: f32, index: usize, bars: usize) -> Color {
+        let t = match tint {
+            Tint::Flat => 0.0,
+            Tint::Amplitude | Tint::Artwork => amplitude.clamp(0.0, 1.0),
+            Tint::Spectrum => {
+                if bars <= 1 {
+                    0.0
+                } else {
+                    index as f32 / (bars - 1) as f32
+                }
+            }
+        };
+
+        Color::from_rgb(
+            self.quiet.r + (self.loud.r - self.quiet.r) * t,
+            self.quiet.g + (self.loud.g - self.quiet.g) * t,
+            self.quiet.b + (self.loud.b - self.quiet.b) * t,
+        )
+    }
+}
+
+#[cfg(test)]
+fn bar_color(
+    theme: &Theme,
+    tint: Tint,
+    cover: Option<[u8; 3]>,
+    amplitude: f32,
+    index: usize,
+    bars: usize,
+) -> Color {
+    Ramp::new(theme, tint, cover).at(tint, amplitude, index, bars)
+}
+
+fn to_bytes(color: Color) -> [u8; 3] {
+    [color.r, color.g, color.b].map(|channel| (channel.clamp(0.0, 1.0) * 255.0).round() as u8)
+}
+
+fn from_hsl(hue: f32, saturation: f32, lightness: f32) -> Color {
+    let [r, g, b] = palette::from_hsl(hue, saturation, lightness);
+    Color::from_rgb8(r, g, b)
 }
 
 impl<Message> Widget<Message, Theme, Renderer> for Spectrum {
@@ -230,13 +464,15 @@ impl<Message> Widget<Message, Theme, Renderer> for Spectrum {
         _shell: &mut Shell<'_, Message>,
         _viewport: &Rectangle,
     ) {
-        if !self.settings.peak_hold {
-            return;
-        }
-
         if let Event::Window(iced::window::Event::RedrawRequested(_)) = event {
-            let bars = bar_count(layout.bounds().width, self.settings.density.pitch());
-            tree.state.downcast_mut::<State>().advance(&self.bins, bars);
+            let state = tree.state.downcast_mut::<State>();
+
+            if self.settings.peak_hold {
+                let bars = bar_count(layout.bounds().width, self.settings.density.pitch());
+                state.advance(&self.bins, bars);
+            } else {
+                state.forget();
+            }
         }
     }
 
@@ -258,23 +494,20 @@ impl<Message> Widget<Message, Theme, Renderer> for Spectrum {
         }
 
         let bars = bar_count(bounds.width, self.settings.density.pitch());
-        let peaks = &tree.state.downcast_ref::<State>().peaks;
+        let markers = tree.state.downcast_ref::<State>().markers();
+        let ramp = Ramp::new(theme, self.settings.tint, self.cover);
+        let text = theme.extended_palette().background.base.text;
 
         for index in 0..bars {
             let amplitude = amplitude(&self.bins, index, bars);
             let rect = bar_rect(bounds, index, bars, amplitude);
-            let color = bar_color(theme, self.settings.tint, amplitude, index, bars);
+            let color = ramp.at(self.settings.tint, amplitude, index, bars);
 
             renderer.fill_quad(
                 Quad {
                     bounds: rect,
                     border: Border {
-                        radius: self
-                            .settings
-                            .caps
-                            .radius(rect.width)
-                            .min(rect.height / 2.0)
-                            .into(),
+                        radius: self.settings.caps.radius(rect.width, rect.height),
                         ..Border::default()
                     },
                     ..Quad::default()
@@ -282,40 +515,48 @@ impl<Message> Widget<Message, Theme, Renderer> for Spectrum {
                 Background::Color(color),
             );
 
-            if self.settings.peak_hold
-                && let Some(peak) = peaks.get(index)
-                && let Some(marker) = peak_rect(bounds, rect, *peak)
+            if let Some(peak) = markers.get(index)
+                && let Some(marker) = peak_rect(bounds, rect, peak.level)
             {
                 renderer.fill_quad(
                     Quad {
                         bounds: marker,
                         border: Border {
-                            radius: self
-                                .settings
-                                .caps
-                                .radius(marker.width)
-                                .min(marker.height / 2.0)
-                                .into(),
+                            radius: self.settings.caps.radius(marker.width, marker.height),
                             ..Border::default()
                         },
                         ..Quad::default()
                     },
-                    Background::Color(peak_color(theme)),
+                    Background::Color(lift_toward(color, text, PEAK_LIFT)),
                 );
             }
         }
     }
 }
 
-fn peak_color(theme: &Theme) -> Color {
-    theme.extended_palette().background.base.text
+fn lift_toward(from: Color, toward: Color, t: f32) -> Color {
+    Color {
+        r: from.r + (toward.r - from.r) * t,
+        g: from.g + (toward.g - from.g) * t,
+        b: from.b + (toward.b - from.b) * t,
+        a: 1.0,
+    }
+}
+
+#[cfg(test)]
+fn peak_color(theme: &Theme, bar: Color) -> Color {
+    lift_toward(
+        bar,
+        theme.extended_palette().background.base.text,
+        PEAK_LIFT,
+    )
 }
 
 fn peak_rect(bounds: Rectangle, bar: Rectangle, peak: f32) -> Option<Rectangle> {
     let height = (peak.clamp(0.0, 1.0) * bounds.height).max(FLOOR);
     let y = bounds.y + bounds.height - height;
 
-    (y + PEAK_THICKNESS <= bar.y).then_some(Rectangle {
+    (y + PEAK_THICKNESS + PEAK_GAP <= bar.y).then_some(Rectangle {
         x: bar.x,
         y,
         width: bar.width,
@@ -357,21 +598,117 @@ mod tests {
 
     #[test]
     fn a_wide_pane_stops_at_the_bins_the_analyzer_resolves() {
-        assert_eq!(bar_count(2_000.0, PITCH), NUM_BINS);
-        assert_eq!(bar_count(400.0, PITCH), NUM_BINS);
+        assert_eq!(bar_count(4_000.0, PITCH), NUM_BINS);
+    }
+
+    fn counts(width: f32) -> Vec<usize> {
+        Density::ALL
+            .iter()
+            .map(|density| bar_count(width, density.pitch()))
+            .collect()
     }
 
     #[test]
-    fn a_narrow_pane_keeps_a_readable_handful() {
-        assert_eq!(bar_count(0.0, PITCH), MIN_BARS);
-        assert_eq!(bar_count(1.0, PITCH), MIN_BARS);
+    fn the_densities_stay_apart_across_the_widths_panes_actually_get() {
+        for width in [200.0, 300.0, 400.0, 640.0] {
+            let counts = counts(width);
+            assert!(
+                counts[0] > counts[1] && counts[1] > counts[2],
+                "at {width}px the densities collapsed to {counts:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn a_coarser_setting_never_asks_for_more_bars() {
+        for step in 0..400 {
+            let (width, counts) = (step as f32 * 8.0, counts(step as f32 * 8.0));
+            assert!(
+                counts[0] >= counts[1] && counts[1] >= counts[2],
+                "at {width}px a coarser setting drew more bars: {counts:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn only_the_finest_setting_saturates_on_a_wide_pane() {
+        let counts = counts(1_280.0);
+        assert_eq!(
+            counts[0], NUM_BINS,
+            "the finest setting should spend every bin the analyzer resolves"
+        );
+        assert!(
+            counts[2] < NUM_BINS,
+            "a coarse pane at 1280px still hit the ceiling, so the setting stops meaning anything"
+        );
+    }
+
+    #[test]
+    fn a_tiny_pane_falls_back_to_three_blocks() {
+        for width in [MIN_PANE, 60.0, COMPACT_WIDTH - 1.0] {
+            assert_eq!(
+                bar_count(width, PITCH),
+                COMPACT_BARS,
+                "a {width}px pane should collapse rather than draw hairlines"
+            );
+        }
+    }
+
+    #[test]
+    fn every_density_collapses_at_the_same_width() {
+        for density in Density::ALL {
+            assert_eq!(
+                bar_count(COMPACT_WIDTH - 1.0, density.pitch()),
+                COMPACT_BARS,
+                "{density:?} did not collapse with the others"
+            );
+            assert!(
+                bar_count(COMPACT_WIDTH, density.pitch()) >= MIN_BARS,
+                "{density:?} was still collapsed past the cutoff"
+            );
+        }
+    }
+
+    #[test]
+    fn the_three_blocks_split_the_spectrum_evenly() {
+        let sizes: Vec<usize> = (0..COMPACT_BARS)
+            .map(|index| {
+                let (start, end) = group(index, COMPACT_BARS);
+                end - start
+            })
+            .collect();
+
+        let (small, large) = (
+            sizes.iter().min().copied().expect("a block"),
+            sizes.iter().max().copied().expect("a block"),
+        );
+        assert!(
+            large - small <= 1,
+            "the compact blocks split the bins {sizes:?} rather than into thirds"
+        );
+    }
+
+    #[test]
+    fn a_collapsed_pane_still_draws_bars_worth_looking_at() {
+        let area = bounds(MIN_PANE, 40.0);
+        let bars = bar_count(area.width, PITCH);
+
+        for index in 0..bars {
+            let rect = bar_rect(area, index, bars, 1.0);
+            assert!(
+                rect.width >= 4.0,
+                "block {index} was only {}px wide in a collapsed pane",
+                rect.width
+            );
+        }
     }
 
     #[test]
     fn nonsense_widths_still_give_a_count() {
-        assert_eq!(bar_count(f32::NAN, PITCH), MIN_BARS);
-        assert_eq!(bar_count(-100.0, PITCH), MIN_BARS);
-        assert_eq!(bar_count(f32::INFINITY, PITCH), MIN_BARS);
+        assert_eq!(bar_count(f32::NAN, PITCH), COMPACT_BARS);
+        assert_eq!(bar_count(-100.0, PITCH), COMPACT_BARS);
+        assert_eq!(bar_count(0.0, PITCH), COMPACT_BARS);
+        assert_eq!(bar_count(f32::INFINITY, PITCH), COMPACT_BARS);
     }
 
     #[test]
@@ -379,7 +716,7 @@ mod tests {
         for width in [0.0, MIN_PANE, 100.0, 333.0, 1_920.0] {
             let bars = bar_count(width, PITCH);
             assert!(
-                (MIN_BARS..=NUM_BINS).contains(&bars),
+                (COMPACT_BARS..=NUM_BINS).contains(&bars),
                 "width {width} gave {bars} bars"
             );
         }
@@ -405,6 +742,31 @@ mod tests {
                 "width {width} gave a {}px bar",
                 rect.width
             );
+        }
+    }
+
+    /// `group` divides by the bar count, so a zero would panic rather than
+    /// misdraw. No caller can produce one today; the floor is what keeps that
+    /// from becoming a crash if one ever does.
+    #[test]
+    fn a_group_of_no_bars_does_not_divide_by_zero() {
+        let (start, end) = group(0, 0);
+        assert!(start < end && end <= NUM_BINS);
+        assert_eq!(amplitude(&[0.5; NUM_BINS], 0, 0), 0.5);
+    }
+
+    /// Every group has to be a valid slice of the bins, at every count the
+    /// widget can reach, or `amplitude` panics on a range it cannot index.
+    #[test]
+    fn every_group_is_a_slice_that_exists() {
+        for bars in 1..=NUM_BINS {
+            for index in 0..bars {
+                let (start, end) = group(index, bars);
+                assert!(
+                    start < end && end <= NUM_BINS,
+                    "{bars} bars gave bar {index} the range {start}..{end}"
+                );
+            }
         }
     }
 
@@ -548,21 +910,21 @@ mod tests {
     }
 
     #[test]
-    fn tinting_by_level_makes_amplitude_visible_in_the_colour() {
+    fn tinting_by_level_makes_amplitude_visible_in_the_color() {
         let theme = Theme::Dark;
         assert_ne!(
-            rgb(bar_color(&theme, Tint::Amplitude, 0.0, 0, 8)),
-            rgb(bar_color(&theme, Tint::Amplitude, 1.0, 0, 8)),
-            "amplitude should be visible in the colour, not only the height"
+            rgb(bar_color(&theme, Tint::Amplitude, None, 0.0, 0, 8)),
+            rgb(bar_color(&theme, Tint::Amplitude, None, 1.0, 0, 8)),
+            "amplitude should be visible in the color, not only the height"
         );
     }
 
     #[test]
-    fn the_colour_comes_from_the_palette_in_both_themes() {
+    fn the_color_comes_from_the_palette_in_both_themes() {
         for theme in [Theme::Light, Theme::Dark] {
             let palette = theme.extended_palette();
             assert_eq!(
-                rgb(bar_color(&theme, Tint::Amplitude, 0.0, 0, 8)),
+                rgb(bar_color(&theme, Tint::Amplitude, None, 0.0, 0, 8)),
                 rgb(palette.primary.weak.color),
                 "a resting bar should be the theme's weak primary"
             );
@@ -573,8 +935,8 @@ mod tests {
     fn a_flat_tint_ignores_the_level() {
         let theme = Theme::Dark;
         assert_eq!(
-            rgb(bar_color(&theme, Tint::Flat, 0.0, 0, 8)),
-            rgb(bar_color(&theme, Tint::Flat, 1.0, 0, 8)),
+            rgb(bar_color(&theme, Tint::Flat, None, 0.0, 0, 8)),
+            rgb(bar_color(&theme, Tint::Flat, None, 1.0, 0, 8)),
         );
     }
 
@@ -582,21 +944,121 @@ mod tests {
     fn a_spectrum_tint_follows_position_rather_than_level() {
         let theme = Theme::Dark;
         assert_eq!(
-            rgb(bar_color(&theme, Tint::Spectrum, 0.1, 3, 8)),
-            rgb(bar_color(&theme, Tint::Spectrum, 0.9, 3, 8)),
-            "level should not reach the colour when tinting by frequency"
+            rgb(bar_color(&theme, Tint::Spectrum, None, 0.1, 3, 8)),
+            rgb(bar_color(&theme, Tint::Spectrum, None, 0.9, 3, 8)),
+            "level should not reach the color when tinting by frequency"
         );
         assert_ne!(
-            rgb(bar_color(&theme, Tint::Spectrum, 0.5, 0, 8)),
-            rgb(bar_color(&theme, Tint::Spectrum, 0.5, 7, 8)),
-            "the two ends of the row should not be the same colour"
+            rgb(bar_color(&theme, Tint::Spectrum, None, 0.5, 0, 8)),
+            rgb(bar_color(&theme, Tint::Spectrum, None, 0.5, 7, 8)),
+            "the two ends of the row should not be the same color"
         );
     }
 
     #[test]
+    fn a_full_scale_bar_reaches_the_end_of_its_ramp() {
+        for theme in [Theme::Light, Theme::Dark] {
+            assert_eq!(
+                rgb(bar_color(&theme, Tint::Amplitude, None, 1.0, 0, 8)),
+                rgb(theme.extended_palette().primary.strong.color),
+                "the loud end of the ramp should be reachable"
+            );
+        }
+    }
+
+    #[test]
+    fn the_frequency_ramp_is_visible_in_every_theme_on_offer() {
+        for theme in crate::config::ALL_THEMES {
+            let (start, end) = (
+                bar_color(theme, Tint::Spectrum, None, 0.5, 0, 16),
+                bar_color(theme, Tint::Spectrum, None, 0.5, 15, 16),
+            );
+            let distance =
+                (start.r - end.r).abs() + (start.g - end.g).abs() + (start.b - end.b).abs();
+
+            assert!(
+                distance > 0.25,
+                "{theme} ramps between two colors that read as one"
+            );
+        }
+    }
+
+    #[test]
     fn a_single_bar_does_not_divide_by_zero() {
-        let color = bar_color(&Theme::Dark, Tint::Spectrum, 0.5, 0, 1);
+        let color = bar_color(&Theme::Dark, Tint::Spectrum, None, 0.5, 0, 1);
         assert!(color.r.is_finite() && color.g.is_finite() && color.b.is_finite());
+    }
+
+    const RED_SLEEVE: [u8; 3] = [150, 40, 40];
+    const BLUE_SLEEVE: [u8; 3] = [40, 50, 160];
+
+    #[test]
+    fn an_artwork_tint_takes_the_hue_of_the_cover() {
+        let red = bar_color(&Theme::Dark, Tint::Artwork, Some(RED_SLEEVE), 1.0, 0, 8);
+        let blue = bar_color(&Theme::Dark, Tint::Artwork, Some(BLUE_SLEEVE), 1.0, 0, 8);
+
+        assert!(red.r > red.b, "a red sleeve did not give red bars");
+        assert!(blue.b > blue.r, "a blue sleeve did not give blue bars");
+    }
+
+    /// The cover color is fitted to sit behind text, so using it directly would
+    /// draw bars barely distinguishable from a dark theme's own background.
+    #[test]
+    fn artwork_bars_stay_as_readable_as_the_theme_ramp() {
+        for theme in crate::config::ALL_THEMES {
+            for sleeve in [RED_SLEEVE, BLUE_SLEEVE] {
+                let tinted = bar_color(theme, Tint::Artwork, Some(sleeve), 1.0, 0, 8);
+                let default = bar_color(theme, Tint::Amplitude, None, 1.0, 0, 8);
+
+                let lightness = |color: Color| palette::to_hsl(to_bytes(color)).2;
+                assert!(
+                    (lightness(tinted) - lightness(default)).abs() < 0.05,
+                    "{theme} draws artwork bars at a different depth than its own ramp, \
+                     so one of the two is wrong against the background"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn an_artwork_tint_still_ramps_with_the_level() {
+        let quiet = bar_color(&Theme::Dark, Tint::Artwork, Some(RED_SLEEVE), 0.0, 0, 8);
+        let loud = bar_color(&Theme::Dark, Tint::Artwork, Some(RED_SLEEVE), 1.0, 0, 8);
+
+        assert_ne!(
+            rgb(quiet),
+            rgb(loud),
+            "the level stopped being visible once the cover supplied the hue"
+        );
+    }
+
+    #[test]
+    fn a_cover_with_no_hue_falls_back_to_the_theme() {
+        for gray in [[20u8, 20, 20], [128, 128, 128], [240, 240, 240]] {
+            assert_eq!(
+                rgb(bar_color(
+                    &Theme::Dark,
+                    Tint::Artwork,
+                    Some(gray),
+                    1.0,
+                    0,
+                    8
+                )),
+                rgb(bar_color(&Theme::Dark, Tint::Amplitude, None, 1.0, 0, 8)),
+                "a gray sleeve tinted the bars to an arbitrary hue"
+            );
+        }
+    }
+
+    #[test]
+    fn nothing_playing_falls_back_to_the_theme() {
+        for theme in [Theme::Light, Theme::Dark] {
+            assert_eq!(
+                rgb(bar_color(&theme, Tint::Artwork, None, 1.0, 0, 8)),
+                rgb(bar_color(&theme, Tint::Amplitude, None, 1.0, 0, 8)),
+                "a pane with no cover to read drew something other than the theme ramp"
+            );
+        }
     }
 
     #[test]
@@ -620,14 +1082,32 @@ mod tests {
         }
     }
 
+    fn distance(a: Color, b: Color) -> f32 {
+        (a.r - b.r).abs() + (a.g - b.g).abs() + (a.b - b.b).abs()
+    }
+
     #[test]
-    fn a_peak_marker_does_not_match_the_bars_it_sits_above() {
-        for theme in [Theme::Light, Theme::Dark] {
+    fn a_peak_marker_stands_out_from_the_bar_it_sits_above() {
+        for theme in crate::config::ALL_THEMES {
             for tint in Tint::ALL {
-                assert_ne!(
-                    rgb(peak_color(&theme)),
-                    rgb(bar_color(&theme, tint, 1.0, 0, 8)),
-                    "{tint:?} draws its marker in the bar's own colour"
+                let bar = bar_color(theme, tint, None, 1.0, 0, 8);
+                assert!(
+                    distance(peak_color(theme, bar), bar) > 0.1,
+                    "{tint:?} draws a marker too close to the bar's own color to see"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_peak_marker_stays_inside_the_spectrum_palette() {
+        for theme in crate::config::ALL_THEMES {
+            for tint in Tint::ALL {
+                let bar = bar_color(theme, tint, None, 1.0, 0, 8);
+                let text = theme.extended_palette().background.base.text;
+                assert!(
+                    distance(peak_color(theme, bar), bar) < distance(text, bar),
+                    "{tint:?} draws its marker as far off as bare chrome would"
                 );
             }
         }
@@ -664,19 +1144,84 @@ mod tests {
         assert!((marker.x - bar.x).abs() < f32::EPSILON);
     }
 
+    /// The marker state is fixed-size on purpose; a regression to a heap
+    /// collection would not fail any behavioral test above, so its footprint is
+    /// pinned here instead.
+    #[test]
+    fn the_marker_state_holds_no_heap_allocation() {
+        assert_eq!(
+            std::mem::size_of::<State>(),
+            std::mem::size_of::<[Peak; NUM_BINS]>() + std::mem::size_of::<usize>(),
+            "State grew a pointer, so the markers are back on the heap"
+        );
+    }
+
+    fn level(state: &State, index: usize) -> f32 {
+        state.markers()[index].level
+    }
+
+    fn settle(state: &mut State, bins: &[f32; NUM_BINS], bars: usize, frames: usize) {
+        for _ in 0..frames {
+            state.advance(bins, bars);
+        }
+    }
+
     #[test]
     fn peaks_fall_toward_the_level_without_passing_it() {
         let mut state = State::default();
-        let loud = [1.0; NUM_BINS];
         let quiet = [0.0; NUM_BINS];
 
-        state.advance(&loud, 8);
-        assert!((state.peaks[0] - 1.0).abs() < f32::EPSILON);
+        state.advance(&[1.0; NUM_BINS], 8);
+        assert!((level(&state, 0) - 1.0).abs() < f32::EPSILON);
 
-        state.advance(&quiet, 8);
-        let after = state.peaks[0];
+        settle(&mut state, &quiet, 8, PEAK_HANG as usize + 60);
+        let after = level(&state, 0);
         assert!(after < 1.0, "the peak did not fall");
-        assert!(after > 0.0, "the peak fell straight to the floor");
+        assert!(
+            after >= 0.0,
+            "the peak fell past the level it was following"
+        );
+    }
+
+    #[test]
+    fn a_peak_holds_still_before_it_starts_to_fall() {
+        let mut state = State::default();
+        state.advance(&[1.0; NUM_BINS], 8);
+
+        settle(&mut state, &[0.0; NUM_BINS], 8, PEAK_HANG as usize);
+
+        assert!(
+            (level(&state, 0) - 1.0).abs() < f32::EPSILON,
+            "the marker started falling before it had been still long enough to read"
+        );
+    }
+
+    #[test]
+    fn a_peak_is_still_readable_a_second_after_the_note() {
+        let mut state = State::default();
+        state.advance(&[1.0; NUM_BINS], 8);
+
+        settle(&mut state, &[0.0; NUM_BINS], 8, 60);
+
+        assert!(
+            level(&state, 0) > 0.5,
+            "a second later the marker had fallen to {} — the hold does not read",
+            level(&state, 0)
+        );
+    }
+
+    #[test]
+    fn a_peak_the_music_left_behind_does_catch_up_eventually() {
+        let mut state = State::default();
+        state.advance(&[1.0; NUM_BINS], 8);
+
+        settle(&mut state, &[0.0; NUM_BINS], 8, 600);
+
+        assert!(
+            level(&state, 0) < 0.05,
+            "a marker was still hanging at {} ten seconds into silence",
+            level(&state, 0)
+        );
     }
 
     #[test]
@@ -686,8 +1231,33 @@ mod tests {
         state.advance(&[1.0; NUM_BINS], 8);
 
         assert!(
-            (state.peaks[0] - 1.0).abs() < f32::EPSILON,
+            (level(&state, 0) - 1.0).abs() < f32::EPSILON,
             "a peak should follow a transient up without lag"
+        );
+    }
+
+    #[test]
+    fn switching_peak_hold_off_forgets_the_markers_it_was_holding() {
+        let mut state = State::default();
+        state.advance(&[1.0; NUM_BINS], 8);
+        state.forget();
+
+        assert!(
+            state.markers().is_empty(),
+            "markers from before the setting was switched off survived it"
+        );
+    }
+
+    #[test]
+    fn coming_back_to_peak_hold_starts_from_the_audio_not_the_past() {
+        let mut state = State::default();
+        state.advance(&[1.0; NUM_BINS], 8);
+        state.forget();
+        state.advance(&[0.1; NUM_BINS], 8);
+
+        assert!(
+            state.markers().iter().all(|peak| peak.level < 0.2),
+            "a stale marker dropped in from before the setting was switched off"
         );
     }
 
@@ -699,9 +1269,9 @@ mod tests {
         state.advance(&bins, 4);
         state.advance(&bins, 16);
 
-        assert_eq!(state.peaks.len(), 16);
+        assert_eq!(state.markers().len(), 16);
         assert!(
-            state.peaks.iter().all(|peak| *peak > 0.0),
+            state.markers().iter().all(|peak| peak.level > 0.0),
             "a new bar started from silence"
         );
     }

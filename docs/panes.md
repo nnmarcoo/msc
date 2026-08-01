@@ -15,11 +15,11 @@ Working and in use:
 - Clean/edit mode duality; edit controls overlay content without displacing it.
 - Split, close, change-kind, per-pane lock — from an edit-mode control cluster.
 - Draggable dividers (delta-based) with a resize cursor, in three states.
-- Pane drag-and-drop: onto a pane's edge to split, its centre to swap, or a
+- Pane drag-and-drop: onto a pane's edge to split, its center to swap, or a
   window edge to wrap the whole layout.
 - Named layout presets, number-key switching, persistence to config.
 
-Deferred: real pane content (panes render as centred kind labels), escaping
+Deferred: real pane content (panes render as centered kind labels), escaping
 controls for panes below the cluster's minimum size, the context-menu edit entry,
 and per-pane settings beyond the lock.
 
@@ -48,7 +48,7 @@ split, close — and arranged by [`ControlForm`] from the pane's width alone:
 
 | Pane width | Form | Change-kind trigger |
 | --- | --- | --- |
-| ≥ labelled width (varies by kind title) | row | the pane's title |
+| ≥ labeled width (varies by kind title) | row | the pane's title |
 | ≥ compact width (~145px) | row | its icon alone |
 | below that | column | its icon alone |
 
@@ -135,7 +135,7 @@ pub enum Split {
 }
 ```
 
-> **Divergence from the design.** The plan modelled sizing as "how child `a` is
+> **Divergence from the design.** The plan modeled sizing as "how child `a` is
 > sized," with `b` always the remainder. That cannot express locking the
 > *second* child to N pixels without knowing the total width. The shipped model
 > names the locked `Side` explicitly (`A` or `B`), so either child can be the
@@ -216,13 +216,13 @@ target; a highlight previews where a drop would land; release commits.
 hit-tests against them — not reusable here. Instead each pane wraps its content
 in `responsive` (which hands the closure the pane's real size) and a `mouse_area`
 whose `on_move` reports the cursor's fractional position. `DropZone::from_fraction`
-maps that to a zone: outer third of an edge → split that side; centre third →
+maps that to a zone: outer third of an edge → split that side; center third →
 swap.
 
 ### The drop-preview highlight
 
 The target pane paints a translucent overlay over the half a drop would occupy
-(left/right/top/bottom) or the whole pane (centre swap).
+(left/right/top/bottom) or the whole pane (center swap).
 
 > **Bug fixed here.** The first version sized the highlight with a single
 > `FillPortion(50)` child, which fills 100% because `FillPortion` only divides
@@ -289,7 +289,7 @@ iced's, not this project's, and the nested-overlay half of it is easy to miss.
 Run with `cargo test --bin verse` (the GUI is a bin, not a lib). They cover the
 logic a headless run can verify: divider drag direction for both locked sides,
 ratio conversion, `MIN_PANE` clamping, lock persistence round-trip, drop-zone
-geometry, edge-split placement, centre swap, self-drop no-op, tree validity after
+geometry, edge-split placement, center swap, self-drop no-op, tree validity after
 a move, whole-window edge wrapping, which `ControlForm` a given pane size picks,
 and the split button's chosen axis.
 
@@ -302,7 +302,7 @@ confirmed by hand.
 
 ## Deferred
 
-- **Pane content** — panes show centred kind labels; the `PaneState` machinery
+- **Pane content** — panes show centered kind labels; the `PaneState` machinery
   exists but is not driven.
 - **Escaping controls** — for panes too small to host their own cluster; designed
   but not built, see below.
@@ -335,8 +335,8 @@ can still contain an 80px pane, and that pane needs escaped controls just as muc
 as one in a small window does.
 
 **The unsolved part is placement, not rendering.** Small panes are usually small
-because they are wedged between neighbours, so the strip just outside one is
-often where a neighbour's controls already sit. Two approaches:
+because they are wedged between neighbors, so the strip just outside one is
+often where a neighbor's controls already sit. Two approaches:
 
 - **A deterministic per-pane rule** — try the outer edges in a fixed order, take
   the first that fits in the window. No shared state; collisions rare but
@@ -367,6 +367,6 @@ placement function it produces is what a two-phase registry would call, so
 nothing is wasted.
 
 **Also unresolved.** A detached cluster needs to show which pane it belongs to.
-Neighbouring 80px panes make ownership ambiguous, and unlike the picker's panel —
+Neighboring 80px panes make ownership ambiguous, and unlike the picker's panel —
 modal and transient — edit controls are persistent and every pane has a set. A
 highlight on the owning pane is the likely answer.

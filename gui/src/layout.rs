@@ -63,7 +63,7 @@
 //! already describes it and nothing should be written. And `governing_split`
 //! returns the split *nearest* the pane rather than the topmost match, because
 //! an outer split divides whole groups: writing one pane's share into it would
-//! move neighbours the user never touched. The search still climbs past splits
+//! move neighbors the user never touched. The search still climbs past splits
 //! on the other axis, since a pane's width and height are usually governed by
 //! two different ancestors.
 
@@ -1051,7 +1051,7 @@ mod tests {
     }
 
     #[test]
-    fn freeing_a_pane_in_a_three_pane_row_leaves_its_neighbours_alone() {
+    fn freeing_a_pane_in_a_three_pane_row_leaves_its_neighbors_alone() {
         let mut l = two_pane();
         l.split(PaneId(0), Axis::Vertical, PaneKind::Empty); // 0 -> (0|2)
 

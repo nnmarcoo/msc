@@ -2,7 +2,7 @@
 //!
 //! The query is app state rather than pane state, so this pane holds nothing of
 //! its own and two search panes show the same text. That is the intended
-//! behaviour, not a limitation: the query describes which tracks are interesting
+//! behavior, not a limitation: the query describes which tracks are interesting
 //! right now, which is a fact about the library and not about a pane. See
 //! [`crate::browsing`].
 //!

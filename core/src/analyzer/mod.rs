@@ -15,10 +15,19 @@ use spectrum::Spectrum;
 pub use meter::Levels;
 pub use spectrum::NUM_BINS;
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Copy, Debug)]
 pub struct VisData {
     bins: [f32; NUM_BINS],
     pub levels: Levels,
+}
+
+impl Default for VisData {
+    fn default() -> Self {
+        Self {
+            bins: [0.0; NUM_BINS],
+            levels: Levels::default(),
+        }
+    }
 }
 
 impl VisData {

@@ -1,6 +1,6 @@
 //! A search-first pick list for choosing what a pane contains.
 //!
-//! The trigger is a small labelled button that lives in the pane's edit
+//! The trigger is a small labeled button that lives in the pane's edit
 //! overlay; pressing it opens a panel as a true iced `Overlay`, so the list
 //! escapes the pane's clip bounds and can be larger than the pane it belongs
 //! to. That is the whole reason this is a custom widget rather than a
@@ -24,7 +24,7 @@
 //! every title as if it were all capitals and left the surplus as slack around
 //! short ones, and at 0.5 it fitted lowercase exactly and clipped the leading
 //! capital every title has. The trigger carries no padding to hide an
-//! underestimate in and the label is centred, so a budget short of the text
+//! underestimate in and the label is centered, so a budget short of the text
 //! clips both ends of it — hence the classes, plus `GLYPH_SLACK` on top for the
 //! rounding an approximation accumulates.
 //!
