@@ -14,6 +14,7 @@ pub mod rating;
 pub mod scrim;
 pub mod search_bar;
 pub mod spectrum;
+pub mod theme_picker;
 pub mod timeline;
 pub mod tooltip;
 pub mod track_list;

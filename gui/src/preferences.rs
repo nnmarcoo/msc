@@ -41,19 +41,18 @@ use iced::keyboard::{
 };
 use iced::widget::scrollable::{Direction, Scrollbar};
 use iced::widget::svg::Handle;
-use iced::widget::{
-    Space, button, column, container, pick_list, row, scrollable, svg, text, toggler,
-};
+use iced::widget::{Space, button, column, container, row, scrollable, svg, text, toggler};
 use iced::{Color, Element, Font, Length, Theme};
 
 use crate::app::Message;
-use crate::config::{ALL_THEMES, Config};
+use crate::config::Config;
 use crate::keybinds::{self, Action, KeyBinding, KeyCategory, Keymap};
 use crate::styles::{
     self, BAR_HEIGHT, PAD, PREF_CONTENT_MAX_WIDTH, PREF_SIDEBAR_WIDTH, RULE_HEIGHT, muted_text,
     set_radius,
 };
 use crate::widgets::hover_row::HoverRow;
+use crate::widgets::theme_picker::ThemePicker;
 use crate::widgets::tooltip::tip;
 
 const ICON_CHECK: &[u8] = include_bytes!("../../assets/icons/check.svg");
@@ -377,12 +376,9 @@ fn appearance<'a>(pending: &'a Config, theme: &Theme) -> Element<'a, Message> {
         setting(
             "Theme",
             "Color scheme for the application",
-            pick_list(ALL_THEMES, Some(pending.theme.clone()), |theme| {
+            ThemePicker::new(pending.theme.clone(), |theme| {
                 Message::Preference(PreferenceMessage::SetTheme(theme))
             })
-            .text_size(12)
-            .style(styles::pick_list_style)
-            .menu_style(styles::pick_list_menu_style)
             .into(),
             theme,
         ),
