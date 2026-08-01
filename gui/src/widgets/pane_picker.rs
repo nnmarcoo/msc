@@ -15,6 +15,18 @@
 //! The trigger has two widths, since the edit overlay measures it before laying
 //! out: [`PanePicker::label_width`] with the pane's title, and
 //! [`PanePicker::compact_width`] once it drops the label for its icon.
+//! `text_size` scales both the width and the height, so a caller making the
+//! picker a heading gets a trigger that grew to fit rather than a large label in
+//! a small box.
+//!
+//! That width is estimated per character rather than measured, in three glyph
+//! classes. One average ratio has to be wrong for something: at 0.58 it sized
+//! every title as if it were all capitals and left the surplus as slack around
+//! short ones, and at 0.5 it fitted lowercase exactly and clipped the leading
+//! capital every title has. The trigger carries no padding to hide an
+//! underestimate in and the label is centred, so a budget short of the text
+//! clips both ends of it — hence the classes, plus `GLYPH_SLACK` on top for the
+//! rounding an approximation accumulates.
 //!
 //! `PickerOverlay::mouse_interaction` claims the cursor over the whole panel,
 //! not just its interactive parts: iced hands the cursor back to the layer
@@ -47,7 +59,13 @@ use crate::styles::{LABEL_FONT_SIZE, radius};
 use crate::widgets::menu::{SubMenuSide, menu_item, styled_menu, sub_menu};
 
 const TRIGGER_HEIGHT: f32 = 20.0;
-const TRIGGER_PADDING_H: f32 = 8.0;
+const TRIGGER_PADDING_V: f32 = 3.0;
+
+const CAP_RATIO: f32 = 0.62;
+const LOWER_RATIO: f32 = 0.5;
+const SPACE_RATIO: f32 = 0.28;
+
+const GLYPH_SLACK: f32 = 1.4;
 const COMPACT_TRIGGER_WIDTH: f32 = 24.0;
 const COMPACT_ICON_SIZE: f32 = 14.0;
 
@@ -96,6 +114,7 @@ pub struct PanePicker<Message> {
     current: PaneKind,
     on_select: Box<dyn Fn(PaneKind) -> Message>,
     compact: bool,
+    text_size: f32,
 }
 
 impl<Message> PanePicker<Message> {
@@ -104,6 +123,7 @@ impl<Message> PanePicker<Message> {
             current,
             on_select: Box::new(on_select),
             compact: false,
+            text_size: LABEL_FONT_SIZE,
         }
     }
 
@@ -112,9 +132,35 @@ impl<Message> PanePicker<Message> {
         self
     }
 
+    pub fn text_size(mut self, size: f32) -> Self {
+        self.text_size = size;
+        self
+    }
+
     pub fn label_width(kind: PaneKind) -> f32 {
-        let estimated = kind.title().chars().count() as f32 * LABEL_FONT_SIZE * 0.58;
-        estimated + TRIGGER_PADDING_H * 2.0
+        Self::label_width_at(kind, LABEL_FONT_SIZE)
+    }
+
+    fn label_width_at(kind: PaneKind, text_size: f32) -> f32 {
+        let advances: f32 = kind
+            .title()
+            .chars()
+            .map(|glyph| {
+                if glyph == ' ' {
+                    SPACE_RATIO
+                } else if glyph.is_uppercase() {
+                    CAP_RATIO
+                } else {
+                    LOWER_RATIO
+                }
+            })
+            .sum();
+
+        (advances + GLYPH_SLACK) * text_size
+    }
+
+    fn trigger_height(&self) -> f32 {
+        TRIGGER_HEIGHT.max(self.text_size + TRIGGER_PADDING_V * 2.0)
     }
 
     pub fn compact_width() -> f32 {
@@ -125,7 +171,7 @@ impl<Message> PanePicker<Message> {
         if self.compact {
             Self::compact_width()
         } else {
-            Self::label_width(self.current)
+            Self::label_width_at(self.current, self.text_size)
         }
     }
 }
@@ -142,7 +188,7 @@ impl<Message: Clone> Widget<Message, Theme, Renderer> for PanePicker<Message> {
     fn size(&self) -> Size<Length> {
         Size {
             width: Length::Shrink,
-            height: Length::Fixed(TRIGGER_HEIGHT),
+            height: Length::Fixed(self.trigger_height()),
         }
     }
 
@@ -155,7 +201,7 @@ impl<Message: Clone> Widget<Message, Theme, Renderer> for PanePicker<Message> {
         layout::atomic(
             limits,
             Length::Fixed(self.trigger_width()),
-            Length::Fixed(TRIGGER_HEIGHT),
+            Length::Fixed(self.trigger_height()),
         )
     }
 
@@ -245,7 +291,7 @@ impl<Message: Clone> Widget<Message, Theme, Renderer> for PanePicker<Message> {
             text::Text {
                 content: self.current.title().to_owned(),
                 bounds: Size::new(bounds.width, bounds.height),
-                size: LABEL_FONT_SIZE.into(),
+                size: self.text_size.into(),
                 line_height: text::LineHeight::default(),
                 font: renderer.default_font(),
                 align_x: text::Alignment::Center,
@@ -750,5 +796,57 @@ impl<Message> PickerOverlay<'_, '_, Message> {
 impl<'a, Message: Clone + 'a> From<PanePicker<Message>> for Element<'a, Message, Theme, Renderer> {
     fn from(picker: PanePicker<Message>) -> Self {
         Self::new(picker)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn generous(title: &str, text_size: f32) -> f32 {
+        title.chars().count() as f32 * text_size * 0.62
+    }
+
+    #[test]
+    fn every_title_fits_the_width_it_is_given() {
+        for size in [LABEL_FONT_SIZE, 15.0] {
+            for kind in PaneKind::ALL {
+                let budget = PanePicker::<()>::label_width_at(kind, size);
+                let needed = generous(kind.title(), size);
+
+                assert!(
+                    budget >= needed,
+                    "{kind:?} at {size}px gets {budget:.1}px but wants up to {needed:.1}px"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_longer_title_is_given_more_width() {
+        let short = PanePicker::<()>::label_width(PaneKind::Empty);
+        let long = PanePicker::<()>::label_width(PaneKind::NowPlaying);
+
+        assert!(long > short);
+    }
+
+    #[test]
+    fn a_larger_font_is_given_more_width() {
+        let small = PanePicker::<()>::label_width_at(PaneKind::Visualizer, LABEL_FONT_SIZE);
+        let large = PanePicker::<()>::label_width_at(PaneKind::Visualizer, 15.0);
+
+        assert!(large > small);
+    }
+
+    #[test]
+    fn a_two_word_title_is_not_budgeted_as_though_its_space_were_a_letter() {
+        let spaced = PanePicker::<()>::label_width(PaneKind::NowPlaying);
+        let solid = PanePicker::<()>::label_width_at(PaneKind::Collections, LABEL_FONT_SIZE);
+
+        assert!(
+            spaced < solid,
+            "\"Now Playing\" is a character longer than \"Collections\" but should \
+             still be narrower, since its space is not a letter"
+        );
     }
 }

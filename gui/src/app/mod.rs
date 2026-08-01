@@ -119,6 +119,22 @@
 //! restore the corner radius from the live config, which is the one edit that
 //! previews through a global instead of through the pending clone.
 //!
+//! `pane_options` is the pane whose settings modal is open, with the size that
+//! pane was laid out at when it opened. The metrics are captured then because
+//! only the pane knows its own size — it comes from the `responsive` closure
+//! that draws the gear — and the modal covering it cannot ask again; locking
+//! therefore freezes the shape the pane had when its settings were opened, which
+//! is the shape still on screen behind the scrim. Cycling is ignored unless the
+//! modal open is the one for that pane, so a message arriving after it closed
+//! cannot resize a pane nobody is looking at.
+//!
+//! The modal must not outlive the pane it describes, so `after_layout_change` —
+//! which every structural change already routes through — drops it if the pane
+//! is gone, and leaving edit mode takes it too, since that is where it was
+//! opened from. A modal also takes Escape before any binding resolves: it is
+//! what the key means everywhere else, and letting a rebindable action fire from
+//! behind the scrim would act on a pane the user cannot currently see.
+//!
 //! Keys reach [`crate::keybinds`] in every mode but one: while a keybind row is
 //! capturing, the next key *is* the binding, so it goes to the row rather than
 //! running whatever it is currently bound to. Capture is the gate rather than
@@ -157,6 +173,9 @@ const TICK: Duration = Duration::from_millis(16);
 
 const CONFIG_FLUSH: Duration = Duration::from_secs(1);
 
+static NO_SETTINGS: std::sync::LazyLock<PaneSettings> =
+    std::sync::LazyLock::new(PaneSettings::default);
+
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
@@ -169,9 +188,10 @@ use crate::artwork::{Cache as ArtCache, Decoded};
 use crate::browsing::{Context, Selection};
 use crate::config::Config;
 use crate::keybinds::Action;
-use crate::layout::{Axis, DropZone, Layout, PaneId, PaneMetrics, SplitPath};
+use crate::layout::{Axis, DropZone, Layout, Locks, PaneId, PaneMetrics, SplitPath};
 use crate::pane::collections::{self, Kind as CollectionKind};
-use crate::pane::{PaneKind, PaneMessage, PaneStates, view as pane_view};
+use crate::pane::settings::{PaneSettings, Settings as PaneSettingsValue};
+use crate::pane::{PaneKind, PaneMessage, PaneStates, options as pane_options, view as pane_view};
 use crate::preferences::{self, PreferenceMessage, PreferenceOutcome, PreferenceState};
 use crate::styles;
 use crate::tasks;
@@ -189,6 +209,7 @@ pub struct App {
     edit_mode: bool,
     drag: Option<DividerDrag>,
     pane_drag: Option<PaneDrag>,
+    pane_options: Option<(PaneId, PaneMetrics)>,
 
     editing_config: Option<Config>,
     preference_state: PreferenceState,
@@ -311,7 +332,10 @@ pub enum Message {
     SplitPane(PaneId, Axis),
     ClosePane(PaneId),
     SetPaneKind(PaneId, PaneKind),
-    CycleLock(PaneId, PaneMetrics),
+    OpenPaneOptions(PaneId, PaneMetrics),
+    ClosePaneOptions,
+    CyclePaneLock(PaneId),
+    SetPaneSettings(PaneId, PaneSettingsValue),
     DividerGrabbed(SplitPath, f32),
     PaneGrabbed(PaneId),
     DropHovered(DropTarget),
@@ -359,6 +383,7 @@ impl App {
             edit_mode: false,
             drag: None,
             pane_drag: None,
+            pane_options: None,
             editing_config: None,
             preference_state: PreferenceState::default(),
             search: String::new(),
@@ -388,7 +413,48 @@ impl App {
 
     fn after_layout_change(&mut self) {
         self.sync_pane_states();
+        self.close_stale_pane_options();
         self.persist_layouts();
+    }
+
+    fn tick(&mut self) {
+        let _ = self.player.update(&self.library);
+        self.settle_seek();
+    }
+
+    fn toggle_edit_mode(&mut self) {
+        self.edit_mode = !self.edit_mode;
+        if !self.edit_mode {
+            self.pane_options = None;
+        }
+    }
+
+    fn update_pane_options(&mut self, message: &Message) {
+        match message {
+            Message::OpenPaneOptions(id, size) => self.pane_options = Some((*id, *size)),
+            Message::ClosePaneOptions => self.pane_options = None,
+            Message::CyclePaneLock(id) => {
+                if let Some((open, size)) = self.pane_options
+                    && open == *id
+                {
+                    self.layout_mut().cycle_lock(*id, size);
+                    self.persist_layouts();
+                }
+            }
+            Message::SetPaneSettings(id, settings) => {
+                self.layout_mut().set_settings(*id, *settings);
+                self.persist_layouts();
+            }
+            _ => {}
+        }
+    }
+
+    fn close_stale_pane_options(&mut self) {
+        if let Some((id, _)) = self.pane_options
+            && self.layout().kind(id).is_none()
+        {
+            self.pane_options = None;
+        }
     }
 
     fn sync_pane_states(&mut self) {
@@ -683,10 +749,7 @@ impl App {
 
     fn dispatch(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::Tick => {
-                let _ = self.player.update(&self.library);
-                self.settle_seek();
-            }
+            Message::Tick => self.tick(),
 
             Message::PlayPause
             | Message::Next
@@ -738,9 +801,11 @@ impl App {
                 self.pane_states.reset(id, kind);
                 self.persist_layouts();
             }
-            Message::CycleLock(id, size) => {
-                self.layout_mut().cycle_lock(id, size);
-                self.persist_layouts();
+            Message::OpenPaneOptions(..)
+            | Message::ClosePaneOptions
+            | Message::CyclePaneLock(_)
+            | Message::SetPaneSettings(..) => {
+                self.update_pane_options(&message);
             }
             Message::DividerGrabbed(path, span) => {
                 if let Some(axis) = self.layout().split_axis(&path) {
@@ -755,7 +820,7 @@ impl App {
             Message::PaneGrabbed(_) | Message::DropHovered(_) | Message::DropHoverEnded(_) => {
                 self.update_pane_drag(&message);
             }
-            Message::ToggleEditMode => self.edit_mode = !self.edit_mode,
+            Message::ToggleEditMode => self.toggle_edit_mode(),
             Message::SelectLayout(index) => {
                 if index < self.layouts.len() && index != self.active_layout {
                     self.active_layout = index;
@@ -964,6 +1029,12 @@ impl App {
             };
         }
 
+        if self.pane_options.is_some()
+            && physical == keyboard::key::Physical::Code(keyboard::key::Code::Escape)
+        {
+            return Task::done(Message::ClosePaneOptions);
+        }
+
         let open = self.editing_config.is_some();
 
         match self.config.keymap.resolve(physical, modifiers) {
@@ -1014,6 +1085,7 @@ impl App {
                     .unwrap_or_else(|| self.player.position() as f32),
                 volume: self.audible_volume(),
                 muted: self.config.muted,
+                bins: *self.player.vis_data().bins(),
             },
             tracks: self.context(),
             visible,
@@ -1032,8 +1104,10 @@ impl App {
             let pane = pane_view::Pane {
                 id,
                 kind,
-                locks: layout.locks(id),
                 state: self.pane_states.get(id),
+                settings: layout
+                    .entry(id)
+                    .map_or(&*NO_SETTINGS, |entry| &entry.settings),
             };
             pane_view::view(pane, edit, drag, shared, span)
         };
@@ -1050,10 +1124,22 @@ impl App {
             panes
         };
 
-        container(body)
-            .width(Length::Fill)
-            .height(Length::Fill)
-            .into()
+        let root = container(body).width(Length::Fill).height(Length::Fill);
+
+        match self.open_pane_options() {
+            Some((id, kind, locks)) => iced::widget::stack![
+                root,
+                pane_options::view(id, kind, locks, &self.layout().settings(id))
+            ]
+            .into(),
+            None => root.into(),
+        }
+    }
+
+    fn open_pane_options(&self) -> Option<(PaneId, PaneKind, Locks)> {
+        let (id, _) = self.pane_options?;
+        let kind = self.layout().kind(id)?;
+        Some((id, kind, self.layout().locks(id)))
     }
 
     pub fn title(&self) -> String {

@@ -23,6 +23,15 @@
 //! inert style, a seam that refuses drags outright, is muted, so that dulling
 //! reliably reads as "nothing will happen here".
 //!
+//! `scrim_style` is black at a low alpha rather than a palette color, because
+//! its job is to take light out of whatever happens to be behind it; tinting it
+//! with the theme would make it read as a surface of its own rather than as the
+//! window receding. `modal_style` then takes the *base* background rather than
+//! the weak one, so the dialog reads as nearer the viewer than the panes dimmed
+//! behind it, and `modal_control_style` is the themed counterpart to
+//! `panel_button_style`, which is white only because it sits on artwork the
+//! theme does not own.
+//!
 //! Text sits at three weights against the theme's own background — `plain_text`
 //! at full strength, `dim_text` for a label beside what it names, `faint_text`
 //! for a number or duration that should be found only when looked for. They are
@@ -362,6 +371,42 @@ pub fn drop_highlight_style(theme: &Theme) -> container::Style {
         background: Some(Background::Color(
             palette.primary.base.color.scale_alpha(0.35),
         )),
+        border: iced::border::rounded(radius()),
+        ..Default::default()
+    }
+}
+
+pub fn scrim_style(_theme: &Theme) -> container::Style {
+    container::Style {
+        background: Some(Background::Color(iced::Color::BLACK.scale_alpha(0.45))),
+        ..Default::default()
+    }
+}
+
+pub fn modal_style(theme: &Theme) -> container::Style {
+    let palette = theme.extended_palette();
+    container::Style {
+        text_color: Some(palette.background.base.text),
+        background: Some(Background::Color(palette.background.base.color)),
+        border: Border {
+            color: palette.background.strong.color,
+            width: 1.0,
+            radius: radius().into(),
+        },
+        ..Default::default()
+    }
+}
+
+pub fn modal_control_style(theme: &Theme, status: button::Status) -> button::Style {
+    let palette = theme.extended_palette();
+    let background = match status {
+        button::Status::Hovered | button::Status::Pressed => palette.background.strong.color,
+        _ => palette.background.weak.color,
+    };
+
+    button::Style {
+        background: Some(Background::Color(background)),
+        text_color: palette.background.base.text,
         border: iced::border::rounded(radius()),
         ..Default::default()
     }

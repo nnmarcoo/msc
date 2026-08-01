@@ -432,6 +432,7 @@ mod tests {
                     id: PaneId(index as u32),
                     kind: PaneKind::Empty,
                     locks,
+                    ..PaneEntry::blank()
                 })
                 .collect(),
         }
@@ -650,16 +651,19 @@ mod tests {
                     id: PaneId(0),
                     kind: PaneKind::Empty,
                     locks: Locks::default(),
+                    ..PaneEntry::blank()
                 },
                 PaneEntry {
                     id: PaneId(1),
                     kind: PaneKind::Empty,
                     locks: tall(150.0),
+                    ..PaneEntry::blank()
                 },
                 PaneEntry {
                     id: PaneId(2),
                     kind: PaneKind::Empty,
                     locks: tall(150.0),
+                    ..PaneEntry::blank()
                 },
             ],
         };
@@ -725,16 +729,19 @@ mod tests {
                     id: PaneId(0),
                     kind: PaneKind::Empty,
                     locks: Locks::default(),
+                    ..PaneEntry::blank()
                 },
                 PaneEntry {
                     id: PaneId(1),
                     kind: PaneKind::Empty,
                     locks: tall(150.0),
+                    ..PaneEntry::blank()
                 },
                 PaneEntry {
                     id: PaneId(2),
                     kind: PaneKind::Empty,
                     locks: tall(150.0),
+                    ..PaneEntry::blank()
                 },
             ],
         };
@@ -923,16 +930,19 @@ mod tests {
                     id: PaneId(0),
                     kind: PaneKind::Empty,
                     locks: Locks::default(),
+                    ..PaneEntry::blank()
                 },
                 PaneEntry {
                     id: PaneId(1),
                     kind: PaneKind::Empty,
                     locks: wide(320.0),
+                    ..PaneEntry::blank()
                 },
                 PaneEntry {
                     id: PaneId(2),
                     kind: PaneKind::Empty,
                     locks: wide(320.0),
+                    ..PaneEntry::blank()
                 },
             ],
         };

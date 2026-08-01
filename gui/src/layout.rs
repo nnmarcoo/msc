@@ -39,6 +39,17 @@
 //! like any other action, so the number row is a starting point rather than the
 //! reason there are ten.
 //!
+//! A `PaneEntry` also carries what the pane remembers about how each kind should
+//! draw itself, in [`crate::pane::settings::PaneSettings`]. It is skipped when
+//! empty, which is every pane nobody has customized, so a layout file is
+//! byte-identical to one written before per-pane settings existed.
+//!
+//! `swap_panes` moves those settings with the kind rather than leaving them with
+//! the pane, because they describe the content: a visualizer tuned coarse should
+//! still be coarse after being dragged somewhere else. Locks are the opposite —
+//! they describe the hole rather than what fills it — which is why a swap moves
+//! the kind and its settings and leaves the locks where they are.
+//!
 //! `cycle_lock` advances a pane through unlocked, width, height, both. Width
 //! leads because the common case is a vertical list that should keep it.
 //! Holding both suits a transport strip needing a fixed height and a floor on
@@ -59,6 +70,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::pane::PaneKind;
+use crate::pane::settings::{PaneSettings, Settings};
 
 pub const MIN_PANE: f32 = 50.0;
 
@@ -312,10 +324,24 @@ pub struct PaneEntry {
     pub kind: PaneKind,
     #[serde(default, skip_serializing_if = "is_unlocked")]
     pub locks: Locks,
+    #[serde(default, skip_serializing_if = "PaneSettings::is_empty")]
+    pub settings: PaneSettings,
 }
 
 fn is_unlocked(locks: &Locks) -> bool {
     !locks.any()
+}
+
+impl PaneEntry {
+    #[cfg(test)]
+    pub fn blank() -> Self {
+        Self {
+            id: PaneId(0),
+            kind: PaneKind::Empty,
+            locks: Locks::default(),
+            settings: PaneSettings::default(),
+        }
+    }
 }
 
 impl Layout {
@@ -328,6 +354,7 @@ impl Layout {
                 id,
                 kind,
                 locks: Locks::default(),
+                settings: PaneSettings::default(),
             }],
         }
     }
@@ -359,6 +386,7 @@ impl Layout {
             id: new_id,
             kind,
             locks: Locks::default(),
+            settings: PaneSettings::default(),
         });
         Some(new_id)
     }
@@ -431,18 +459,39 @@ impl Layout {
     }
 
     fn swap_panes(&mut self, a: PaneId, b: PaneId) -> bool {
-        let kind_a = self.kind(a);
-        let kind_b = self.kind(b);
-        if let (Some(ka), Some(kb)) = (kind_a, kind_b) {
-            self.set_kind(a, kb);
-            self.set_kind(b, ka);
-            return true;
+        let (Some(ka), Some(kb)) = (self.kind(a), self.kind(b)) else {
+            return false;
+        };
+
+        let settings_a = self.entry(a).map(|entry| entry.settings.clone());
+        let settings_b = self.entry(b).map(|entry| entry.settings.clone());
+
+        self.set_kind(a, kb);
+        self.set_kind(b, ka);
+
+        if let (Some(entry), Some(settings)) = (self.entry_mut(a), settings_b) {
+            entry.settings = settings;
         }
-        false
+        if let (Some(entry), Some(settings)) = (self.entry_mut(b), settings_a) {
+            entry.settings = settings;
+        }
+        true
     }
 
     pub fn locks(&self, id: PaneId) -> Locks {
         self.entry(id).map(|entry| entry.locks).unwrap_or_default()
+    }
+
+    pub fn settings(&self, id: PaneId) -> PaneSettings {
+        self.entry(id)
+            .map(|entry| entry.settings.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn set_settings(&mut self, id: PaneId, settings: Settings) {
+        if let Some(entry) = self.entry_mut(id) {
+            entry.settings.set(settings);
+        }
     }
 
     pub fn is_locked(&self, id: PaneId, axis: Axis) -> bool {
@@ -623,6 +672,7 @@ impl Layout {
                     id,
                     kind: PaneKind::Empty,
                     locks: Locks::default(),
+                    settings: PaneSettings::default(),
                 });
             }
         }
@@ -646,32 +696,7 @@ impl Default for Layout {
 }
 
 pub fn default_presets() -> Vec<Layout> {
-    let browsing = Layout {
-        name: "Browsing".into(),
-        root: Node::Split {
-            axis: Axis::Vertical,
-            split: Split { ratio: 0.62 },
-            a: Box::new(Node::leaf(PaneId(0))),
-            b: Box::new(Node::leaf(PaneId(1))),
-        },
-        panes: vec![
-            PaneEntry {
-                id: PaneId(0),
-                kind: PaneKind::Library,
-                locks: Locks::default(),
-            },
-            PaneEntry {
-                id: PaneId(1),
-                kind: PaneKind::Queue,
-                locks: Locks {
-                    width: Some(320.0),
-                    height: None,
-                },
-            },
-        ],
-    };
-
-    let mut presets = vec![browsing, Layout::single("Library", PaneKind::Library)];
+    let mut presets = vec![Layout::single("Library", PaneKind::Library)];
     while presets.len() < PRESET_SLOTS {
         let slot = presets.len() + 1;
         presets.push(Layout::single(format!("Layout {slot}"), PaneKind::Empty));
@@ -682,6 +707,73 @@ pub fn default_presets() -> Vec<Layout> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::pane::settings::{Density, Visualizer};
+
+    fn tuned() -> Settings {
+        Settings::Visualizer(Visualizer {
+            density: Density::Coarse,
+            ..Visualizer::default()
+        })
+    }
+
+    #[test]
+    fn settings_survive_a_layout_round_trip() {
+        let mut layout = Layout::single("test", PaneKind::Visualizer);
+        layout.set_settings(PaneId(0), tuned());
+
+        let text = toml::to_string(&layout).expect("layout serializes");
+        let back: Layout = toml::from_str(&text).expect("layout parses");
+
+        assert_eq!(
+            back.settings(PaneId(0)).get(PaneKind::Visualizer),
+            Some(tuned())
+        );
+    }
+
+    #[test]
+    fn an_untouched_layout_writes_no_settings_key() {
+        let layout = Layout::single("test", PaneKind::Library);
+        let text = toml::to_string(&layout).expect("layout serializes");
+
+        assert!(
+            !text.contains("settings"),
+            "an untouched pane wrote a settings table:\n{text}"
+        );
+    }
+
+    #[test]
+    fn a_layout_without_settings_still_loads() {
+        let text = r#"
+            name = "old"
+            [root]
+            type = "leaf"
+            id = 0
+            [[panes]]
+            id = 0
+            kind = "visualizer"
+        "#;
+
+        let layout: Layout = toml::from_str(text).expect("an older layout still parses");
+        assert!(layout.settings(PaneId(0)).is_empty());
+    }
+
+    #[test]
+    fn swapping_panes_carries_settings_with_the_kind() {
+        let mut layout = Layout::single("test", PaneKind::Visualizer);
+        let other = layout
+            .split(PaneId(0), Axis::Vertical, PaneKind::Queue)
+            .expect("the pane splits");
+
+        layout.set_settings(PaneId(0), tuned());
+        assert!(layout.move_pane(PaneId(0), other, DropZone::Center));
+
+        assert_eq!(layout.kind(other), Some(PaneKind::Visualizer));
+        assert_eq!(
+            layout.settings(other).get(PaneKind::Visualizer),
+            Some(tuned()),
+            "the tuning did not follow the visualizer to its new pane"
+        );
+    }
 
     fn size(width: f32, height: f32) -> iced::Size {
         iced::Size::new(width, height)
@@ -716,11 +808,13 @@ mod tests {
                     id: PaneId(0),
                     kind: PaneKind::Empty,
                     locks: Locks::default(),
+                    settings: PaneSettings::default(),
                 },
                 PaneEntry {
                     id: PaneId(1),
                     kind: PaneKind::Empty,
                     locks: Locks::default(),
+                    settings: PaneSettings::default(),
                 },
             ],
         }
@@ -1147,8 +1241,16 @@ mod tests {
     }
 
     #[test]
+    fn the_first_slot_is_the_library_alone() {
+        let first = default_presets().remove(0);
+
+        assert_eq!(first.panes.len(), 1, "the default should be a single pane");
+        assert_eq!(first.panes[0].kind, PaneKind::Library);
+    }
+
+    #[test]
     fn an_unused_slot_is_one_empty_pane() {
-        for preset in default_presets().into_iter().skip(2) {
+        for preset in default_presets().into_iter().skip(1) {
             assert_eq!(
                 preset.panes.len(),
                 1,

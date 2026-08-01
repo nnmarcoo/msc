@@ -17,6 +17,11 @@
 //! here. The queue's history toggle and the timeline's remaining-time toggle both
 //! qualify: each is about how one pane draws itself and nothing else.
 //!
+//! [`PaneKind`] derives `Ord` so that [`settings::PaneSettings`] can key a pane's
+//! settings by kind in a `BTreeMap`, which also gives that map one stable order
+//! on disk rather than a hash order that could rewrite the layout file without
+//! anything having changed.
+//!
 //! [`summary`] lives here rather than in a pane because the queue and the
 //! collections panel both label a list of tracks the same way, and they had each
 //! written the count, the plural and the run time out separately. A shared
@@ -30,10 +35,13 @@ pub mod artwork;
 pub mod collections;
 pub mod controls;
 pub mod library;
+pub mod options;
 pub mod queue;
 pub mod search;
+pub mod settings;
 pub mod timeline;
 pub mod view;
+pub mod visualizer;
 pub mod volume;
 
 use std::collections::HashMap;
@@ -86,7 +94,7 @@ impl PaneCategory {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum PaneKind {
     Library,

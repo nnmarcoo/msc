@@ -12,19 +12,34 @@
 //! The edit controls are authored once in visual order and each [`ControlForm`]
 //! lays that same sequence out unchanged, so the position a control occupies is
 //! learnable across forms: the grab handle sits nearest the pane's top-right
-//! anchor and close is always the far end. A narrowing pane loses the picker's
-//! text label before it loses the row itself, and only a pane too narrow for
-//! five icons in a line falls back to the stack. Width alone decides, since a
-//! row that fits is preferable at any height.
+//! anchor and close is always the far end. A pane too narrow for four icons in a
+//! line falls back to the stack. Width alone decides, since a row that fits is
+//! preferable at any height.
+//!
+//! The row holds only what is done repeatedly while arranging a layout —
+//! grabbing, splitting, closing. A pane's *settings*, its kind and its size
+//! lock, live behind the gear in [`crate::pane::options`]. Splitting
+//! deliberately stayed out here rather than joining them: it is how the tree
+//! gets built at all, and it would also invalidate the pane whose modal was
+//! open. Moving the kind picker out is what let [`ControlForm`] drop from three
+//! forms to two — the picker was the only control whose width depended on the
+//! kind, which is why a "labelled" form had to exist to measure it, and the row
+//! is four identical icon buttons now.
+//!
+//! The gear carries the pane's measured size in its message, because the
+//! `responsive` wrapper around these controls is the only place that knows it
+//! and the modal, which covers the pane, cannot ask for it afterwards.
 //!
 //! The stack is taller than the shortest pane the layout allows, so a pane at
 //! that floor overflows its controls rather than changing shape a third time.
 //!
 //! Two structs split what a pane draws from by how far it varies. [`Shared`]
 //! holds what is the same for every pane in the frame, the playback flags and
-//! [`Context`], while [`Pane`] holds what identifies this one: its id, kind,
-//! locks, and its own [`PaneState`]. Both exist so that giving panes access to
-//! something new does not lengthen every signature between the app and the pane.
+//! [`Context`], while [`Pane`] holds what identifies this one: its id, kind, its
+//! own [`PaneState`], and its settings. Both exist so that giving panes access
+//! to something new does not lengthen every signature between the app and the
+//! pane. The settings are borrowed rather than owned so [`Pane`] stays `Copy`;
+//! they live in the layout for exactly as long as the frame does.
 //!
 //! `Shared::visible` is the filtered rows, computed once in [`crate::app`] and
 //! lent to every pane that lists tracks. Each pane calling `Context::visible`
@@ -45,18 +60,18 @@ use iced::widget::svg::Handle;
 use iced::widget::{button, column, container, mouse_area, responsive, row, stack, svg, text};
 use iced::{Element, Length};
 
-use verse_core::AlbumKey;
+use verse_core::{AlbumKey, NUM_BINS};
 
 use crate::app::{DropTarget, Message};
 use crate::artwork::Cache as ArtCache;
 use crate::browsing::Context;
-use crate::layout::{Axis, DropZone, Locks, PaneId, PaneMetrics};
+use crate::layout::{Axis, DropZone, PaneId, PaneMetrics};
+use crate::pane::settings::PaneSettings;
 use crate::pane::{
     PaneKind, PaneMessage, PaneState, artwork, collections, controls, library, queue, search,
-    timeline, volume,
+    timeline, visualizer, volume,
 };
 use crate::styles::{self, PAD};
-use crate::widgets::pane_picker::PanePicker;
 use crate::widgets::tooltip::tip;
 
 const ROOT_BAND: f32 = 24.0;
@@ -67,10 +82,7 @@ const ICON_SPLIT_VERTICAL: &[u8] = include_bytes!("../../../assets/icons/split_v
 const ICON_SPLIT_HORIZONTAL: &[u8] = include_bytes!("../../../assets/icons/split_horizontal.svg");
 const ICON_CLOSE: &[u8] = include_bytes!("../../../assets/icons/close.svg");
 const ICON_GRIP: &[u8] = include_bytes!("../../../assets/icons/grip.svg");
-const ICON_LOCK_WIDTH: &[u8] = include_bytes!("../../../assets/icons/lock_width.svg");
-const ICON_LOCK_HEIGHT: &[u8] = include_bytes!("../../../assets/icons/lock_height.svg");
-const ICON_LOCK_BOTH: &[u8] = include_bytes!("../../../assets/icons/lock_both.svg");
-const ICON_UNLOCK: &[u8] = include_bytes!("../../../assets/icons/unlock.svg");
+const ICON_SETTINGS: &[u8] = include_bytes!("../../../assets/icons/settings.svg");
 
 #[derive(Clone, Copy)]
 pub struct DragContext {
@@ -84,6 +96,7 @@ pub struct Playback {
     pub position: f32,
     pub volume: f32,
     pub muted: bool,
+    pub bins: [f32; NUM_BINS],
 }
 
 #[derive(Clone, Copy)]
@@ -99,8 +112,8 @@ pub struct Shared<'a> {
 pub struct Pane<'a> {
     pub id: PaneId,
     pub kind: PaneKind,
-    pub locks: Locks,
     pub state: Option<&'a PaneState>,
+    pub settings: &'a PaneSettings,
 }
 
 pub fn view<'a>(
@@ -123,7 +136,7 @@ pub fn view<'a>(
     if drag.active {
         layers = layers.push(hover_sensor(pane.id));
     } else {
-        layers = layers.push(edit_overlay(pane.id, pane.kind, pane.locks, span));
+        layers = layers.push(edit_overlay(pane.id, span));
     }
 
     layers.into()
@@ -198,6 +211,7 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
                 pane.id,
             )
         }
+        PaneKind::Visualizer => visualizer::view(shared.playback.bins, pane.settings.visualizer()),
         PaneKind::Volume => volume::view(shared.playback.volume, shared.playback.muted),
         PaneKind::Search => search::view(shared.tracks, shared.visible.len()),
         _ => container(text(pane.kind.title()).size(18))
@@ -323,34 +337,22 @@ fn zone_highlight<'a>(zone: DropZone) -> Element<'a, Message> {
         .into()
 }
 
-fn edit_overlay<'a>(
-    id: PaneId,
-    kind: PaneKind,
-    locks: Locks,
-    span: iced::Size,
-) -> Element<'a, Message> {
-    responsive(move |pane_size| edit_controls(id, kind, locks, pane_size, span)).into()
+fn edit_overlay<'a>(id: PaneId, span: iced::Size) -> Element<'a, Message> {
+    responsive(move |pane_size| edit_controls(id, pane_size, span)).into()
 }
 
-fn edit_controls<'a>(
-    id: PaneId,
-    kind: PaneKind,
-    locks: Locks,
-    pane_size: iced::Size,
-    span: iced::Size,
-) -> Element<'a, Message> {
-    let form = ControlForm::pick(pane_size, kind);
+fn edit_controls<'a>(id: PaneId, pane_size: iced::Size, span: iced::Size) -> Element<'a, Message> {
+    let form = ControlForm::pick(pane_size);
 
     let buttons = [
         grab_handle(id),
-        lock_button(id, locks, pane_size, span),
-        kind_picker(id, kind, form.is_compact()),
         split_button(id, pane_size),
+        options_button(id, pane_size, span),
         svg_button(ICON_CLOSE, "Close pane", Message::ClosePane(id)),
     ];
 
     let controls: Element<'a, Message> = match form {
-        ControlForm::Labelled | ControlForm::Compact => row(buttons).spacing(GAP).into(),
+        ControlForm::Row => row(buttons).spacing(GAP).into(),
         ControlForm::Vertical => column(buttons).spacing(GAP).into(),
     };
 
@@ -369,8 +371,7 @@ fn edit_controls<'a>(
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum ControlForm {
-    Labelled,
-    Compact,
+    Row,
     Vertical,
 }
 
@@ -378,33 +379,19 @@ const BUTTON: f32 = ICON_SIZE + PAD * 2.0;
 const GAP: f32 = PAD / 2.0;
 const CHROME: f32 = PAD + PAD * 2.0;
 
-const CONTROLS: f32 = 5.0;
+const CONTROLS: f32 = 4.0;
 
 impl ControlForm {
-    fn pick(pane: iced::Size, kind: PaneKind) -> Self {
-        if pane.width >= Self::labelled_width(kind) {
-            Self::Labelled
-        } else if pane.width >= Self::compact_width() {
-            Self::Compact
+    fn pick(pane: iced::Size) -> Self {
+        if pane.width >= Self::row_width() {
+            Self::Row
         } else {
             Self::Vertical
         }
     }
 
-    fn is_compact(self) -> bool {
-        self != Self::Labelled
-    }
-
-    fn labelled_width(kind: PaneKind) -> f32 {
-        Self::row_width(PanePicker::<Message>::label_width(kind))
-    }
-
-    fn compact_width() -> f32 {
-        Self::row_width(PanePicker::<Message>::compact_width())
-    }
-
-    fn row_width(picker: f32) -> f32 {
-        (CONTROLS - 1.0) * BUTTON + picker + (CONTROLS - 1.0) * GAP + CHROME
+    fn row_width() -> f32 {
+        CONTROLS * BUTTON + (CONTROLS - 1.0) * GAP + CHROME
     }
 
     fn vertical_height() -> f32 {
@@ -440,22 +427,11 @@ fn split_button<'a>(id: PaneId, pane_size: iced::Size) -> Element<'a, Message> {
     )
 }
 
-fn lock_button<'a>(
-    id: PaneId,
-    locks: Locks,
-    pane_size: iced::Size,
-    span: iced::Size,
-) -> Element<'a, Message> {
-    let (icon, label) = match (locks.width, locks.height) {
-        (None, None) => (ICON_UNLOCK, "Free"),
-        (Some(_), None) => (ICON_LOCK_WIDTH, "Width locked"),
-        (None, Some(_)) => (ICON_LOCK_HEIGHT, "Height locked"),
-        (Some(_), Some(_)) => (ICON_LOCK_BOTH, "Width and height locked"),
-    };
+fn options_button<'a>(id: PaneId, pane_size: iced::Size, span: iced::Size) -> Element<'a, Message> {
     svg_button(
-        icon,
-        label,
-        Message::CycleLock(
+        ICON_SETTINGS,
+        "Pane options",
+        Message::OpenPaneOptions(
             id,
             PaneMetrics {
                 pane: pane_size,
@@ -474,17 +450,6 @@ fn grab_handle<'a>(id: PaneId) -> Element<'a, Message> {
     .interaction(iced::mouse::Interaction::Grab)
     .on_press(Message::PaneGrabbed(id));
     with_tooltip(handle, "Drag to move")
-}
-
-fn kind_picker<'a>(id: PaneId, kind: PaneKind, compact: bool) -> Element<'a, Message> {
-    let picker =
-        PanePicker::new(kind, move |picked| Message::SetPaneKind(id, picked)).compact(compact);
-    let label = if compact {
-        kind.title()
-    } else {
-        "Change pane type"
-    };
-    with_tooltip(picker, label)
 }
 
 fn icon<'a>(bytes: &'static [u8]) -> Element<'a, Message> {
@@ -515,49 +480,23 @@ mod tests {
     use super::*;
     use iced::Size;
 
-    const KIND: PaneKind = PaneKind::Library;
-
     #[test]
-    fn wide_pane_keeps_the_label() {
-        let width = ControlForm::labelled_width(KIND);
-        assert_eq!(
-            ControlForm::pick(Size::new(width, 400.0), KIND),
-            ControlForm::Labelled
-        );
+    fn a_wide_pane_lays_the_controls_in_a_row() {
+        let width = ControlForm::row_width();
+        assert_eq!(ControlForm::pick(Size::new(width, 400.0)), ControlForm::Row);
     }
 
     #[test]
-    fn wide_but_short_pane_still_uses_a_row() {
-        let width = ControlForm::labelled_width(KIND);
-        assert_eq!(
-            ControlForm::pick(Size::new(width, 40.0), KIND),
-            ControlForm::Labelled
-        );
+    fn a_wide_but_short_pane_still_uses_a_row() {
+        let width = ControlForm::row_width();
+        assert_eq!(ControlForm::pick(Size::new(width, 40.0)), ControlForm::Row);
     }
 
     #[test]
-    fn narrow_pane_compacts_the_picker_before_stacking() {
-        let width = ControlForm::labelled_width(KIND) - 1.0;
+    fn too_narrow_for_four_icons_falls_back_to_vertical() {
+        let width = ControlForm::row_width() - 1.0;
         assert_eq!(
-            ControlForm::pick(Size::new(width, 400.0), KIND),
-            ControlForm::Compact
-        );
-    }
-
-    #[test]
-    fn a_compact_row_is_still_a_row_when_the_pane_is_short() {
-        let width = ControlForm::compact_width();
-        assert_eq!(
-            ControlForm::pick(Size::new(width, 40.0), KIND),
-            ControlForm::Compact
-        );
-    }
-
-    #[test]
-    fn too_narrow_for_five_icons_falls_back_to_vertical() {
-        let width = ControlForm::compact_width() - 1.0;
-        assert_eq!(
-            ControlForm::pick(Size::new(width, 400.0), KIND),
+            ControlForm::pick(Size::new(width, 400.0)),
             ControlForm::Vertical
         );
     }
@@ -566,34 +505,33 @@ mod tests {
     fn smallest_allowed_pane_uses_vertical() {
         let min = crate::layout::MIN_PANE;
         assert_eq!(
-            ControlForm::pick(Size::new(min, min), KIND),
+            ControlForm::pick(Size::new(min, min)),
             ControlForm::Vertical
         );
     }
 
     #[test]
-    fn compacting_is_the_only_form_that_keeps_the_label() {
-        assert!(!ControlForm::Labelled.is_compact());
-        assert!(ControlForm::Compact.is_compact());
-        assert!(ControlForm::Vertical.is_compact());
-    }
-
-    #[test]
-    fn compact_row_is_narrower_than_any_labelled_one() {
-        let compact = ControlForm::compact_width();
+    fn the_row_is_the_same_width_whatever_the_pane_holds() {
+        let width = ControlForm::row_width();
         for kind in PaneKind::ALL {
-            assert!(
-                compact <= ControlForm::labelled_width(kind),
-                "{kind:?} labelled row was narrower than the compact one"
+            assert_eq!(
+                ControlForm::pick(Size::new(width, 400.0)),
+                ControlForm::Row,
+                "{kind:?} did not take the row at its exact width"
+            );
+            assert_eq!(
+                ControlForm::pick(Size::new(width - 1.0, 400.0)),
+                ControlForm::Vertical,
+                "{kind:?} did not stack just below the row width"
             );
         }
     }
 
     #[test]
-    fn longer_label_needs_more_width() {
+    fn dropping_a_control_did_not_make_the_row_wider() {
         assert!(
-            ControlForm::labelled_width(PaneKind::NowPlaying)
-                > ControlForm::labelled_width(PaneKind::Empty)
+            ControlForm::row_width() < 5.0 * BUTTON + 4.0 * GAP + CHROME,
+            "four controls should need less width than the five that preceded them"
         );
     }
 
@@ -619,23 +557,6 @@ mod tests {
                 split_icon_for(size),
                 expected,
                 "{size:?} showed an icon for the other axis"
-            );
-        }
-    }
-
-    #[test]
-    fn the_compact_thresholds_are_kind_independent() {
-        let compact = ControlForm::compact_width();
-        for kind in PaneKind::ALL {
-            assert_eq!(
-                ControlForm::pick(Size::new(compact, 400.0), kind),
-                ControlForm::Compact,
-                "{kind:?} did not take the compact row at its exact width"
-            );
-            assert_eq!(
-                ControlForm::pick(Size::new(compact - 1.0, 400.0), kind),
-                ControlForm::Vertical,
-                "{kind:?} did not stack just below the compact width"
             );
         }
     }
