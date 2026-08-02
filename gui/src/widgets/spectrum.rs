@@ -78,22 +78,21 @@
 //! a ramp between them is a ramp the eye cannot read. A theme whose accent and
 //! error color looked alike would be unusable well before this widget noticed.
 //!
-//! `Artwork` takes the hue of the playing record's cover and nothing else. The
-//! color the cache names is fitted to sit *behind* text — capped near luminance
-//! 0.09 — so drawing bars in it directly puts them barely above a dark theme's
-//! background and far below a light one's. Lightness and the ramp's two ends
-//! therefore still come from the theme's own primary, exactly as `Amplitude`
-//! does, and only the hue and a saturation floor come from the sleeve. The
-//! result is as readable on every theme as the default tint, while still being
-//! recognizably the record's color.
+//! `Artwork` takes the hue of the playing record's cover and nothing else, by
+//! the rule [`crate::artwork::accent::tinted`] states and owns: the sleeve gives
+//! a hue and a saturation floor, the theme keeps the lightness. The ramp is
+//! therefore `Amplitude`'s two ends with the record's hue laid over both, as
+//! readable on every theme as the default tint while still recognizably the
+//! record's color. A sleeve too gray to have a hue tints nothing, and a ramp
+//! with one tinted end and one untinted would be a gradient into the theme, so
+//! both ends fall back together and the pane draws its default ramp.
 //!
-//! The cover contributes a hue only when it has one: below
-//! [`COVER_MIN_SATURATION`] a sleeve is gray, its hue is whatever rounding
-//! produced, and tinting to it would be arbitrary rather than characteristic. A
-//! gray sleeve, a track with no art, and a stopped player all fall back to the
-//! theme ramp, so the pane always draws something deliberate. The color arrives
-//! from [`crate::artwork::Cache`] already extracted — the pane looks it up only
-//! when this tint is selected, and never touches an image itself.
+//! Sharing that rule rather than restating it is deliberate: a timeline set to
+//! follow the artwork can sit in the same layout as this widget, and a
+//! saturation floor that had drifted between the two would be visible as one
+//! pane disagreeing with the next about the same record. The color itself
+//! arrives from [`crate::artwork::Cache`] already extracted — the pane looks it
+//! up only when this tint is selected, and never touches an image itself.
 //!
 //! Which two colors a tint runs between depends on the theme, the setting and
 //! the cover, and none of those change between the bars of one frame, so
@@ -168,7 +167,7 @@ use iced::{
 
 use verse_core::NUM_BINS;
 
-use crate::artwork::palette;
+use crate::artwork::accent;
 use crate::pane::settings::{Tint, Visualizer};
 
 const GAP_RATIO: f32 = 0.25;
@@ -194,10 +193,6 @@ const PEAK_ACCEL: f32 = 1.02;
 const PEAK_GAP: f32 = 1.0;
 
 const PEAK_LIFT: f32 = 0.45;
-
-const COVER_MIN_SATURATION: f32 = 0.08;
-
-const COVER_SATURATION: f32 = 0.55;
 
 pub struct Spectrum {
     bins: [f32; NUM_BINS],
@@ -367,22 +362,11 @@ impl Ramp {
     }
 
     fn from_cover(theme: &Theme, cover: [u8; 3]) -> Option<(Color, Color)> {
-        let (hue, saturation, _) = palette::to_hsl(cover);
-
-        if saturation < COVER_MIN_SATURATION {
-            return None;
-        }
-
         let palette = theme.extended_palette();
-        let saturation = saturation.max(COVER_SATURATION);
-        let lift = |reference: Color| {
-            let (_, _, lightness) = palette::to_hsl(to_bytes(reference));
-            from_hsl(hue, saturation, lightness)
-        };
 
         Some((
-            lift(palette.primary.weak.color),
-            lift(palette.primary.strong.color),
+            accent::tinted(palette.primary.weak.color, cover)?,
+            accent::tinted(palette.primary.strong.color, cover)?,
         ))
     }
 
@@ -417,15 +401,6 @@ fn bar_color(
     bars: usize,
 ) -> Color {
     Ramp::new(theme, tint, cover).at(tint, amplitude, index, bars)
-}
-
-fn to_bytes(color: Color) -> [u8; 3] {
-    [color.r, color.g, color.b].map(|channel| (channel.clamp(0.0, 1.0) * 255.0).round() as u8)
-}
-
-fn from_hsl(hue: f32, saturation: f32, lightness: f32) -> Color {
-    let [r, g, b] = palette::from_hsl(hue, saturation, lightness);
-    Color::from_rgb8(r, g, b)
 }
 
 impl<Message> Widget<Message, Theme, Renderer> for Spectrum {
@@ -574,6 +549,7 @@ impl<'a, Message: 'a> From<Spectrum> for Element<'a, Message, Theme, Renderer> {
 #[allow(clippy::float_cmp)]
 mod tests {
     use super::*;
+    use crate::artwork::palette;
     use crate::layout::MIN_PANE;
     use crate::pane::settings::Density;
 
@@ -1010,7 +986,11 @@ mod tests {
                 let tinted = bar_color(theme, Tint::Artwork, Some(sleeve), 1.0, 0, 8);
                 let default = bar_color(theme, Tint::Amplitude, None, 1.0, 0, 8);
 
-                let lightness = |color: Color| palette::to_hsl(to_bytes(color)).2;
+                let lightness = |color: Color| {
+                    let bytes = [color.r, color.g, color.b]
+                        .map(|channel| (channel.clamp(0.0, 1.0) * 255.0).round() as u8);
+                    palette::to_hsl(bytes).2
+                };
                 assert!(
                     (lightness(tinted) - lightness(default)).abs() < 0.05,
                     "{theme} draws artwork bars at a different depth than its own ramp, \

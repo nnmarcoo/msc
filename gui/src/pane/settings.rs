@@ -59,11 +59,37 @@
 //! half is what a top-only cap allows, since the two curves grow from opposite
 //! corners and never meet.
 //!
-//! [`Settings::as_visualizer`] returns an `Option` that is infallible while
-//! there is one variant, which is why clippy wants it gone. It stays because the
-//! map is keyed by kind and asking for the wrong one is exactly what the `None`
-//! is for; adding a second variant should not also change that signature and
-//! every call site with it.
+//! The `as_*` accessors return an `Option` because the map is keyed by kind and
+//! asking for the wrong one is exactly what the `None` is for. Each pane's own
+//! `Default` is what a caller falls back to, so a mismatch draws the pane as it
+//! would have been drawn before it was ever configured rather than failing.
+//!
+//! [`Accent`] is the choice four kinds now share in substance and two in type:
+//! the spectrum asks the richer [`Tint`] question because it has a row of bars
+//! to drive a ramp across, where the timeline, volume and track info panes each
+//! have a single color and so ask only where it comes from. Sharing one enum
+//! between them was tried and it offers a timeline "by frequency", which means
+//! nothing; what they genuinely share is the *resolution* rule, and that lives
+//! in [`crate::artwork::accent`] where both reach it.
+//!
+//! What `Artwork` means is settled by [`crate::artwork::accent`] rather than
+//! here: the hue of the record, at the depth the theme's own color sits at.
+//!
+//! [`Settings::needs_artwork`] answers for every variant rather than each call
+//! site matching on the one it expects, because a pane needing a cover looked up
+//! is the one thing every accent setting has in common, and a kind added later
+//! that forgot to answer would silently draw untinted. It is asked once per pane
+//! per frame by [`crate::pane::view`], so a cover is resolved only for panes
+//! actually set to follow one; a kind with nothing to configure answers `false`,
+//! which is the same answer a pane following the theme gives and for the same
+//! reason.
+//!
+//! [`Timeline`], [`Volume`] and [`TrackInfo`] are structs holding one field
+//! rather than the bare [`Accent`], because a pane's settings are what grows:
+//! adding a second one should be a field, not a change to the variant's shape
+//! and every match on it. It is also what makes the `#[serde(default)]` on each
+//! field mean something, since a layout file written before a field existed
+//! still parses.
 
 use std::collections::BTreeMap;
 
@@ -76,12 +102,18 @@ use super::PaneKind;
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum Settings {
     Visualizer(Visualizer),
+    Timeline(Timeline),
+    Volume(Volume),
+    TrackInfo(TrackInfo),
 }
 
 impl Settings {
     pub fn default_for(kind: PaneKind) -> Option<Self> {
         match kind {
             PaneKind::Visualizer => Some(Self::Visualizer(Visualizer::default())),
+            PaneKind::Timeline => Some(Self::Timeline(Timeline::default())),
+            PaneKind::Volume => Some(Self::Volume(Volume::default())),
+            PaneKind::TrackInfo => Some(Self::TrackInfo(TrackInfo::default())),
             _ => None,
         }
     }
@@ -89,13 +121,46 @@ impl Settings {
     pub fn kind(self) -> PaneKind {
         match self {
             Self::Visualizer(_) => PaneKind::Visualizer,
+            Self::Timeline(_) => PaneKind::Timeline,
+            Self::Volume(_) => PaneKind::Volume,
+            Self::TrackInfo(_) => PaneKind::TrackInfo,
         }
     }
 
-    #[allow(clippy::unnecessary_wraps)]
     pub fn as_visualizer(self) -> Option<Visualizer> {
         match self {
             Self::Visualizer(settings) => Some(settings),
+            _ => None,
+        }
+    }
+
+    pub fn as_timeline(self) -> Option<Timeline> {
+        match self {
+            Self::Timeline(settings) => Some(settings),
+            _ => None,
+        }
+    }
+
+    pub fn as_volume(self) -> Option<Volume> {
+        match self {
+            Self::Volume(settings) => Some(settings),
+            _ => None,
+        }
+    }
+
+    pub fn as_track_info(self) -> Option<TrackInfo> {
+        match self {
+            Self::TrackInfo(settings) => Some(settings),
+            _ => None,
+        }
+    }
+
+    pub fn needs_artwork(self) -> bool {
+        match self {
+            Self::Visualizer(settings) => settings.tint.needs_artwork(),
+            Self::Timeline(settings) => settings.accent.needs_artwork(),
+            Self::Volume(settings) => settings.accent.needs_artwork(),
+            Self::TrackInfo(settings) => settings.accent.needs_artwork(),
         }
     }
 }
@@ -122,6 +187,28 @@ impl PaneSettings {
         self.get(PaneKind::Visualizer)
             .and_then(Settings::as_visualizer)
             .unwrap_or_default()
+    }
+
+    pub fn timeline(&self) -> Timeline {
+        self.get(PaneKind::Timeline)
+            .and_then(Settings::as_timeline)
+            .unwrap_or_default()
+    }
+
+    pub fn volume(&self) -> Volume {
+        self.get(PaneKind::Volume)
+            .and_then(Settings::as_volume)
+            .unwrap_or_default()
+    }
+
+    pub fn track_info(&self) -> TrackInfo {
+        self.get(PaneKind::TrackInfo)
+            .and_then(Settings::as_track_info)
+            .unwrap_or_default()
+    }
+
+    pub fn needs_artwork(&self, kind: PaneKind) -> bool {
+        self.get(kind).is_some_and(Settings::needs_artwork)
     }
 
     pub fn set(&mut self, settings: Settings) {
@@ -216,6 +303,29 @@ impl Tint {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum Accent {
+    #[default]
+    Theme,
+    Artwork,
+}
+
+impl Accent {
+    pub const ALL: [Self; 2] = [Self::Theme, Self::Artwork];
+
+    pub fn label(self) -> &'static str {
+        match self {
+            Self::Theme => "From theme",
+            Self::Artwork => "From artwork",
+        }
+    }
+
+    pub fn needs_artwork(self) -> bool {
+        self == Self::Artwork
+    }
+}
+
 macro_rules! display_via_label {
     ($($kind:ty),+ $(,)?) => {
         $(
@@ -228,7 +338,7 @@ macro_rules! display_via_label {
     };
 }
 
-display_via_label!(Density, Caps, Tint);
+display_via_label!(Density, Caps, Tint, Accent);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub struct Visualizer {
@@ -240,6 +350,24 @@ pub struct Visualizer {
     pub tint: Tint,
     #[serde(default)]
     pub peak_hold: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct Timeline {
+    #[serde(default)]
+    pub accent: Accent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct Volume {
+    #[serde(default)]
+    pub accent: Accent,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct TrackInfo {
+    #[serde(default)]
+    pub accent: Accent,
 }
 
 #[cfg(test)]
@@ -263,7 +391,33 @@ mod tests {
     fn a_kind_with_nothing_to_configure_has_no_settings() {
         assert_eq!(Settings::default_for(PaneKind::Library), None);
         assert_eq!(Settings::default_for(PaneKind::Empty), None);
-        assert!(Settings::default_for(PaneKind::Visualizer).is_some());
+
+        for kind in CONFIGURABLE {
+            assert!(
+                Settings::default_for(kind).is_some(),
+                "{kind:?} has settings but no defaults to fall back on"
+            );
+        }
+    }
+
+    const CONFIGURABLE: [PaneKind; 4] = [
+        PaneKind::Visualizer,
+        PaneKind::Timeline,
+        PaneKind::Volume,
+        PaneKind::TrackInfo,
+    ];
+
+    #[test]
+    fn every_setting_is_filed_under_the_kind_it_names() {
+        for kind in CONFIGURABLE {
+            let settings = Settings::default_for(kind).expect("a configurable kind");
+            assert_eq!(
+                settings.kind(),
+                kind,
+                "{kind:?}'s defaults file themselves under {:?}",
+                settings.kind()
+            );
+        }
     }
 
     #[test]
@@ -276,6 +430,100 @@ mod tests {
 
         assert_eq!(settings.visualizer().density, Density::Coarse);
         assert_eq!(settings.get(PaneKind::Queue), None);
+    }
+
+    #[test]
+    fn one_pane_kind_s_accent_does_not_reach_another_s() {
+        let mut settings = PaneSettings::default();
+        settings.set(Settings::Timeline(Timeline {
+            accent: Accent::Artwork,
+        }));
+
+        assert_eq!(settings.timeline().accent, Accent::Artwork);
+        assert_eq!(settings.volume().accent, Accent::Theme);
+        assert_eq!(settings.track_info().accent, Accent::Theme);
+    }
+
+    #[test]
+    fn an_untouched_accent_pane_follows_the_theme() {
+        let settings = PaneSettings::default();
+
+        assert_eq!(settings.timeline().accent, Accent::Theme);
+        assert_eq!(settings.volume().accent, Accent::Theme);
+        assert_eq!(settings.track_info().accent, Accent::Theme);
+    }
+
+    #[test]
+    fn a_kind_the_pane_no_longer_shows_does_not_ask_for_a_cover() {
+        let mut settings = PaneSettings::default();
+        settings.set(Settings::Visualizer(Visualizer {
+            tint: Tint::Artwork,
+            ..Visualizer::default()
+        }));
+
+        assert!(settings.needs_artwork(PaneKind::Visualizer));
+        assert!(
+            !settings.needs_artwork(PaneKind::Volume),
+            "a pane showing a volume rail asked for a cover because a visualizer \
+             it used to be wanted one"
+        );
+    }
+
+    #[test]
+    fn only_a_pane_set_to_follow_the_artwork_asks_for_a_cover() {
+        let mut settings = PaneSettings::default();
+        assert!(
+            !settings.needs_artwork(PaneKind::Timeline),
+            "a pane following the theme had a cover resolved for it"
+        );
+        assert!(
+            !settings.needs_artwork(PaneKind::Library),
+            "a kind with nothing to configure asked for a cover"
+        );
+
+        settings.set(Settings::Timeline(Timeline {
+            accent: Accent::Artwork,
+        }));
+        assert!(settings.needs_artwork(PaneKind::Timeline));
+        assert!(
+            !settings.needs_artwork(PaneKind::Volume),
+            "one pane following the artwork made another ask for a cover too"
+        );
+    }
+
+    #[test]
+    fn every_kind_that_can_follow_the_artwork_says_so() {
+        let asking = [
+            Settings::Visualizer(Visualizer {
+                tint: Tint::Artwork,
+                ..Visualizer::default()
+            }),
+            Settings::Timeline(Timeline {
+                accent: Accent::Artwork,
+            }),
+            Settings::Volume(Volume {
+                accent: Accent::Artwork,
+            }),
+            Settings::TrackInfo(TrackInfo {
+                accent: Accent::Artwork,
+            }),
+        ];
+
+        for settings in asking {
+            assert!(
+                settings.needs_artwork(),
+                "{settings:?} follows the artwork but never asks for a cover"
+            );
+        }
+
+        for kind in CONFIGURABLE {
+            let settings = Settings::default_for(kind).expect("a configurable kind");
+            assert!(
+                !settings.needs_artwork(),
+                "{kind:?} asks for a cover at its defaults, so every layout pays \
+                 for artwork nobody chose"
+            );
+        }
     }
 
     #[test]
@@ -417,6 +665,14 @@ mod tests {
         for tint in Tint::ALL {
             assert!(!tint.label().is_empty());
         }
+        for accent in Accent::ALL {
+            assert!(!accent.label().is_empty());
+        }
+    }
+
+    #[test]
+    fn no_two_accents_share_a_label() {
+        assert_ne!(Accent::Theme.label(), Accent::Artwork.label());
     }
 
     #[test]
@@ -480,5 +736,55 @@ mod tests {
                 "{tint:?} disagrees about whether it needs a cover looked up"
             );
         }
+
+        for accent in Accent::ALL {
+            assert_eq!(
+                accent.needs_artwork(),
+                accent == Accent::Artwork,
+                "{accent:?} disagrees about whether it needs a cover looked up"
+            );
+        }
+    }
+
+    #[test]
+    fn every_accent_survives_a_round_trip() {
+        for accent in Accent::ALL {
+            let each = [
+                Settings::Timeline(Timeline { accent }),
+                Settings::Volume(Volume { accent }),
+                Settings::TrackInfo(TrackInfo { accent }),
+            ];
+
+            for one in each {
+                let mut settings = PaneSettings::default();
+                settings.set(one);
+
+                let text = toml::to_string(&settings).expect("settings serialize");
+                let back: PaneSettings = toml::from_str(&text).expect("settings parse");
+
+                assert_eq!(back, settings, "{one:?} did not survive the layout file");
+            }
+        }
+    }
+
+    #[test]
+    fn a_layout_file_from_before_these_settings_still_parses() {
+        let old = r#"
+            [visualizer]
+            kind = "visualizer"
+            density = "coarse"
+            caps = "round"
+            tint = "amplitude"
+            peak_hold = true
+        "#;
+
+        let settings: PaneSettings = toml::from_str(old).expect("an older layout still parses");
+
+        assert_eq!(settings.visualizer().density, Density::Coarse);
+        assert_eq!(
+            settings.timeline().accent,
+            Accent::Theme,
+            "a pane the file never mentioned should come back at its defaults"
+        );
     }
 }

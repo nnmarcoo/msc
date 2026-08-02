@@ -82,6 +82,24 @@
 //! track plays, so the widths are memoised against the playing track's id and
 //! recomputed only when the track changes. Nothing edits a track's tags in place,
 //! so the id is a sound key for the strings.
+//!
+//! # Color
+//!
+//! [`crate::pane::settings::Accent`] decides whether the rail is drawn in the
+//! theme's primary or in the color of the record playing, and the pane passes
+//! the setting and the cover down rather than a resolved color, because the
+//! theme reaches the rail and not the pane.
+//!
+//! Three things take that accent, and they are the three the theme's primary
+//! already colored: the rail's played portion and head, the title, and the
+//! preview the stars show under the pointer. Everything else — the artist, the
+//! clocks, the stars already earned — keeps the text color, since a row where
+//! everything is accented is a row with nothing emphasized. The rule is that the
+//! accent replaces `primary.base` wherever the pane spent it, so turning the
+//! setting on recolors the pane without moving what stands out in it.
+//!
+//! The setting is per pane like the rest, so a timeline in a sidebar can follow
+//! the record while one in a status strip stays with the theme.
 
 use std::rc::Rc;
 
@@ -90,7 +108,8 @@ use iced::{Element, Length};
 
 use crate::app::Message as AppMessage;
 use crate::browsing::Context;
-use crate::styles::{LABEL_FONT_SIZE, PAD};
+use crate::pane::settings::{Accent, Timeline as Settings};
+use crate::styles::{self, LABEL_FONT_SIZE, PAD};
 use crate::widgets::marquee::{self, marquee};
 use crate::widgets::rating::Rating;
 use crate::widgets::timeline::{Op, Timeline, clock};
@@ -126,6 +145,8 @@ pub fn view<'a>(
     tracks: Context<'a>,
     position: f32,
     state: &State,
+    settings: Settings,
+    cover: Option<[u8; 3]>,
     bindings: Bindings<'a>,
 ) -> Element<'a, AppMessage> {
     let show_remaining = state.show_remaining;
@@ -147,6 +168,8 @@ pub fn view<'a>(
                 show_remaining,
                 hovered,
             },
+            settings.accent,
+            cover,
             toggle.clone(),
             &on_hover,
             Form::pick(size.width, name_width),
@@ -242,10 +265,13 @@ const TITLE_FONT: iced::Font = iced::Font {
 const STAR_SIZE: f32 = 13.0;
 const STAR_SPACING: f32 = 2.0;
 
+#[allow(clippy::too_many_arguments)]
 fn body<'a>(
     tracks: Context<'a>,
     position: f32,
     state: &State,
+    accent: Accent,
+    cover: Option<[u8; 3]>,
     toggle_remaining: AppMessage,
     on_hover: &Rc<dyn Fn(Option<f32>) -> AppMessage + 'a>,
     form: Form,
@@ -258,16 +284,17 @@ fn body<'a>(
         Op::Seek(seconds) => AppMessage::Seek(seconds),
         Op::Committed => AppMessage::SeekReleased,
         Op::Hovered(at) => on_hover(at),
-    });
+    })
+    .accent(accent, cover);
 
     let shown = state.hovered.unwrap_or(position);
     let aiming = state.hovered.is_some();
 
-    let mut top = row![name(track, form)]
+    let mut top = row![name(track, form, accent, cover)]
         .spacing(ROW_GAP)
         .align_y(iced::Center);
     if form.stars {
-        top = top.push(stars(tracks, track));
+        top = top.push(stars(tracks, track, accent, cover));
     }
 
     let mut rows = column![top, bar];
@@ -291,14 +318,19 @@ fn body<'a>(
         .into()
 }
 
-fn name(track: Option<&verse_core::Track>, form: Form) -> Element<'_, AppMessage> {
+fn name(
+    track: Option<&verse_core::Track>,
+    form: Form,
+    accent: Accent,
+    cover: Option<[u8; 3]>,
+) -> Element<'_, AppMessage> {
     let title = track.and_then(verse_core::Track::title).unwrap_or_default();
 
     let mut line = row![
         marquee(title)
             .size(TITLE_FONT_SIZE)
             .font(TITLE_FONT)
-            .style(|theme: &iced::Theme| shade(theme, true))
+            .style(move |theme: &iced::Theme| styles::accent_heading(theme, accent, cover))
     ]
     .spacing(ROW_GAP)
     .align_y(iced::Center);
@@ -317,11 +349,17 @@ fn name(track: Option<&verse_core::Track>, form: Form) -> Element<'_, AppMessage
     line.width(Length::Fill).into()
 }
 
-fn stars<'a>(tracks: Context<'a>, track: Option<&'a verse_core::Track>) -> Element<'a, AppMessage> {
+fn stars<'a>(
+    tracks: Context<'a>,
+    track: Option<&'a verse_core::Track>,
+    accent: Accent,
+    cover: Option<[u8; 3]>,
+) -> Element<'a, AppMessage> {
     match tracks.playing.filter(|_| track.is_some()) {
         Some(id) => Rating::new(track.and_then(verse_core::Track::rating))
             .size(STAR_SIZE)
             .spacing(STAR_SPACING)
+            .accent(accent, cover)
             .on_rate(move |value| AppMessage::RateTrack(id, value))
             .into(),
         None => Space::new().into(),

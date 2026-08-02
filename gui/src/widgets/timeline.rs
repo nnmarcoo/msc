@@ -49,6 +49,19 @@
 //!
 //! With no track loaded the rail still draws, empty and inert: a timeline that
 //! vanishes between tracks makes the layout jump.
+//!
+//! The played portion and the playhead take an accent handed in rather than
+//! reading `primary.base` themselves, so the pane can tint them by the playing
+//! record. Only those two take it: the unplayed rail behind them is a groove in
+//! the pane's own surface rather than part of the reading, and the ghost head is
+//! drawn from the text color because it marks where the *pointer* is, which is a
+//! fact about the cursor and not about the record. Tinting either would leave
+//! the bar with no fixed reference to read the accent against.
+//!
+//! `accent` takes the setting and the cover rather than a resolved color,
+//! because resolving one needs the theme's own primary as its reference and the
+//! theme reaches this widget only in `draw`. A caller resolving early would have
+//! to find a theme of its own, which is the thing panes do not have.
 
 use iced::advanced::renderer::{self, Quad};
 use iced::advanced::widget::tree::{self, Tree};
@@ -56,6 +69,8 @@ use iced::advanced::{Clipboard, Layout, Shell, Widget, layout};
 use iced::{
     Background, Border, Color, Element, Event, Length, Rectangle, Renderer, Size, Theme, mouse,
 };
+
+use crate::pane::settings::Accent;
 
 const RAIL_HEIGHT: f32 = 4.0;
 const HEAD_RADIUS: f32 = 5.0;
@@ -78,6 +93,8 @@ struct State {
 pub struct Timeline<'a, Message> {
     position: f32,
     duration: f32,
+    accent: Accent,
+    cover: Option<[u8; 3]>,
     on_op: Box<dyn Fn(Op) -> Message + 'a>,
 }
 
@@ -86,8 +103,16 @@ impl<'a, Message> Timeline<'a, Message> {
         Self {
             position,
             duration,
+            accent: Accent::default(),
+            cover: None,
             on_op: Box::new(on_op),
         }
+    }
+
+    pub fn accent(mut self, accent: Accent, cover: Option<[u8; 3]>) -> Self {
+        self.accent = accent;
+        self.cover = cover;
+        self
     }
 
     fn progress(&self) -> f32 {
@@ -246,6 +271,7 @@ impl<Message> Widget<Message, Theme, Renderer> for Timeline<'_, Message> {
 
         let progress = self.progress();
         let elapsed_width = rail.width * progress;
+        let accent = self.accent.resolve(palette.primary.base.color, self.cover);
 
         fill(
             renderer,
@@ -261,7 +287,7 @@ impl<Message> Widget<Message, Theme, Renderer> for Timeline<'_, Message> {
                     width: elapsed_width,
                     ..rail
                 },
-                palette.primary.base.color,
+                accent,
                 RAIL_HEIGHT / 2.0,
             );
         }
@@ -289,7 +315,7 @@ impl<Message> Widget<Message, Theme, Renderer> for Timeline<'_, Message> {
                 width: HEAD_RADIUS * 2.0,
                 height: HEAD_RADIUS * 2.0,
             };
-            fill(renderer, head, palette.primary.base.color, HEAD_RADIUS);
+            fill(renderer, head, accent, HEAD_RADIUS);
         }
     }
 

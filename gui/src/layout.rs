@@ -707,7 +707,7 @@ pub fn default_presets() -> Vec<Layout> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::pane::settings::{Density, Visualizer};
+    use crate::pane::settings::{Accent, Density, Visualizer};
 
     fn tuned() -> Settings {
         Settings::Visualizer(Visualizer {
@@ -728,6 +728,42 @@ mod tests {
             back.settings(PaneId(0)).get(PaneKind::Visualizer),
             Some(tuned())
         );
+    }
+
+    #[test]
+    fn an_accent_survives_a_layout_round_trip() {
+        for (kind, chosen) in [
+            (
+                PaneKind::Timeline,
+                Settings::Timeline(crate::pane::settings::Timeline {
+                    accent: Accent::Artwork,
+                }),
+            ),
+            (
+                PaneKind::Volume,
+                Settings::Volume(crate::pane::settings::Volume {
+                    accent: Accent::Artwork,
+                }),
+            ),
+            (
+                PaneKind::TrackInfo,
+                Settings::TrackInfo(crate::pane::settings::TrackInfo {
+                    accent: Accent::Artwork,
+                }),
+            ),
+        ] {
+            let mut layout = Layout::single("test", kind);
+            layout.set_settings(PaneId(0), chosen);
+
+            let text = toml::to_string(&layout).expect("layout serializes");
+            let back: Layout = toml::from_str(&text).expect("layout parses");
+
+            assert_eq!(
+                back.settings(PaneId(0)).get(kind),
+                Some(chosen),
+                "{kind:?} lost its accent through the layout file:\n{text}"
+            );
+        }
     }
 
     #[test]

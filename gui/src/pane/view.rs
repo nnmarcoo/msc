@@ -56,6 +56,15 @@
 //! a `Vec` because [`Shared`] is `Copy` and handed to every pane; the rows it
 //! points at live in the app's `view` for exactly as long as the frame does.
 //!
+//! `cover_for` answers with the color of the record playing, and only for a pane
+//! whose settings ask for one. Four kinds can now follow the artwork, so a
+//! layout full of them would otherwise queue a read apiece every frame for
+//! colors nobody had chosen to show; a pane following the theme resolves
+//! nothing. Nothing playing is a real answer rather than one still arriving, so
+//! the tint the cache holds across track changes is dropped there rather than
+//! outliving the last track, which would leave a stopped player wearing the
+//! color of whatever it stopped on. See [`crate::artwork::Cache::tint`].
+//!
 //! Splitting follows the pane's long axis, so a wide pane divides into left and
 //! right halves, a tall one into top and bottom, and a square one vertically.
 //! That guesses wrong for some intents, so the icon and tooltip both show the
@@ -195,6 +204,8 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
                 shared.tracks,
                 shared.playback.position,
                 state,
+                pane.settings.timeline(),
+                cover_for(pane, &shared),
                 timeline::Bindings {
                     toggle_remaining: Message::Pane(
                         pane.id,
@@ -233,35 +244,42 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
                 pane.id,
             )
         }
-        PaneKind::Visualizer => {
-            let settings = pane.settings.visualizer();
-            let cover = settings
-                .tint
-                .needs_artwork()
-                .then(|| {
-                    // Nothing playing is a real answer rather than one still
-                    // arriving, so the tint held across track changes is
-                    // dropped here rather than outliving the last track.
-                    let Some(id) = shared.tracks.playing else {
-                        shared.artwork.forget_tint();
-                        return None;
-                    };
-
-                    let track = shared.tracks.library.track(id)?;
-                    shared.artwork.tint(id, track.path())
-                })
-                .flatten();
-
-            visualizer::view(shared.playback.bins, settings, cover)
-        }
-        PaneKind::Volume => volume::view(shared.playback.volume, shared.playback.muted),
+        PaneKind::Visualizer => visualizer::view(
+            shared.playback.bins,
+            pane.settings.visualizer(),
+            cover_for(pane, &shared),
+        ),
+        PaneKind::Volume => volume::view(
+            shared.playback.volume,
+            shared.playback.muted,
+            pane.settings.volume(),
+            cover_for(pane, &shared),
+        ),
         PaneKind::Search => search::view(shared.tracks, shared.visible.len()),
-        PaneKind::TrackInfo => track_info::view(shared.tracks),
+        PaneKind::TrackInfo => track_info::view(
+            shared.tracks,
+            pane.settings.track_info(),
+            cover_for(pane, &shared),
+        ),
         _ => container(text(pane.kind.title()).size(18))
             .center_x(Length::Fill)
             .center_y(Length::Fill)
             .into(),
     }
+}
+
+fn cover_for(pane: Pane<'_>, shared: &Shared<'_>) -> Option<[u8; 3]> {
+    if !pane.settings.needs_artwork(pane.kind) {
+        return None;
+    }
+
+    let Some(id) = shared.tracks.playing else {
+        shared.artwork.forget_tint();
+        return None;
+    };
+
+    let track = shared.tracks.library.track(id)?;
+    shared.artwork.tint(id, track.path())
 }
 
 pub fn root_edge_band(

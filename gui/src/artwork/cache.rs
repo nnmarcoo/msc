@@ -932,6 +932,49 @@ mod tests {
     }
 
     #[test]
+    fn every_pane_asking_in_one_frame_gets_the_same_tint() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));
+
+        let answers: Vec<_> = (0..4).map(|_| cache.tint(1, path(A))).collect();
+
+        assert!(
+            answers.iter().all(|answer| *answer == Some([90, 40, 40])),
+            "four panes in one frame disagreed about the record's color: {answers:?}"
+        );
+    }
+
+    #[test]
+    fn every_pane_bridges_a_track_change_with_the_same_held_tint() {
+        let mut cache = Cache::new();
+        cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));
+        cache.tint(1, path(A));
+
+        let answers: Vec<_> = (0..4).map(|_| cache.tint(2, path(B))).collect();
+
+        assert!(
+            answers.iter().all(|answer| *answer == Some([90, 40, 40])),
+            "panes bridging one track change showed different colors: {answers:?}"
+        );
+    }
+
+    #[test]
+    fn a_pane_finding_no_art_does_not_strip_a_sibling_that_found_some() {
+        let mut cache = Cache::new();
+        let key = ArtKey::of(&[1]);
+        cache.insert(colored(1, key, LADDER[0], [90, 40, 40]));
+
+        cache.insert(nothing(2, LADDER[0]));
+        let _ = cache.tint(2, path(B));
+
+        assert_eq!(
+            cache.tint(1, path(A)),
+            Some([90, 40, 40]),
+            "a sibling pane's empty answer took the color off the track actually playing"
+        );
+    }
+
+    #[test]
     fn forgetting_the_tint_leaves_nothing_to_bridge_with() {
         let mut cache = Cache::new();
         cache.insert(colored(1, ArtKey::of(&[1]), LADDER[0], [90, 40, 40]));

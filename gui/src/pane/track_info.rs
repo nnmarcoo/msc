@@ -65,6 +65,20 @@
 //! Nothing playing draws nothing at all: a pane that says "no track" is louder
 //! than an empty one and says the same thing, given the transport controls are
 //! elsewhere.
+//!
+//! # Color
+//!
+//! [`crate::pane::settings::Accent`] tints the title, and only the title. The
+//! block below it is a table of readings — a sample rate is not more or less the
+//! record's for being colored — and the labels beside those readings are already
+//! dim so the values can be found; accenting either would take the one contrast
+//! the block has and spend it on decoration. The title is the line that names
+//! the record, so it is the line that can wear the record's color.
+//!
+//! Tinting resolves against the theme's primary rather than against the title's
+//! own text color, for the reason [`crate::pane::timeline`] gives: an accent
+//! keeps the reference's lightness and takes only the hue, and text lightness is
+//! near white on a dark theme, where a hue reads as no tint at all.
 
 use std::borrow::Cow;
 
@@ -77,6 +91,7 @@ use verse_core::Track;
 
 use crate::app::Message;
 use crate::browsing::Context;
+use crate::pane::settings::{Accent, TrackInfo as Settings};
 use crate::styles::{self, LABEL_FONT_SIZE, PAD};
 
 const TITLE_SIZE: f32 = 18.0;
@@ -112,7 +127,11 @@ impl Density {
     }
 }
 
-pub fn view(tracks: Context<'_>) -> Element<'_, Message> {
+pub fn view(
+    tracks: Context<'_>,
+    settings: Settings,
+    cover: Option<[u8; 3]>,
+) -> Element<'_, Message> {
     let Some(track) = tracks.playing.and_then(|id| tracks.library.track(id)) else {
         return Space::new().width(Length::Fill).height(Length::Fill).into();
     };
@@ -121,9 +140,13 @@ pub fn view(tracks: Context<'_>) -> Element<'_, Message> {
         let density = Density::for_width(size.width - PAD * 4.0);
 
         container(
-            column![identity(track), rule(), details(track, density)]
-                .spacing(BLOCK_GAP)
-                .width(Length::Shrink),
+            column![
+                identity(track, settings.accent, cover),
+                rule(),
+                details(track, density)
+            ]
+            .spacing(BLOCK_GAP)
+            .width(Length::Shrink),
         )
         .padding(PAD * 2.0)
         .width(Length::Fill)
@@ -135,13 +158,16 @@ pub fn view(tracks: Context<'_>) -> Element<'_, Message> {
     .into()
 }
 
-fn identity(track: &Track) -> Element<'_, Message> {
+fn identity(track: &Track, accent: Accent, cover: Option<[u8; 3]>) -> Element<'_, Message> {
     let mut lines = column![
         text(title(track))
             .size(TITLE_SIZE)
             .font(Font {
                 weight: Weight::Bold,
                 ..Font::DEFAULT
+            })
+            .style(move |theme: &iced::Theme| text::Style {
+                color: Some(styles::accent_heading(theme, accent, cover)),
             })
             .wrapping(text::Wrapping::None),
     ]

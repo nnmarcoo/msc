@@ -29,6 +29,14 @@
 //! set from a second volume pane cannot drift apart. Muting is likewise not its
 //! concern: a muted player is drawn by handing the rail a zero, so the slider
 //! shows the level coming out of the speakers and nothing else.
+//!
+//! The filled portion and the head take an accent handed in rather than reading
+//! `primary.base` themselves, so the pane can tint them by the playing record.
+//! The empty rail behind them keeps the theme's own color: it is the groove the
+//! level is read against, and tinting both would leave the reading with no fixed
+//! reference. See [`crate::widgets::timeline`], which draws its rail the same
+//! way for the same reason, and which says why `accent` takes the setting and
+//! the cover rather than a color resolved by the caller.
 
 use iced::advanced::renderer::{self, Quad};
 use iced::advanced::widget::tree::{self, Tree};
@@ -36,6 +44,8 @@ use iced::advanced::{Clipboard, Layout, Shell, Widget, layout};
 use iced::{
     Background, Border, Color, Element, Event, Length, Rectangle, Renderer, Size, Theme, mouse,
 };
+
+use crate::pane::settings::Accent;
 
 const RAIL_HEIGHT: f32 = 4.0;
 const HEAD_RADIUS: f32 = 5.0;
@@ -57,6 +67,8 @@ pub enum Op {
 
 pub struct Volume<'a, Message> {
     level: f32,
+    accent: Accent,
+    cover: Option<[u8; 3]>,
     on_op: Box<dyn Fn(Op) -> Message + 'a>,
 }
 
@@ -64,8 +76,16 @@ impl<'a, Message> Volume<'a, Message> {
     pub fn new(level: f32, on_op: impl Fn(Op) -> Message + 'a) -> Self {
         Self {
             level: level.clamp(0.0, verse_core::VOLUME_MAX),
+            accent: Accent::default(),
+            cover: None,
             on_op: Box::new(on_op),
         }
+    }
+
+    pub fn accent(mut self, accent: Accent, cover: Option<[u8; 3]>) -> Self {
+        self.accent = accent;
+        self.cover = cover;
+        self
     }
 
     pub const fn min_width() -> f32 {
@@ -222,6 +242,7 @@ impl<Message> Widget<Message, Theme, Renderer> for Volume<'_, Message> {
         let rail = Self::rail(bounds);
 
         let filled_width = rail.width * Self::fraction_of(self.level);
+        let accent = self.accent.resolve(palette.primary.base.color, self.cover);
 
         fill(
             renderer,
@@ -237,7 +258,7 @@ impl<Message> Widget<Message, Theme, Renderer> for Volume<'_, Message> {
                     width: filled_width,
                     ..rail
                 },
-                palette.primary.base.color,
+                accent,
                 RAIL_HEIGHT / 2.0,
             );
         }
@@ -249,7 +270,7 @@ impl<Message> Widget<Message, Theme, Renderer> for Volume<'_, Message> {
                 width: HEAD_RADIUS * 2.0,
                 height: HEAD_RADIUS * 2.0,
             };
-            fill(renderer, head, palette.primary.base.color, HEAD_RADIUS);
+            fill(renderer, head, accent, HEAD_RADIUS);
         }
     }
 

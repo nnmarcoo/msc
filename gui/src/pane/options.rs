@@ -71,7 +71,10 @@ use iced::{Element, Font, Length, Theme};
 use crate::app::Message;
 use crate::layout::{Locks, PaneId};
 use crate::pane::PaneKind;
-use crate::pane::settings::{Caps, Density, PaneSettings, Settings, Tint, Visualizer};
+use crate::pane::settings::{
+    Accent, Caps, Density, PaneSettings, Settings, Timeline as TimelineSettings, Tint,
+    TrackInfo as TrackInfoSettings, Visualizer, Volume as VolumeSettings,
+};
 use crate::styles::{self, PAD, muted_text};
 use crate::widgets::hover_row::HoverRow;
 use crate::widgets::pane_picker::PanePicker;
@@ -187,8 +190,57 @@ fn kind_section<'a>(
 ) -> Option<Element<'a, Message>> {
     match kind {
         PaneKind::Visualizer => Some(visualizer_section(id, settings.visualizer())),
+        PaneKind::Timeline => {
+            let current = settings.timeline();
+            Some(accent_section(
+                "Timeline",
+                "What colors the seek bar and the title",
+                current.accent,
+                move |accent| Settings::Timeline(TimelineSettings { accent }),
+                id,
+            ))
+        }
+        PaneKind::Volume => {
+            let current = settings.volume();
+            Some(accent_section(
+                "Volume",
+                "What colors the filled part of the rail",
+                current.accent,
+                move |accent| Settings::Volume(VolumeSettings { accent }),
+                id,
+            ))
+        }
+        PaneKind::TrackInfo => {
+            let current = settings.track_info();
+            Some(accent_section(
+                "Track information",
+                "What colors the track's title",
+                current.accent,
+                move |accent| Settings::TrackInfo(TrackInfoSettings { accent }),
+                id,
+            ))
+        }
         _ => None,
     }
+}
+
+fn accent_section<'a>(
+    heading: &'a str,
+    description: &'a str,
+    current: Accent,
+    into_settings: impl Fn(Accent) -> Settings + 'a,
+    id: PaneId,
+) -> Element<'a, Message> {
+    section(
+        heading,
+        vec![setting(
+            "Color",
+            description,
+            choices(&Accent::ALL, current, move |next| {
+                Message::SetPaneSettings(id, into_settings(next))
+            }),
+        )],
+    )
 }
 
 fn visualizer_section<'a>(id: PaneId, current: Visualizer) -> Element<'a, Message> {

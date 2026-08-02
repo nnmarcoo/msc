@@ -25,12 +25,26 @@
 //! dragging while muted unmutes. The pane is
 //! [`crate::pane::PaneState::Stateless`] for the same reason: two volume panes
 //! must agree about the volume, so there is nothing here to disagree about.
+//!
+//! [`crate::pane::settings::Accent`] is the exception to that, and it is a
+//! setting rather than state for exactly the reason the rest of
+//! [`crate::pane::settings`] gives: two volume panes must agree about the
+//! *volume*, but they may perfectly well disagree about whether their rails
+//! follow the record. The setting is passed down to the rail rather than
+//! resolved here, since resolving needs the theme and the theme reaches the
+//! widget.
+//!
+//! Only the rail takes the accent. The mute glyph and the readout keep the text
+//! color: the glyph is a control rather than a reading, and a percentage tinted
+//! to the record reads as a status color — as though a level had become a
+//! warning — rather than as decoration.
 
 use iced::widget::svg::Handle;
 use iced::widget::{button, container, responsive, row, svg, text};
 use iced::{Element, Length};
 
 use crate::app::Message;
+use crate::pane::settings::Volume as Settings;
 use crate::styles::{self, LABEL_FONT_SIZE, PAD};
 use crate::widgets::tooltip::tip;
 use crate::widgets::volume::{Op, Volume, percent};
@@ -45,21 +59,35 @@ const GAP: f32 = PAD * 1.5;
 const LOUD: f32 = 0.5;
 const READOUT_WIDTH: f32 = 32.0;
 
-pub fn view<'a>(level: f32, muted: bool) -> Element<'a, Message> {
-    responsive(move |size| body(level, muted, Form::pick(size))).into()
+pub fn view<'a>(
+    level: f32,
+    muted: bool,
+    settings: Settings,
+    cover: Option<[u8; 3]>,
+) -> Element<'a, Message> {
+    responsive(move |size| body(level, muted, settings, cover, Form::pick(size))).into()
 }
 
-fn body<'a>(level: f32, muted: bool, form: Form) -> Element<'a, Message> {
+fn body<'a>(
+    level: f32,
+    muted: bool,
+    settings: Settings,
+    cover: Option<[u8; 3]>,
+    form: Form,
+) -> Element<'a, Message> {
     let mut line = row![].spacing(GAP).align_y(iced::Center);
 
     if form.shows_icon() {
         line = line.push(mute_button(level, muted));
     }
 
-    line = line.push(Volume::new(level, |op| match op {
-        Op::Set(level) => Message::Volume(level),
-        Op::Committed => Message::SaveConfig,
-    }));
+    line = line.push(
+        Volume::new(level, |op| match op {
+            Op::Set(level) => Message::Volume(level),
+            Op::Committed => Message::SaveConfig,
+        })
+        .accent(settings.accent, cover),
+    );
 
     if form.shows_readout() {
         line = line.push(readout(level));

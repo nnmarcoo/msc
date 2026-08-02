@@ -10,7 +10,14 @@
 //! color a cover is mostly made of, for surfaces that want to be tinted by the
 //! record they show. It runs on the decode thread beside the resampling, since
 //! it wants the same master and costs a fraction of what the resample does.
+//!
+//! [`accent`] then turns that color into one a pane can draw with, which is a
+//! separate question: what [`palette`] names is fitted to sit behind text, and a
+//! rail or a heading drawn in it directly would be far too dark. Panes tinting
+//! themselves by the record go through it rather than reading a cover color
+//! straight, so they all agree about what the record's color *is*.
 
+pub mod accent;
 pub mod cache;
 pub mod decode;
 pub mod palette;

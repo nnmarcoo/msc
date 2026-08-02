@@ -41,6 +41,23 @@
 //! `over_tint_text` and `over_tint_dim_text` are the pair for surfaces the theme
 //! does *not* own — a panel tinted by cover art — where white is the only
 //! reliably legible color, for the reason [`over_art_svg_style`] gives.
+//!
+//! `accent_heading` is the title color for a pane following the playing record.
+//! The two panes that accent a title, [`crate::pane::timeline`] and
+//! [`crate::pane::track_info`], share it rather than each writing the match,
+//! because getting it wrong is silent: an accent keeps its reference's lightness
+//! and takes only the hue, so tinting against the *text* color — near white on a
+//! dark theme — gives a white title with a cast nobody would call tinted.
+//! Resolving against `primary.base` instead gives the title the same color the
+//! timeline's rail takes, so a pane accents as one thing.
+//!
+//! It is the one accent surface that cannot go through [`Accent::resolve`],
+//! because that falls back to the reference it tints — right for a rail, which
+//! is drawn in `primary.base` either way, and wrong for a title, which is drawn
+//! in the text color and would otherwise turn the theme's accent blue the moment
+//! a track had no cover to read. A title that has nothing to tint by is a title
+//! nobody has tinted, so it falls back to the plain heading color, which is what
+//! the pane would have drawn had the setting never been touched.
 
 use std::sync::OnceLock;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -50,6 +67,8 @@ use iced::{
     Background, Border, Theme,
     widget::{button, container, svg, text},
 };
+
+use crate::pane::settings::Accent;
 
 pub const PAD: f32 = 5.0;
 pub const RADIUS: f32 = 6.0;
@@ -342,6 +361,18 @@ fn faded_text(theme: &Theme, alpha: f32) -> text::Style {
     }
 }
 
+pub fn accent_heading(theme: &Theme, accent: Accent, cover: Option<[u8; 3]>) -> iced::Color {
+    let palette = theme.extended_palette();
+    let plain = palette.background.base.text;
+
+    match accent {
+        Accent::Theme => plain,
+        Accent::Artwork => cover
+            .and_then(|cover| crate::artwork::accent::tinted(palette.primary.base.color, cover))
+            .unwrap_or(plain),
+    }
+}
+
 pub fn over_tint_text(_theme: &Theme) -> text::Style {
     text::Style {
         color: Some(iced::Color::WHITE),
@@ -589,5 +620,74 @@ pub fn icon_button_style(theme: &Theme, status: button::Status) -> button::Style
         text_color: palette.background.base.text,
         border: iced::border::rounded(radius()),
         ..Default::default()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const RED_SLEEVE: [u8; 3] = [150, 40, 40];
+
+    fn plain(theme: &Theme) -> iced::Color {
+        theme.extended_palette().background.base.text
+    }
+
+    #[test]
+    fn a_heading_following_the_theme_is_the_plain_title_color() {
+        for theme in crate::config::ALL_THEMES {
+            assert_eq!(
+                accent_heading(theme, Accent::Theme, Some(RED_SLEEVE)),
+                plain(theme),
+                "{theme} tinted a title set to follow the theme"
+            );
+        }
+    }
+
+    #[test]
+    fn a_heading_with_nothing_to_tint_by_stays_the_plain_title_color() {
+        for theme in crate::config::ALL_THEMES {
+            assert_eq!(
+                accent_heading(theme, Accent::Artwork, None),
+                plain(theme),
+                "{theme} drew a title with no cover in its accent color rather than \
+                 the color the title would have had"
+            );
+
+            for gray in [[20u8, 20, 20], [128, 128, 128], [240, 240, 240]] {
+                assert_eq!(
+                    accent_heading(theme, Accent::Artwork, Some(gray)),
+                    plain(theme),
+                    "{theme} drew a title under a gray sleeve in its accent color"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_heading_following_the_artwork_takes_the_record_s_color() {
+        let theme = Theme::Dark;
+        let tinted = accent_heading(&theme, Accent::Artwork, Some(RED_SLEEVE));
+
+        assert!(tinted.r > tinted.b, "a red sleeve did not reach the title");
+        assert_ne!(
+            tinted,
+            plain(&theme),
+            "a title following the artwork drew the untinted color"
+        );
+    }
+
+    #[test]
+    fn a_tinted_heading_is_the_color_the_rail_beside_it_takes() {
+        for theme in crate::config::ALL_THEMES {
+            let primary = theme.extended_palette().primary.base.color;
+
+            assert_eq!(
+                accent_heading(theme, Accent::Artwork, Some(RED_SLEEVE)),
+                Accent::Artwork.resolve(primary, Some(RED_SLEEVE)),
+                "{theme} draws its title and its rail in different colors, so a pane \
+                 following one record accents as two things"
+            );
+        }
     }
 }

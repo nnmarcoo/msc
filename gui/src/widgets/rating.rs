@@ -25,11 +25,26 @@
 //! timeline and could be drawn larger in an inspector. The row asks for exactly
 //! the width its stars need so it can be laid out beside text without a
 //! container measuring it.
+//!
+//! A lit star is drawn in an accent, which the caller may tint by the playing
+//! record — see [`crate::pane::settings::Accent`]. Hovering changes only *how
+//! many* stars are lit, never what color they are: the preview and the rating it
+//! would replace are the same reading at two values, so coloring them
+//! differently made the row appear to change meaning under the pointer rather
+//! than to be counting. An unlit star keeps the text color at low alpha, since
+//! it is the empty slot the count is read against rather than part of the count.
+//!
+//! That the lit color is the accent rather than the palette's text is what puts
+//! the row in step with the timeline it sits in: the stars, the rail below them
+//! and the title beside them all take the same color, so a pane following the
+//! artwork tints as one thing.
 
 use iced::advanced::widget::tree::{self, Tree};
 use iced::advanced::{Clipboard, Layout, Shell, Widget, layout, renderer};
 use iced::widget::svg::Handle;
 use iced::{Color, Element, Event, Length, Rectangle, Renderer, Size, Theme, mouse};
+
+use crate::pane::settings::Accent;
 
 use std::sync::LazyLock;
 
@@ -53,6 +68,8 @@ pub struct Rating<'a, Message> {
     stars: Option<u8>,
     size: f32,
     spacing: f32,
+    accent: Accent,
+    cover: Option<[u8; 3]>,
     on_rate: Option<Box<dyn Fn(Option<u8>) -> Message + 'a>>,
 }
 
@@ -62,8 +79,16 @@ impl<'a, Message> Rating<'a, Message> {
             stars,
             size: DEFAULT_SIZE,
             spacing: DEFAULT_SPACING,
+            accent: Accent::default(),
+            cover: None,
             on_rate: None,
         }
+    }
+
+    pub fn accent(mut self, accent: Accent, cover: Option<[u8; 3]>) -> Self {
+        self.accent = accent;
+        self.cover = cover;
+        self
     }
 
     pub fn on_rate(mut self, on_rate: impl Fn(Option<u8>) -> Message + 'a) -> Self {
@@ -109,6 +134,10 @@ impl<'a, Message> Rating<'a, Message> {
 
     fn clicked(&self, stars: u8) -> Option<u8> {
         (self.stars != Some(stars)).then_some(stars)
+    }
+
+    fn lit(&self, palette: &iced::theme::palette::Extended) -> Color {
+        self.accent.resolve(palette.primary.base.color, self.cover)
     }
 }
 
@@ -194,11 +223,7 @@ impl<Message> Widget<Message, Theme, Renderer> for Rating<'_, Message> {
         let state = tree.state.downcast_ref::<State>();
 
         let shown = state.hovered.or(self.stars).unwrap_or(0);
-        let lit = if state.hovered.is_some() {
-            palette.primary.base.color
-        } else {
-            palette.background.base.text
-        };
+        let lit = self.lit(palette);
         let unlit = palette.background.base.text.scale_alpha(0.35);
 
         for index in 0..STARS {
@@ -361,5 +386,92 @@ mod tests {
     fn the_advertised_width_matches_what_is_laid_out() {
         let row = row(None).size(20.0).spacing(3.0);
         assert!((Rating::<()>::width_for(20.0, 3.0) - row.row_width()).abs() < 0.001);
+    }
+
+    const RED_SLEEVE: [u8; 3] = [150, 40, 40];
+
+    fn lit(row: &Rating<'_, ()>, theme: &Theme) -> Color {
+        row.lit(theme.extended_palette())
+    }
+
+    fn primary(theme: &Theme) -> Color {
+        theme.extended_palette().primary.base.color
+    }
+
+    #[test]
+    fn a_row_following_the_theme_lights_in_the_theme_s_primary() {
+        let theme = Theme::Dark;
+        assert_eq!(lit(&row(Some(2)), &theme), primary(&theme));
+    }
+
+    #[test]
+    fn a_row_following_the_artwork_lights_in_the_record_s_color() {
+        let theme = Theme::Dark;
+        let row = row(Some(2)).accent(Accent::Artwork, Some(RED_SLEEVE));
+        let tinted = lit(&row, &theme);
+
+        assert!(
+            tinted.r > tinted.b,
+            "a red sleeve did not reach the stars: {tinted:?}"
+        );
+        assert_ne!(tinted, primary(&theme));
+    }
+
+    #[test]
+    fn the_stars_light_in_the_same_color_the_rail_fills_with() {
+        for theme in crate::config::ALL_THEMES {
+            let row = row(Some(2)).accent(Accent::Artwork, Some(RED_SLEEVE));
+            let rail = Accent::Artwork.resolve(primary(theme), Some(RED_SLEEVE));
+
+            assert_eq!(
+                lit(&row, theme),
+                rail,
+                "{theme} lights its stars and its rail differently"
+            );
+        }
+    }
+
+    #[test]
+    fn a_track_with_no_cover_lights_in_the_theme_s_primary() {
+        let theme = Theme::Dark;
+        let row = row(Some(2)).accent(Accent::Artwork, None);
+
+        assert_eq!(
+            lit(&row, &theme),
+            primary(&theme),
+            "a row with no cover to read should fall back rather than draw nothing"
+        );
+    }
+
+    #[test]
+    fn a_lit_star_is_never_the_plain_text_color() {
+        for accent in [Accent::Theme, Accent::Artwork] {
+            for theme in crate::config::ALL_THEMES {
+                let row = row(Some(2)).accent(accent, Some(RED_SLEEVE));
+                let palette = theme.extended_palette();
+
+                assert_ne!(
+                    row.lit(palette),
+                    palette.background.base.text,
+                    "{theme} lights its stars in the plain text color, so a pane \
+                     following the artwork tints everything around them but not them"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn a_read_only_row_lights_the_same_as_an_editable_one() {
+        let theme = Theme::Dark;
+        let display: Rating<'_, ()> =
+            Rating::new(Some(3)).accent(Accent::Artwork, Some(RED_SLEEVE));
+        let editable = row(Some(3)).accent(Accent::Artwork, Some(RED_SLEEVE));
+
+        assert_eq!(
+            display.lit(theme.extended_palette()),
+            editable.lit(theme.extended_palette()),
+            "a rating shown in a list drew a different color than the same rating \
+             shown where it can be clicked"
+        );
     }
 }
