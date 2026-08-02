@@ -77,7 +77,7 @@ use crate::layout::{Axis, DropZone, PaneId, PaneMetrics};
 use crate::pane::settings::PaneSettings;
 use crate::pane::{
     PaneKind, PaneMessage, PaneState, artwork, collections, controls, library, queue, search,
-    timeline, visualizer, volume,
+    timeline, track_info, visualizer, volume,
 };
 use crate::styles::{self, PAD};
 use crate::widgets::tooltip::tip;
@@ -256,6 +256,7 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
         }
         PaneKind::Volume => volume::view(shared.playback.volume, shared.playback.muted),
         PaneKind::Search => search::view(shared.tracks, shared.visible.len()),
+        PaneKind::TrackInfo => track_info::view(shared.tracks),
         _ => container(text(pane.kind.title()).size(18))
             .center_x(Length::Fill)
             .center_y(Length::Fill)

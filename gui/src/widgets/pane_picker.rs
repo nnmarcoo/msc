@@ -25,8 +25,18 @@
 //! short ones, and at 0.5 it fitted lowercase exactly and clipped the leading
 //! capital every title has. The trigger carries no padding to hide an
 //! underestimate in and the label is centered, so a budget short of the text
-//! clips both ends of it — hence the classes, plus `GLYPH_SLACK` on top for the
-//! rounding an approximation accumulates.
+//! clips both ends of it — hence the classes, plus slack on top for the rounding
+//! an approximation accumulates.
+//!
+//! That slack has two parts because the error has two parts. `GLYPH_SLACK` is a
+//! fixed allowance, and `GLYPH_SLACK_RATIO` scales with the estimate, because
+//! per-glyph error accumulates with length: a fixed allowance alone is generous
+//! for "Queue" and short for "Track Information", which is exactly where it
+//! first failed to cover. The ratio is `CAP_RATIO / LOWER_RATIO - 1`, the gap
+//! between estimating a glyph as lowercase and the worst case of it being a
+//! capital, so the budget holds for a title of any length rather than only the
+//! ones that exist today, and the fixed part is margin rather than the thing
+//! load-bearing for long titles.
 //!
 //! `PickerOverlay::mouse_interaction` claims the cursor over the whole panel,
 //! not just its interactive parts: iced hands the cursor back to the layer
@@ -66,6 +76,7 @@ const LOWER_RATIO: f32 = 0.5;
 const SPACE_RATIO: f32 = 0.28;
 
 const GLYPH_SLACK: f32 = 1.4;
+const GLYPH_SLACK_RATIO: f32 = CAP_RATIO / LOWER_RATIO - 1.0;
 const COMPACT_TRIGGER_WIDTH: f32 = 24.0;
 const COMPACT_ICON_SIZE: f32 = 14.0;
 
@@ -156,7 +167,7 @@ impl<Message> PanePicker<Message> {
             })
             .sum();
 
-        (advances + GLYPH_SLACK) * text_size
+        (advances * (1.0 + GLYPH_SLACK_RATIO) + GLYPH_SLACK) * text_size
     }
 
     fn trigger_height(&self) -> f32 {
@@ -819,6 +830,21 @@ mod tests {
                     "{kind:?} at {size}px gets {budget:.1}px but wants up to {needed:.1}px"
                 );
             }
+        }
+    }
+
+    #[test]
+    fn slack_keeps_up_with_a_long_title() {
+        for length in [10, 20, 40, 80] {
+            let title = "n".repeat(length);
+            let advances = length as f32 * LOWER_RATIO;
+            let budget = (advances * (1.0 + GLYPH_SLACK_RATIO) + GLYPH_SLACK) * LABEL_FONT_SIZE;
+
+            assert!(
+                budget >= generous(&title, LABEL_FONT_SIZE),
+                "a {length}-character title gets {budget:.1}px but wants up to {:.1}px",
+                generous(&title, LABEL_FONT_SIZE)
+            );
         }
     }
 

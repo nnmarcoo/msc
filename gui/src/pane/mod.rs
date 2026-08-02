@@ -40,6 +40,7 @@ pub mod queue;
 pub mod search;
 pub mod settings;
 pub mod timeline;
+pub mod track_info;
 pub mod view;
 pub mod visualizer;
 pub mod volume;
@@ -159,7 +160,7 @@ impl PaneKind {
             PaneKind::Volume => "Volume",
             PaneKind::History => "History",
             PaneKind::Lyrics => "Lyrics",
-            PaneKind::TrackInfo => "Track Info",
+            PaneKind::TrackInfo => "Track Information",
             PaneKind::Artwork => "Artwork",
             PaneKind::Visualizer => "Visualizer",
             PaneKind::Equalizer => "Equalizer",
