@@ -116,12 +116,11 @@ pub enum PaneKind {
     Artwork,
     Visualizer,
     Equalizer,
-    Settings,
     Empty,
 }
 
 impl PaneKind {
-    pub const ALL: [PaneKind; 20] = [
+    pub const ALL: [PaneKind; 19] = [
         PaneKind::Library,
         PaneKind::Search,
         PaneKind::Albums,
@@ -140,7 +139,6 @@ impl PaneKind {
         PaneKind::Artwork,
         PaneKind::Visualizer,
         PaneKind::Equalizer,
-        PaneKind::Settings,
         PaneKind::Empty,
     ];
 
@@ -164,7 +162,6 @@ impl PaneKind {
             PaneKind::Artwork => "Artwork",
             PaneKind::Visualizer => "Visualizer",
             PaneKind::Equalizer => "Equalizer",
-            PaneKind::Settings => "Settings",
             PaneKind::Empty => "Empty",
         }
     }
@@ -187,7 +184,7 @@ impl PaneKind {
             PaneKind::Lyrics | PaneKind::TrackInfo | PaneKind::Artwork | PaneKind::Visualizer => {
                 PaneCategory::Detail
             }
-            PaneKind::Equalizer | PaneKind::Settings | PaneKind::Empty => PaneCategory::Tools,
+            PaneKind::Equalizer | PaneKind::Empty => PaneCategory::Tools,
         }
     }
 
@@ -211,7 +208,6 @@ impl PaneKind {
             PaneKind::Artwork => "cover art album picture image sleeve",
             PaneKind::Visualizer => "spectrum waveform graphics visualizer",
             PaneKind::Equalizer => "eq bands tone audio equalizer",
-            PaneKind::Settings => "preferences options config",
             PaneKind::Empty => "blank none clear placeholder",
         }
     }
@@ -279,7 +275,6 @@ impl PaneState {
             | PaneKind::TrackInfo
             | PaneKind::Visualizer
             | PaneKind::Equalizer
-            | PaneKind::Settings
             | PaneKind::Empty => Self::Stateless,
         }
     }
