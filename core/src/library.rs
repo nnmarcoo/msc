@@ -17,6 +17,13 @@
 //! a caller narrowing the album list, not a general one. Callers holding
 //! arbitrary keys want a scan per key, and should not use this.
 //!
+//! [`Library::album`] is that scan, and the one to reach for when resolving a
+//! single key: it answers the same whatever order the keys arrive in, where
+//! passing one key to [`Library::albums_by_key`] happens to work only because a
+//! lone key cannot fall out of sequence with itself. Albums number in the tens
+//! to hundreds and this runs on a click rather than per frame, so it stays a
+//! scan rather than an index that `reload` would have to keep in step.
+//!
 //! A key that no longer matches any album is skipped rather than faulted, since
 //! a rescan can retire an album while a cached view of it is still in flight.
 
@@ -130,6 +137,10 @@ impl Library {
 
     pub fn album_tracks_available(&self, album: &Album) -> impl Iterator<Item = &Track> {
         self.album_tracks(album).filter(|t| t.available())
+    }
+
+    pub fn album(&self, key: &AlbumKey) -> Option<&Album> {
+        album_by_key(&self.albums, key)
     }
 
     pub fn albums_by_key<'a>(
@@ -287,6 +298,10 @@ impl Library {
     }
 }
 
+fn album_by_key<'a>(albums: &'a [Album], key: &AlbumKey) -> Option<&'a Album> {
+    albums.iter().find(|album| album.key == *key)
+}
+
 fn albums_by_key<'a>(
     albums: &'a [Album],
     keys: impl IntoIterator<Item = &'a AlbumKey, IntoIter: ExactSizeIterator>,
@@ -414,6 +429,74 @@ mod tests {
             artist: None,
         };
         assert!(albums_by_key(&[], &[key]).is_empty());
+    }
+
+    #[test]
+    fn a_key_resolves_wherever_it_sits_in_the_list() {
+        let albums = [album("Blue Lines"), album("Mezzanine"), album("Protection")];
+
+        for expected in &albums {
+            assert_eq!(
+                album_by_key(&albums, &expected.key).map(Album::name),
+                Some(expected.name()),
+                "a lookup depended on where the key sat"
+            );
+        }
+    }
+
+    /// What [`albums_by_key`] cannot do, and the reason a single-key lookup is
+    /// its own method: order is nothing to a scan.
+    #[test]
+    fn a_lookup_does_not_care_what_order_the_keys_came_in() {
+        let albums = [album("Blue Lines"), album("Mezzanine"), album("Protection")];
+        let backwards = [albums[2].key.clone(), albums[0].key.clone()];
+
+        let found: Vec<&str> = backwards
+            .iter()
+            .filter_map(|key| album_by_key(&albums, key))
+            .map(Album::name)
+            .collect();
+
+        assert_eq!(found, ["Protection", "Blue Lines"]);
+    }
+
+    #[test]
+    fn a_key_that_left_the_library_resolves_to_nothing() {
+        let albums = [album("Blue Lines")];
+        let gone = AlbumKey {
+            name: "Mezzanine".into(),
+            artist: None,
+        };
+
+        assert!(album_by_key(&albums, &gone).is_none());
+    }
+
+    #[test]
+    fn albums_sharing_a_title_are_told_apart_by_their_artist() {
+        let albums = [
+            Album {
+                key: AlbumKey {
+                    name: "Greatest Hits".into(),
+                    artist: Some("First".into()),
+                },
+                year: None,
+                track_indices: vec![0],
+            },
+            Album {
+                key: AlbumKey {
+                    name: "Greatest Hits".into(),
+                    artist: Some("Second".into()),
+                },
+                year: None,
+                track_indices: vec![1],
+            },
+        ];
+
+        assert_eq!(
+            album_by_key(&albums, &albums[1].key).map(|a| a.track_indices.clone()),
+            Some(vec![1]),
+            "the credit is part of the key, so a shared title must not collide"
+        );
     }
 
     #[test]

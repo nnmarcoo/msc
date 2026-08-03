@@ -635,8 +635,7 @@ impl App {
             CollectionKind::Album => self
                 .visible_albums
                 .get(shown)
-                .map(std::slice::from_ref)
-                .and_then(|key| self.library.albums_by_key(key).pop())
+                .and_then(|key| self.library.album(key))
                 .map(|album| {
                     self.library
                         .album_tracks_available(album)
