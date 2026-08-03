@@ -12,6 +12,10 @@ keywords.workspace = true
 categories.workspace = true
 rust-version.workspace = true
 
+[features]
+default = []
+explore = ["dep:reqwest", "dep:serde_json", "dep:tokio"]
+
 [dependencies]
 kira = "0.11.0"
 lofty = "0.22.4"
@@ -23,6 +27,25 @@ triple_buffer = "8.1.1"
 rusqlite = { version = "0.38.0", features = ["bundled"] }
 thiserror = "2.0.17"
 walkdir = "2.5.0"
+
+reqwest = { version = "0.13.4", default-features = false, features = [
+    "json",
+    "rustls",
+    "http2",
+], optional = true }
+serde_json = { version = "1.0.151", optional = true }
+tokio = { version = "1.53.1", default-features = false, features = [
+    "process",
+    "io-util",
+    "time",
+], optional = true }
+
+[dev-dependencies]
+tokio = { version = "1.53.1", features = ["rt", "macros"] }
+
+[[example]]
+name = "explore_probe"
+required-features = ["explore"]
 
 [lints.clippy]
 pedantic = { level = "warn", priority = -1 }

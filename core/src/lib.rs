@@ -6,6 +6,10 @@
 //! - [`Player`]: playback and the queue.
 //! - [`Track`], [`Album`], [`Playlist`]: what the library is made of.
 //!
+//! The `explore` feature adds a fourth, [`explore`], for finding and
+//! downloading music that is not in the library yet. It is off by default and
+//! absent from a stock build; see that module for why.
+//!
 //! `Player` and `Library` are siblings, not nested. Playback methods that need
 //! to resolve a track id take `&Library` explicitly:
 //!
@@ -25,6 +29,8 @@ mod album;
 mod analyzer;
 mod backend;
 mod db;
+#[cfg(feature = "explore")]
+pub mod explore;
 mod library;
 mod media;
 mod player;
