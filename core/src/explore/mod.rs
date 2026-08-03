@@ -25,7 +25,7 @@ mod tag;
 
 pub use download::{DownloadError, Progress, YtDlp};
 pub use innertube::{Innertube, SearchError};
-pub use tag::{TagError, write_tags};
+pub use tag::{Destination, TagError, path_for, sanitize, write_tags};
 
 use std::path::{Path, PathBuf};
 
@@ -49,13 +49,6 @@ pub struct FoundAlbum {
     pub year: Option<u32>,
     pub cover_url: Option<String>,
     pub tracks: Vec<Found>,
-}
-
-#[derive(Debug, Clone)]
-pub struct Destination {
-    pub root: PathBuf,
-    pub track_number: Option<u32>,
-    pub cover: Option<Vec<u8>>,
 }
 
 pub trait MusicSource {
