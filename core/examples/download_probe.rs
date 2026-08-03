@@ -8,10 +8,10 @@
 
 use std::path::PathBuf;
 
-use verse_core::Track;
 use verse_core::explore::{
     Destination, DownloadSource, Innertube, MusicSource, YtDlp, path_for, write_tags,
 };
+use verse_core::{Library, Track};
 
 #[tokio::main(flavor = "current_thread")]
 async fn main() {
@@ -95,6 +95,8 @@ async fn main() {
 
     println!("filed: {}", filed.display());
 
+    ingest(&scratch, &filed);
+
     match Track::from_path(&filed) {
         Ok(track) => {
             println!("READ BACK BY THE LIBRARY:");
@@ -112,6 +114,37 @@ async fn main() {
     }
 
     println!("\nleaving {} for inspection", scratch.display());
+}
+
+fn ingest(scratch: &std::path::Path, filed: &std::path::Path) {
+    let mut library = match Library::open_at(&scratch.join("library.db")) {
+        Ok(library) => library,
+        Err(e) => {
+            println!("could not open a library: {e}");
+            return;
+        }
+    };
+
+    let id = match library.ingest(filed) {
+        Ok(id) => id,
+        Err(e) => {
+            println!("INGEST FAILED: {e}");
+            return;
+        }
+    };
+
+    let title = library.track(id).and_then(verse_core::Track::title);
+    println!("INGESTED as track {id}: {title:?}");
+    println!(
+        "  the library now holds {} track(s) in {} album(s)",
+        library.tracks().len(),
+        library.albums().len()
+    );
+
+    match kira::sound::streaming::StreamingSoundData::from_file(filed) {
+        Ok(sound) => println!("  and it decodes: {:.1}s", sound.duration().as_secs_f32()),
+        Err(e) => println!("  BUT IT CANNOT BE PLAYED: {e}"),
+    }
 }
 
 async fn fetch_cover(url: &str) -> Option<Vec<u8>> {
