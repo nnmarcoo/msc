@@ -10,10 +10,7 @@ use std::path::PathBuf;
 
 use super::Database;
 
-const COLUMNS: &str = "id, path, title, track_artist, album, album_artist,
-     genre, year, track_number, disc_number, comment,
-     duration, bit_rate, sample_rate, bit_depth, channels, missing, rating";
-
+#[cfg_attr(not(test), allow(dead_code))]
 const TAG_DERIVED_COLUMNS: &[&str] = &[
     "title",
     "track_artist",
@@ -30,6 +27,35 @@ const TAG_DERIVED_COLUMNS: &[&str] = &[
     "bit_depth",
     "channels",
 ];
+
+const SELECT_TRACKS: &str = "SELECT id, path, title, track_artist, album, album_artist,
+     genre, year, track_number, disc_number, comment,
+     duration, bit_rate, sample_rate, bit_depth, channels, missing, rating
+     FROM tracks";
+
+const UPSERT_TRACK: &str = "INSERT INTO tracks (
+         path, title, track_artist, album, album_artist, genre,
+         year, track_number, disc_number, comment,
+         duration, bit_rate, sample_rate, bit_depth, channels, missing,
+         rating
+     ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
+               ?11, ?12, ?13, ?14, ?15, 0, ?16)
+     ON CONFLICT(path) DO UPDATE SET
+         title = excluded.title,
+         track_artist = excluded.track_artist,
+         album = excluded.album,
+         album_artist = excluded.album_artist,
+         genre = excluded.genre,
+         year = excluded.year,
+         track_number = excluded.track_number,
+         disc_number = excluded.disc_number,
+         comment = excluded.comment,
+         duration = excluded.duration,
+         bit_rate = excluded.bit_rate,
+         sample_rate = excluded.sample_rate,
+         bit_depth = excluded.bit_depth,
+         channels = excluded.channels,
+         missing = 0";
 
 fn row_to_track(row: &Row) -> SqliteResult<Track> {
     Ok(Track {
@@ -56,9 +82,7 @@ fn row_to_track(row: &Row) -> SqliteResult<Track> {
 
 impl Database {
     pub(crate) fn all_tracks(&self) -> SqliteResult<Vec<Track>> {
-        let mut stmt = self
-            .conn
-            .prepare(&format!("SELECT {COLUMNS} FROM tracks"))?;
+        let mut stmt = self.conn.prepare(SELECT_TRACKS)?;
         stmt.query_map([], row_to_track)?.collect()
     }
 
@@ -67,24 +91,9 @@ impl Database {
             return Ok(());
         }
 
-        let refreshed = TAG_DERIVED_COLUMNS
-            .iter()
-            .map(|column| format!("{column} = excluded.{column}"))
-            .collect::<Vec<_>>()
-            .join(", ");
-
         let tx = self.conn.unchecked_transaction()?;
         {
-            let mut stmt = tx.prepare(&format!(
-                "INSERT INTO tracks (
-                     path, title, track_artist, album, album_artist, genre,
-                     year, track_number, disc_number, comment,
-                     duration, bit_rate, sample_rate, bit_depth, channels, missing,
-                     rating
-                 ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10,
-                           ?11, ?12, ?13, ?14, ?15, 0, ?16)
-                 ON CONFLICT(path) DO UPDATE SET {refreshed}, missing = 0"
-            ))?;
+            let mut stmt = tx.prepare(UPSERT_TRACK)?;
 
             for track in tracks {
                 stmt.execute(params![
@@ -121,5 +130,90 @@ impl Database {
             params![rating.map(i64::from), track_id],
         )?;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The statement is written out rather than built from
+    /// [`TAG_DERIVED_COLUMNS`], so this is what keeps the two in step. A column
+    /// added to the list but not to the `DO UPDATE` would silently stop being
+    /// refreshed by a rescan, which reads as stale tags rather than as a bug.
+    #[test]
+    fn every_tag_derived_column_is_refreshed_by_an_upsert() {
+        for column in TAG_DERIVED_COLUMNS {
+            let clause = format!("{column} = excluded.{column}");
+            assert!(
+                UPSERT_TRACK.contains(&clause),
+                "{column} is tag-derived but a rescan would not refresh it: \
+                 the upsert has no `{clause}`"
+            );
+        }
+    }
+
+    /// The three columns a rescan must *not* overwrite. `path` is what the
+    /// conflict is detected on, `missing` is reset rather than carried from the
+    /// row being inserted, and `rating` is the user's own and outlives whatever
+    /// the file's tags say.
+    #[test]
+    fn the_columns_a_rescan_must_not_overwrite_are_left_alone() {
+        for column in ["path", "rating"] {
+            let clause = format!("{column} = excluded.{column}");
+            assert!(
+                !UPSERT_TRACK.contains(&clause),
+                "a rescan would overwrite {column} with the file's own value"
+            );
+        }
+        assert!(
+            UPSERT_TRACK.contains("missing = 0"),
+            "an upserted track was not marked present again"
+        );
+    }
+
+    #[test]
+    fn every_column_the_upsert_binds_has_a_placeholder() {
+        let bound = TAG_DERIVED_COLUMNS.len() + 2;
+        for n in 1..=bound {
+            assert!(
+                UPSERT_TRACK.contains(&format!("?{n}")),
+                "the upsert binds {bound} values but has no ?{n}"
+            );
+        }
+        assert!(
+            !UPSERT_TRACK.contains(&format!("?{}", bound + 1)),
+            "the upsert has more placeholders than the values bound to it"
+        );
+    }
+
+    #[test]
+    fn the_select_reads_every_column_a_track_is_built_from() {
+        let read = [
+            "id",
+            "path",
+            "missing",
+            "rating",
+            "title",
+            "track_artist",
+            "album",
+            "album_artist",
+            "genre",
+            "year",
+            "track_number",
+            "disc_number",
+            "comment",
+            "duration",
+            "bit_rate",
+            "sample_rate",
+            "bit_depth",
+            "channels",
+        ];
+        for column in read {
+            assert!(
+                SELECT_TRACKS.contains(column),
+                "`row_to_track` reads {column} but the select does not fetch it"
+            );
+        }
     }
 }
