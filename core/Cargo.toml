@@ -17,7 +17,7 @@ default = []
 explore = ["dep:reqwest", "dep:serde_json", "dep:tokio"]
 
 [dependencies]
-kira = "0.11.0"
+kira = { version = "0.12.2", features = ["aac", "alac", "isomp4"] }
 lofty = "0.22.4"
 rayon = "1.11.0"
 rand = "0.9.2"
@@ -38,13 +38,19 @@ tokio = { version = "1.53.1", default-features = false, features = [
     "process",
     "io-util",
     "time",
+    "fs",
 ], optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.53.1", features = ["rt", "macros"] }
+kira = { version = "0.12.2", features = ["aac", "alac", "isomp4"] }
 
 [[example]]
 name = "explore_probe"
+required-features = ["explore"]
+
+[[example]]
+name = "download_probe"
 required-features = ["explore"]
 
 [lints.clippy]

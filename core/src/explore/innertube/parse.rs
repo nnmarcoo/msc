@@ -11,10 +11,11 @@
 //! Four shapes here are not guessable from the JSON and were each established
 //! against the live API:
 //!
-//! A row's own thumbnail is a 60px channel avatar, not album art. Cover art
-//! comes from the album header, and [`upscale_cover`] rewrites the `=w…` suffix
-//! Google's image host uses for sizing. Embedding the row thumbnail would put a
-//! 60px avatar in every downloaded file.
+//! Artwork is served at the size the URL asks for, so a row's 60px thumbnail
+//! and the album's full sleeve are the same image at different crops.
+//! [`upscale_cover`] rewrites the `=w…` suffix Google's image host uses for
+//! sizing, which is what lets a search result carry art worth embedding rather
+//! than a thumbnail worth discarding.
 //!
 //! An album header carries two thumbnails: `thumbnail` is the sleeve and
 //! `straplineThumbnail` is a photograph of the artist. They are told apart only
@@ -68,7 +69,15 @@ fn song(row: &Value) -> Option<Found> {
         album,
         album_id,
         duration: byline.and_then(duration_run),
-        cover_url: None,
+        cover_url: cover_at(
+            row,
+            &[
+                "thumbnail",
+                "musicThumbnailRenderer",
+                "thumbnail",
+                "thumbnails",
+            ],
+        ),
         explicit: is_explicit(row),
     })
 }
@@ -332,6 +341,14 @@ mod tests {
     fn a_song_carries_the_browse_id_of_its_album() {
         let found = songs(&fixture("search_songs.json"), 20);
         assert_eq!(found[0].album_id.as_deref(), Some("MPREb_R6C9lU4QEg2"));
+    }
+
+    #[test]
+    fn a_search_row_carries_art_at_cover_resolution() {
+        let found = songs(&fixture("search_songs.json"), 20);
+        let cover = found[0].cover_url.as_deref().expect("a cover");
+
+        assert!(cover.ends_with("=w544-h544-l90-rj"), "{cover}");
     }
 
     #[test]
