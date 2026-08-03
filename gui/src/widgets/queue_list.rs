@@ -92,7 +92,6 @@ const PLAYING_ICON: f32 = 9.0;
 const REMOVE_ICON: f32 = 14.0;
 const INDICATOR_HEIGHT: f32 = 2.0;
 
-/// How far a press on the grip must travel before it is a drag.
 const DRAG_THRESHOLD: f32 = 4.0;
 
 const _: () = {
@@ -104,15 +103,9 @@ const _: () = {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Op {
-    /// The row under the cursor changed. Carries the track so other panes can
-    /// highlight it, and `None` once the pointer leaves the list.
     Hovered(Option<i64>),
-    /// A double-click on a row: play it now.
     Activated(i64),
-    /// The remove control on the row at this queue position was pressed.
     Removed(usize),
-    /// A drag committed, moving the track at `from` to `to`. Both index the
-    /// queue's upcoming deque, and `to` is where it lands once lifted out.
     Reordered { from: usize, to: usize },
 }
 
@@ -125,7 +118,6 @@ struct State {
     last_press: Option<(usize, std::time::Instant)>,
 }
 
-/// A press on a grip that has not yet traveled far enough to be a drag.
 #[derive(Debug, Clone, Copy)]
 struct Armed {
     upcoming: usize,
@@ -164,17 +156,11 @@ impl<'a, Message> QueueList<'a, Message> {
         visible_range(bounds, viewport, self.rows.len())
     }
 
-    /// The queue position of the row at `index`, if it has one. History and the
-    /// playing track do not, and so can be neither removed nor dragged.
     fn upcoming_at(&self, index: usize) -> Option<usize> {
         self.rows.get(index).and_then(|row| row.upcoming)
     }
 }
 
-/// The geometry of the list, and every question that is asked of it.
-///
-/// Split out so the arithmetic can be tested without building a widget or a
-/// `Library`; the bugs this widget exists to prevent were all in this mapping.
 #[derive(Debug, Clone, Copy)]
 struct RowMetrics {
     bounds: Rectangle,
@@ -205,7 +191,6 @@ impl RowMetrics {
         }
     }
 
-    /// The grip's hit region: the position column of a row.
     fn grip_bounds(self, index: usize) -> Rectangle {
         let row = self.row_bounds(index);
         Rectangle {
@@ -216,7 +201,6 @@ impl RowMetrics {
         }
     }
 
-    /// The remove control's hit region, at the row's trailing edge.
     fn remove_bounds(self, index: usize) -> Rectangle {
         let row = self.row_bounds(index);
         Rectangle {
@@ -227,13 +211,6 @@ impl RowMetrics {
         }
     }
 
-    /// Which gap a cursor at `y` is aiming at, counted in gaps so the value one
-    /// past the last row means "below everything".
-    ///
-    /// A row's upper half means the gap above it and its lower half the gap
-    /// below, so every pixel belongs to some gap and the marker never disappears
-    /// mid-drag. Past the end of the list the last gap holds, rather than the
-    /// target snapping back to the row under a cursor that has run out of rows.
     fn gap_at_y(self, y: f32) -> usize {
         let offset = ((y - self.bounds.y) / ROW_HEIGHT).max(0.0);
         let index = offset.floor() as usize;
@@ -257,10 +234,6 @@ fn visible_range(bounds: Rectangle, viewport: &Rectangle, len: usize) -> std::op
     first..first.saturating_add(count).min(len)
 }
 
-/// Where a drag from `from` landing in gap `gap` puts the track.
-///
-/// Returns `None` when the drop would not move anything, so a caller can skip a
-/// no-op rather than having to recognize one.
 pub fn drop_target(from: usize, gap: usize) -> Option<usize> {
     let to = if gap > from { gap - 1 } else { gap };
     (to != from).then_some(to)
@@ -616,7 +589,6 @@ fn draw_row(
     }
 }
 
-/// The two text baselines of a row, centered as a pair.
 fn two_lines(row: Rectangle) -> (f32, f32) {
     let block = TITLE_SIZE + LINE_GAP + LABEL_SIZE;
     let top = row.y + (row.height - block) / 2.0;

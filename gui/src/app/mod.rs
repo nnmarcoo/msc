@@ -257,12 +257,6 @@ pub enum DropTarget {
     RootEdge(DropZone),
 }
 
-/// What to do with a collection's tracks once they are resolved.
-///
-/// One message carrying the disposition rather than three parallel messages,
-/// because all three resolve the same list the same way and differ only in
-/// where it goes; three arms of `update` that each re-resolved were three places
-/// for the resolution to drift.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Act {
     Play,
@@ -672,13 +666,6 @@ impl App {
         self.selection.ordered_ids(self.visible_ids())
     }
 
-    /// Play a list: start the first and queue the rest behind it.
-    ///
-    /// What "play" means for anything holding more than one track — a
-    /// selection, an album, a playlist — so that all of them agree rather than
-    /// each spelling the rule out. An empty list plays nothing and, in
-    /// particular, does not stop what is already playing: a click that resolved
-    /// to nothing should do nothing.
     fn play_all(&mut self, ids: &[i64]) {
         if let Some((&first, rest)) = ids.split_first() {
             let _ = self.player.play_now(&self.library, first);

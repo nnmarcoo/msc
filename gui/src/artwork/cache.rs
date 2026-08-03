@@ -84,8 +84,6 @@ pub struct Art {
     pub height: u32,
     pub pixels: Vec<u8>,
     pub source_edge: u32,
-    /// The color the cover is mostly made of, or `None` when it has none worth
-    /// naming. See [`crate::artwork::palette`].
     pub color: Option<[u8; 3]>,
 }
 
@@ -153,62 +151,12 @@ impl Cache {
         self.sources.get(&track) == Some(&None)
     }
 
-    /// The color a track's cover is mostly made of.
-    ///
-    /// `None` both while the art is still being read and when it turned out to
-    /// have no color worth naming, because a caller does either the same thing:
-    /// draw its own background. Distinguishing them would only let a surface
-    /// flicker from untinted to tinted, which is what it does anyway when the
-    /// decode lands.
-    ///
-    /// Unlike [`Cache::request`] this queues nothing. A color is a by-product
-    /// of art that some pane already asked for, so a surface wanting the tint
-    /// never causes a read of its own; it is tinted once the cover it is showing
-    /// has arrived, which is the same frame the cover appears in.
     pub fn color(&self, track: i64) -> Option<[u8; 3]> {
         self.colors.get(&self.source_of(track)?).copied().flatten()
     }
 
-    /// The color of a track's cover, reading it if nobody else has.
-    ///
-    /// [`Cache::color`] answers only for a track some pane already drew art
-    /// for, because `sources` is keyed per track and only a completed decode
-    /// fills it in. A surface that wants the tint *without* showing the cover
-    /// has nothing to piggyback on: the second track of an album is a different
-    /// id from the first, so it comes back untinted even though the album's
-    /// color is already known under the same [`ArtKey`].
-    ///
-    /// So this queues a read like [`Cache::request`] does, at the smallest rung
-    /// of [`LADDER`]. The color is taken from a 64x64 reduction anyway, so the
-    /// bucket that answers it is the cheapest one there is, and asking for it
-    /// costs nothing beyond the master decode any other pane would have forced.
-    ///
-    /// A track already in `sources` is answered from `colors` without queueing,
-    /// whether or not it named a color. That entry is written only once a decode
-    /// has finished, so it is the signal that the work is *done* rather than
-    /// merely started — [`Cache::want`] dedupes against what is queued and in
-    /// flight but not against what has already been read, so queueing on a
-    /// resolved track would ask for the same cover again on every frame.
-    ///
-    /// While a track is still unread the last color named is held, the way
-    /// [`crate::pane::artwork::State`] holds the last cover drawn and for the
-    /// same reason: a track change takes a frame or two to resolve, and a
-    /// surface tinted by the cover would otherwise snap back to its untinted
-    /// self and back again on every change — most visibly between two tracks of
-    /// one album, where the color that arrives is the one that just left.
-    ///
-    /// The hold lives here rather than in the pane because a color, unlike a
-    /// scaled handle, is a property of the record rather than of the surface
-    /// showing it: every consumer wants the same answer, so there is one slot
-    /// rather than one per pane, and a visualizer can stay
-    /// [`crate::pane::PaneState::Stateless`]. It is dropped by
-    /// [`Cache::forget_tint`] on the answers that mean there is nothing to show
-    /// rather than nothing yet — a track read to carry no art, and, from the
-    /// caller, nothing playing at all.
     pub fn tint(&self, track: i64, path: &Path) -> Option<[u8; 3]> {
         match self.sources.get(&track).copied() {
-            // Read, and it named a color: that is the answer, and the one to
-            // hold over the next track's gap.
             Some(Some(key)) => {
                 let color = self.colors.get(&key).copied().flatten();
                 if color.is_some() {
@@ -218,14 +166,10 @@ impl Cache {
                 self.forget_tint();
                 None
             }
-            // Read, and there is no art at all. Nothing is coming, so the held
-            // color would sit there for the length of the track.
             Some(None) => {
                 self.forget_tint();
                 None
             }
-            // Not read yet. The cover is usually the one already on screen, so
-            // hold what was last named until this track answers for itself.
             None => {
                 self.want(track, path, LADDER[0]);
                 *self.last_tint.borrow()
@@ -233,8 +177,6 @@ impl Cache {
         }
     }
 
-    /// Drop the held tint, for the answers that mean there is genuinely nothing
-    /// to show rather than nothing *yet*.
     pub fn forget_tint(&self) {
         *self.last_tint.borrow_mut() = None;
     }
@@ -277,11 +219,6 @@ impl Cache {
 
         self.extents.insert(key, art.source_edge);
 
-        // A cover cut from a resident master carries no color, since the pass
-        // that first decoded it already named one and the pixels have not
-        // changed. Filing that absence would drop the color on the second size
-        // a cover is asked for, so a panel would lose its tint the moment the
-        // grid it sits in was resized.
         if let Some(color) = art.color {
             self.colors.insert(key, Some(color));
         } else {
@@ -825,7 +762,7 @@ mod tests {
 
     /// The bug this method exists for: a pane that wants only the tint has no
     /// art of its own on screen to piggyback on, so the second track of an
-    /// album — a different id, the same cover — found nothing filed under it and
+    /// album â€” a different id, the same cover â€” found nothing filed under it and
     /// fell back to the theme partway through a record.
     #[test]
     fn a_tint_asks_for_a_cover_nobody_else_has_read() {
@@ -867,7 +804,7 @@ mod tests {
 
     /// The gap a track change opens: the next track is unread for a frame or
     /// two, and without a hold the tint drops to nothing and comes straight
-    /// back — a visible flash, worst between two tracks of one album where the
+    /// back â€” a visible flash, worst between two tracks of one album where the
     /// color never actually changed.
     #[test]
     fn a_track_change_holds_the_last_tint_until_the_next_one_lands() {
@@ -989,7 +926,7 @@ mod tests {
         );
     }
 
-    /// A held tint survives a track that was never asked about — nobody read
+    /// A held tint survives a track that was never asked about â€” nobody read
     /// it, so nothing contradicted the hold. That is the bridge working, but it
     /// means the hold is only as fresh as the last question asked of it.
     #[test]

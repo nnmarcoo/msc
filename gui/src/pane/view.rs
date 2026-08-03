@@ -220,10 +220,6 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
                 },
             )
         }
-        // Unlike the other kinds, the fallback cannot be a `static`: this state
-        // holds a handle behind a `RefCell`, which is not `Sync`. A pane without
-        // state simply keeps no bridge, and draws the placeholder as it would
-        // have anyway.
         PaneKind::Artwork => match pane.state {
             Some(PaneState::Artwork(state)) => {
                 artwork::view(shared.tracks, shared.artwork, Some(state))

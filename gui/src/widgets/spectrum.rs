@@ -242,13 +242,6 @@ impl Peak {
     }
 }
 
-/// The markers, one per bar, in a fixed array rather than a `Vec`.
-///
-/// A bar count is capped at [`NUM_BINS`], so the worst case is small and known
-/// at compile time. Sizing to it costs a few hundred bytes of widget state and
-/// buys a marker path that never allocates: a resize rewrites `bars` and the
-/// prefix in place where growing a `Vec` would reallocate on every step of a
-/// divider drag, which is exactly when this runs most.
 struct State {
     peaks: [Peak; NUM_BINS],
     bars: usize,
@@ -296,12 +289,6 @@ fn bar_count(width: f32, pitch: f32) -> usize {
     ((width / pitch) as usize).clamp(MIN_BARS, NUM_BINS)
 }
 
-/// The bins one bar folds together, as a half-open range.
-///
-/// `bars` is never zero — every path here comes from [`bar_count`], whose
-/// smallest answer is [`COMPACT_BARS`] — but the division would panic rather
-/// than misdraw if that ever stopped being true, so it is floored rather than
-/// left to chance.
 fn group(index: usize, bars: usize) -> (usize, usize) {
     let bars = bars.max(1);
     let start = index * NUM_BINS / bars;
@@ -333,13 +320,6 @@ fn bar_rect(bounds: Rectangle, index: usize, bars: usize, amplitude: f32) -> Rec
     }
 }
 
-/// The two ends a tint interpolates between, resolved once per frame.
-///
-/// Every tint is a walk between two colors, and which two depends only on the
-/// theme, the setting and the cover — none of which change across the bars of
-/// one frame. Resolving them per bar meant re-reading the extended palette up
-/// to [`NUM_BINS`] times and, under `Artwork`, running two HSL round-trips per
-/// bar to answer the same question every time.
 #[derive(Clone, Copy)]
 struct Ramp {
     quiet: Color,
@@ -1185,7 +1165,7 @@ mod tests {
 
         assert!(
             level(&state, 0) > 0.5,
-            "a second later the marker had fallen to {} — the hold does not read",
+            "a second later the marker had fallen to {} â€” the hold does not read",
             level(&state, 0)
         );
     }

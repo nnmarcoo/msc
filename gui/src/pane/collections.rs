@@ -123,16 +123,11 @@ const MIN_CELL: f32 = 120.0;
 const MAX_COLUMNS: usize = 12;
 const GAP: f32 = PAD * 2.0;
 
-/// The height of an open panel, as a multiple of the cell size, so a panel keeps
-/// its proportion to the covers around it rather than being a fixed slab that
-/// dwarfs a small grid and is lost in a large one.
 const PANEL_ROWS: f32 = 2.0;
 
 const ICON_PLAY: &[u8] = include_bytes!("../../../assets/icons/play.svg");
 const ICON_QUEUE: &[u8] = include_bytes!("../../../assets/icons/queue_add.svg");
 
-/// Big enough to hit over a cover. The edit-mode chrome uses 14, but that sits
-/// in a bar with a hover target around it, where this is a bare glyph on art.
 const CONTROL_ICON: f32 = 18.0;
 
 const TITLE_SIZE: f32 = 13.0;
@@ -140,10 +135,6 @@ const ROW_SIZE: f32 = 12.0;
 const NUMBER_WIDTH: f32 = 26.0;
 const CLOCK_WIDTH: f32 = 44.0;
 
-/// Which collection a panel is open on.
-///
-/// Owned rather than borrowed because it outlives the frame that made it, and
-/// cheap to compare because that is all it is ever used for.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Id {
     Album(AlbumKey),
@@ -180,17 +171,10 @@ pub enum PanelMessage {
 
 pub fn update(state: &mut State, message: &PanelMessage) {
     match message {
-        // Clicking the open collection closes it, so the tile that opened a
-        // panel is also what dismisses it and no separate control is needed.
         PanelMessage::Toggle(id) => {
             state.expanded = (!state.is_open(id)).then(|| id.clone());
         }
         PanelMessage::Hovered(id) => state.hovered = Some(id.clone()),
-        // Departures are matched against the tile that is actually lit, because
-        // iced delivers an arrival and a departure in layout order rather than
-        // in the order they happened: moving between two tiles can land the old
-        // tile's exit *after* the new tile's entry, and an unconditional clear
-        // would blank the highlight that had just been set.
         PanelMessage::Unhovered(id) => {
             if state.is_hovered(id) {
                 state.hovered = None;
@@ -207,25 +191,16 @@ fn unhover(pane: PaneId, id: Id) -> Message {
     Message::Pane(pane, PaneMessage::Collections(PanelMessage::Unhovered(id)))
 }
 
-/// Opening a panel is this pane's own business, so the message carries the
-/// [`PaneId`] that owns the state it toggles; two collections panes must be able
-/// to have different panels open.
 fn toggle(pane: PaneId, id: Id) -> Message {
     Message::Pane(pane, PaneMessage::Collections(PanelMessage::Toggle(id)))
 }
 
-/// Which grid a position indexes. The two are numbered separately, so a bare
-/// index would name a tile in whichever grid the reader happened to assume.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Kind {
     Album,
     Playlist,
 }
 
-/// An album or a playlist, reduced to what the grid and the panel draw.
-///
-/// Borrows rather than owns: it lives for the frame that built it, and copying
-/// a name per tile per frame is a screenful of allocations at the tick rate.
 #[derive(Clone, Copy)]
 struct Collection<'a> {
     id_of: Source<'a>,
@@ -270,13 +245,6 @@ impl<'a> Collection<'a> {
         }
     }
 
-    /// The tracks on this collection, in the order it imposes: an album by disc
-    /// and track number, a playlist by the order it was authored in.
-    ///
-    /// Missing files are kept rather than filtered, so a playlist reads as the
-    /// list its owner made. A track that cannot be played is drawn dimmed by
-    /// [`track_row`] instead of silently vanishing, which would make a playlist
-    /// look shorter than it is for reasons the pane never explains.
     fn tracks(&self, library: &'a Library) -> Box<dyn Iterator<Item = &'a Track> + 'a> {
         match self.id_of {
             Source::Album(album) => Box::new(library.album_tracks(album)),
@@ -284,7 +252,6 @@ impl<'a> Collection<'a> {
         }
     }
 
-    /// The track whose art is this collection's cover.
     fn cover(&self, library: &'a Library) -> Option<&'a Track> {
         match self.id_of {
             Source::Album(album) => library.album_tracks(album).next(),
@@ -293,10 +260,6 @@ impl<'a> Collection<'a> {
     }
 }
 
-/// A playlist's tracks, in its own order, skipping ids the library has lost.
-///
-/// [`Library::playlist_tracks`] would do this by id, but it looks the playlist
-/// up again by id on every call; the caller here already holds it.
 fn playlist_tracks<'a>(
     library: &'a Library,
     playlist: &'a Playlist,
@@ -324,9 +287,6 @@ pub fn view<'a>(
         return empty(library, tracks.search);
     }
 
-    // The grids are rebuilt inside the closure rather than captured, because a
-    // `responsive` closure is `Fn` and so cannot hand out anything borrowing
-    // what it captured. Both are a map over a list the app already filtered.
     iced::widget::responsive(move |size| {
         let albums: Vec<Collection<'a>> = library
             .albums_by_key(visible)
@@ -373,31 +333,10 @@ pub fn view<'a>(
     .into()
 }
 
-/// The playlists a query keeps, in the order the grid draws them.
-///
-/// Public and used by [`crate::app`] as well, because a tile is clicked by its
-/// position in this list and the click is resolved against it. Two copies of the
-/// rule that drifted would leave a tile playing the playlist beside the one
-/// pressed, which is exactly the failure the album path avoids by resolving
-/// through the cache the grid drew from.
-///
-/// Unlike albums this is not cached on the app, because it costs one comparison
-/// per playlist rather than a walk of every track: an album is kept when any of
-/// its *tracks* matches, which is why filtering those per frame would be a full
-/// library scan. Playlists number in the tens and are matched by name alone.
-///
-/// Name alone, and not contents, because the things differ: an album's name is a
-/// tag its tracks carry, so searching for a song on it already finds it, while a
-/// playlist's name is the user's own and its tracks have no idea they are on it.
 pub fn visible_playlists<'a>(
     library: &'a Library,
     query: &Query,
 ) -> impl Iterator<Item = &'a Playlist> {
-    // The query is cloned into the iterator rather than borrowed, so what comes
-    // back carries only the library's lifetime. A caller that builds its query
-    // as a local would otherwise have to keep it alive for as long as the
-    // collections drawn from it, which is the whole frame. A `Query` is one
-    // short string and this is called twice per frame at most.
     let query = query.clone();
     library
         .playlists()
@@ -435,8 +374,6 @@ fn section<'a>(
 
         section = section.push(row(cells).spacing(GAP));
 
-        // The panel follows the row its collection sits in, so at most one row
-        // is ever displaced and the tile that opened it stays in view.
         let open = chunk
             .iter()
             .position(|held| state.is_open(&held.id()))
@@ -485,15 +422,6 @@ pub fn layout(width: f32, collections: usize) -> Option<Grid> {
     let columns = fits.clamp(1, MAX_COLUMNS).min(collections);
     let cell = (inner - GAP * (columns - 1) as f32) / columns as f32;
 
-    // Floored to a whole pixel so the cover and the scrim over it land on the
-    // same grid. A fractional cell is rounded independently by the `image`,
-    // which sizes itself from the source's aspect ratio, and by the plain
-    // container the overlay is, so the two edges disagreed by up to a pixel —
-    // visible as a dark hairline down one side of some covers and not others,
-    // depending on the proportions of the art. Flooring rather than rounding
-    // keeps the row inside the pane, which `the_columns_and_gaps_fill_the_pane`
-    // checks; the leftover fraction is at most one pixel per column and shows
-    // as a slightly wider gap at the end of the row.
     Some(Grid {
         columns,
         cell: cell.floor().max(1.0),
@@ -514,10 +442,6 @@ fn tile<'a>(
     let id = collection.id();
     let face = cover(collection, library, art, grid.cell);
 
-    // The cover is a button so that a click anywhere on it opens the panel, and
-    // the overlay stacks over it. The overlay exists in the tree only while this
-    // tile is the hovered one: a hidden layer that still laid out would sit over
-    // the cover and eat the press meant for it.
     let body = button(face)
         .padding(0)
         .width(Length::Fixed(grid.cell))
@@ -540,7 +464,6 @@ fn tile<'a>(
     ContextMenu::new(tile, menu(collection, shown, kind, pane)).into()
 }
 
-/// The cover, at the size the cell actually draws.
 fn cover<'a>(
     collection: Collection<'a>,
     library: &'a Library,
@@ -553,22 +476,6 @@ fn cover<'a>(
         .and_then(|(id, path)| art.request(id, path, edge));
 
     match handle {
-        // Clipped by the container rather than sized by the image alone. With
-        // `ContentFit::Cover` the image derives its drawn rectangle from the
-        // source's aspect ratio and rounds that itself, so a cover that is not
-        // exactly square settled a fraction of a pixel away from the box the
-        // scrim fills — a dark hairline down one edge of some covers and not
-        // others. Fixing the container and clipping to it makes the two layers
-        // agree by construction: whatever the image does inside, the tile's
-        // bounds are the same rectangle for both.
-        //
-        // Square, with no radius on the image. A cover and the scrim over it are
-        // separate layers, and each would rasterize its own arc: the two differ
-        // by a fraction of a pixel along the curve, which reads as a soft or
-        // doubled corner wherever they overlap. A square tile has no arc to
-        // disagree about, and a shelf of square sleeves is what the grid is
-        // imitating anyway. This is the one place the global corner radius is
-        // deliberately not read; see [`crate::styles`].
         Some(handle) => container(
             image(handle)
                 .content_fit(ContentFit::Cover)
@@ -588,20 +495,6 @@ fn cover<'a>(
     }
 }
 
-/// What a hovered tile shows: two actions, and nothing else.
-///
-/// No name and no artist. The cover already says which record this is, in the
-/// form its owner chose, so a caption repeating it in the theme's font competes
-/// with the thing it labels — the same reason the resting tile is bare. What
-/// hover adds is the ability to *act*, which is what a control is for; the name
-/// is available in the panel a click opens, where there is room to set it.
-///
-/// Only play and add-to-queue, with the rest left to the right-click menu,
-/// because a control small enough to fit several of over a cover is too small to
-/// hit reliably, and these two are what a cover is usually clicked for.
-///
-/// They sit centered at the foot of the tile, over a scrim that spans the whole
-/// cover and fades out towards the top; see [`styles::over_art_style`].
 fn controls<'a>(shown: usize, kind: Kind) -> Element<'a, Message> {
     let buttons = row![
         over_art_button(ICON_PLAY, Message::Collection(kind, shown, Act::Play)),
@@ -620,7 +513,6 @@ fn controls<'a>(shown: usize, kind: Kind) -> Element<'a, Message> {
         .into()
 }
 
-/// A control drawn over cover art: white, on the scrim.
 fn over_art_button<'a>(bytes: &'static [u8], message: Message) -> Element<'a, Message> {
     button(
         svg(svg::Handle::from_memory(bytes))
@@ -634,7 +526,6 @@ fn over_art_button<'a>(bytes: &'static [u8], message: Message) -> Element<'a, Me
     .into()
 }
 
-/// A control on a themed surface, which is what a panel's heading is.
 fn icon_button<'a>(bytes: &'static [u8], message: Message) -> Element<'a, Message> {
     button(
         svg(svg::Handle::from_memory(bytes))
@@ -658,7 +549,6 @@ fn menu(collection: Collection<'_>, shown: usize, kind: Kind, pane: PaneId) -> V
     ]
 }
 
-/// The open collection: its cover, what it is, and its tracks.
 fn panel<'a>(
     collection: Collection<'a>,
     shown: usize,
@@ -673,15 +563,6 @@ fn panel<'a>(
     let tracks: Vec<&'a Track> = collection.tracks(library).collect();
     let total: f32 = tracks.iter().map(|track| track.duration()).sum();
 
-    // Play leads the heading rather than trailing it. Pushed to the far right by
-    // a filler it sat a whole panel's width from the title it acts on, which on
-    // a wide pane put the control and the thing it plays at opposite ends of the
-    // eye's travel. Reading order is what the button belongs to.
-    // The heading sits at the tinted end of the panel, on a color taken from
-    // the cover rather than one the theme picked, so its text is white for the
-    // same reason the text over the art is: no palette entry is reliably legible
-    // against an unknown color. The track list further along is on the theme's
-    // own background and keeps the theme's own colors.
     let heading = row![
         icon_button(ICON_PLAY, Message::Collection(kind, shown, Act::Play)),
         column![
@@ -731,10 +612,6 @@ fn panel<'a>(
     .spacing(PAD * 2.0)
     .align_y(Vertical::Top);
 
-    // The panel is tinted by the cover it belongs to, which the cache has
-    // already named for the art the grid drew. Nothing is requested here: the
-    // color arrives with the cover, so a panel is plain for the frame or two
-    // before its art resolves and then tints along with it.
     let tint = collection
         .cover(library)
         .and_then(Track::id)
@@ -748,11 +625,6 @@ fn panel<'a>(
         .into()
 }
 
-/// One track in an open panel.
-///
-/// Numbered by its tag on an album, since that is the number printed on the
-/// sleeve and gaps in it are real, and by position in a playlist, where the tag
-/// would count against a record the user did not assemble.
 fn track_row(track: &Track, index: usize, kind: Kind) -> Element<'_, Message> {
     let number = match kind {
         Kind::Album => track.track_number().unwrap_or(index as u32 + 1),
@@ -785,8 +657,6 @@ fn track_row(track: &Track, index: usize, kind: Kind) -> Element<'_, Message> {
     .spacing(PAD)
     .align_y(Vertical::Center);
 
-    // A missing file has nothing to play, so its row is inert rather than a
-    // button that silently does nothing when pressed.
     let Some(id) = track.id().filter(|_| !missing) else {
         return container(line)
             .padding([PAD, PAD])
@@ -811,11 +681,6 @@ fn clock(seconds: f32) -> String {
     format!("{}:{:02}", total / 60, total % 60)
 }
 
-/// The two empty states, which are different messages.
-///
-/// A library with no collections at all is not a search that matched none of
-/// them, and saying "Nothing here" under a query would read as a library that
-/// had lost them.
 fn empty<'a>(library: &Library, search: &str) -> Element<'a, Message> {
     let message = if search.trim().is_empty() {
         if library.is_empty() {

@@ -59,7 +59,6 @@ fn plural(count: usize) -> &'static str {
     if count == 1 { "track" } else { "tracks" }
 }
 
-/// A total run time, in the largest unit that keeps it short.
 fn span(seconds: f32) -> String {
     if !seconds.is_finite() || seconds <= 0.0 {
         return "0 min".to_owned();
@@ -363,8 +362,8 @@ mod tests {
     /// the string both produce is checked once here rather than per pane.
     #[test]
     fn a_summary_names_the_count_and_the_run_time() {
-        assert_eq!(summary(1, 90.0), "1 track · 2 min");
-        assert_eq!(summary(12, 90.0 * 60.0), "12 tracks · 1 hr 30 min");
+        assert_eq!(summary(1, 90.0), "1 track Â· 2 min");
+        assert_eq!(summary(12, 90.0 * 60.0), "12 tracks Â· 1 hr 30 min");
     }
 
     #[test]

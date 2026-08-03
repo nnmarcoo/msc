@@ -661,17 +661,17 @@ mod tests {
     #[test]
     fn an_accented_title_still_folds() {
         assert!(
-            contains_fold("BJÖRK", "björk"),
+            contains_fold("BJÃ–RK", "bjÃ¶rk"),
             "a non-ascii field skipped the unicode fallback"
         );
-        assert!(contains_fold("Sigur Rós", "rós"));
+        assert!(contains_fold("Sigur RÃ³s", "rÃ³s"));
     }
 
     #[test]
     fn an_accented_query_does_not_match_the_ascii_letter() {
         assert!(
-            !contains_fold("Bjork", "björk"),
-            "folding treated o and ö as the same letter"
+            !contains_fold("Bjork", "bjÃ¶rk"),
+            "folding treated o and Ã¶ as the same letter"
         );
     }
 

@@ -142,12 +142,6 @@ pub fn divider_inert_style(theme: &Theme) -> container::Style {
     }
 }
 
-/// A cover tile: the art alone, with no chrome of its own.
-///
-/// Transparent rather than filled, because the tile *is* the image and a plate
-/// behind it would show only as a rim wherever the art did not reach the corner.
-/// Square, like the cover it wraps and the scrim over it — see
-/// [`over_art_style`] for why the three agree to have no corners at all.
 pub fn tile_style(_theme: &Theme, _status: button::Status) -> button::Style {
     button::Style {
         background: None,
@@ -155,30 +149,6 @@ pub fn tile_style(_theme: &Theme, _status: button::Status) -> button::Style {
     }
 }
 
-/// The scrim behind controls drawn over cover art.
-///
-/// A gradient from transparent at the top to black at the foot rather than a
-/// flat panel, so the label sits on darkness that the art fades into instead of
-/// behind a box with an edge cutting across the sleeve. It spans the whole tile
-/// for that reason: a scrim only as tall as its text has a hard line above it
-/// wherever the cover is pale.
-///
-/// Fixed dark rather than theme-derived, because what it sits on is an image
-/// and not a surface the theme chose: a light theme's own weak color over a
-/// dark sleeve leaves white text on white, and the reverse over a pale one. The
-/// scrim is what makes the label legible whatever the cover happens to be, so it
-/// answers to the art rather than to the palette, and the text and icons over it
-/// are white for the same reason — see [`over_art_svg_style`].
-///
-/// Square, and so are the cover beneath it and the button around both. A tile is
-/// several layers drawn over one another, and a rounded corner is rasterized
-/// separately by each: an image rounds in its own shader against its own rect, a
-/// container rounds a quad against the container's, and the arcs differ by a
-/// fraction of a pixel where they meet, which reads as a soft or doubled corner.
-/// Squaring all three makes that unrepresentable rather than tuned away. This is
-/// the one family of surfaces that deliberately ignores [`radius`], for the same
-/// kind of reason a scrubber head keeps its circle: the shape is not chrome the
-/// theme owns, it is the edge of a picture.
 pub fn over_art_style(_theme: &Theme) -> container::Style {
     container::Style {
         background: Some(Background::Gradient(iced::Gradient::Linear(
@@ -191,11 +161,6 @@ pub fn over_art_style(_theme: &Theme) -> container::Style {
     }
 }
 
-/// An icon drawn over cover art: white, and brightening under the pointer.
-///
-/// Not [`svg_style`], which colors from the palette's text: over a black scrim
-/// a light theme's near-black icon is invisible. What the icon sits on is the
-/// scrim rather than the theme's background, so it answers to that.
 pub fn over_art_svg_style(_theme: &Theme, status: svg::Status) -> svg::Style {
     let color = match status {
         svg::Status::Hovered => iced::Color::WHITE,
@@ -204,15 +169,6 @@ pub fn over_art_svg_style(_theme: &Theme, status: svg::Status) -> svg::Style {
     svg::Style { color: Some(color) }
 }
 
-/// A control over cover art: the icon alone until pressed or pointed at.
-///
-/// Its hover fill is white at low alpha rather than the palette's, for the same
-/// reason the icon is white: a theme-colored chip over a black scrim reads as a
-/// gray box stuck on the sleeve.
-///
-/// The control keeps its radius where the tile does not: it is a small chip well
-/// inside the cover rather than a layer sharing the tile's edge, so its curve
-/// meets nothing it could disagree with.
 pub fn over_art_button_style(_theme: &Theme, status: button::Status) -> button::Style {
     let background = match status {
         button::Status::Hovered => Some(Background::Color(iced::Color::WHITE.scale_alpha(0.18))),
@@ -228,18 +184,6 @@ pub fn over_art_button_style(_theme: &Theme, status: button::Status) -> button::
     }
 }
 
-/// An expanded collection's panel, tinted by the cover it belongs to.
-///
-/// The tint fades from the color at the cover's edge into the theme's own
-/// background across the panel, so the surface reads as belonging to that record
-/// rather than as a colored slab: the art bleeds into the panel beside it and
-/// the far end stays a surface the theme owns, which is where the track list
-/// sits and where text has to stay readable.
-///
-/// `None` leaves the panel its plain background. A grayscale sleeve names no
-/// color, and neither does one whose art has not been read yet — see
-/// [`crate::artwork::Cache::color`] — so the panel is untinted until the cover
-/// it is showing arrives, and then tints in the same frame the cover appears.
 pub fn panel_style(tint: Option<[u8; 3]>) -> impl Fn(&Theme) -> container::Style {
     move |theme: &Theme| {
         let palette = theme.extended_palette();
@@ -267,18 +211,6 @@ pub fn panel_style(tint: Option<[u8; 3]>) -> impl Fn(&Theme) -> container::Style
     }
 }
 
-/// A control on a panel: the icon alone until pointed at.
-///
-/// Not [`icon_button_style`], which fills with `background.weak` on hover — the
-/// same color an untinted panel is, so its feedback was invisible on exactly
-/// this surface.
-///
-/// White at low alpha rather than a palette color, for the reason
-/// [`over_art_button_style`] is: this control sits at the tinted end of the
-/// panel, where the background is a color taken from the cover rather than one
-/// the theme chose, so no palette entry is reliably distinct from it. A wash of
-/// white lightens whatever is underneath, which reads as a highlight over any
-/// tint and over the plain background alike.
 pub fn panel_button_style(_theme: &Theme, status: button::Status) -> button::Style {
     let background = match status {
         button::Status::Hovered => Some(Background::Color(iced::Color::WHITE.scale_alpha(0.15))),
@@ -294,13 +226,6 @@ pub fn panel_button_style(_theme: &Theme, status: button::Status) -> button::Sty
     }
 }
 
-/// A row inside a panel: nothing until the pointer is on it.
-///
-/// Hover and press are different fills rather than one shared "lit" state, so a
-/// click reads as landing rather than merely as the pointer still being there.
-/// The hover is `strong` at part alpha because the row spans the panel: a full
-/// strength bar the width of the listing is louder than the thing it highlights,
-/// where the same color under a small control reads as a chip.
 pub fn listing_row_style(theme: &Theme, status: button::Status) -> button::Style {
     let palette = theme.extended_palette();
     let background = match status {
@@ -319,14 +244,6 @@ pub fn listing_row_style(theme: &Theme, status: button::Status) -> button::Style
     }
 }
 
-/// The placeholder in a collections grid: the same fill, squared.
-///
-/// A separate style rather than a flag on [`artwork_placeholder_style`] because
-/// the two answer to different things. The artwork pane's placeholder is a
-/// surface the theme owns and rounds with everything else; this one stands in
-/// for a cover and must have the same edge as the covers beside it, which are
-/// square for the reason [`over_art_style`] gives. A grid where the tiles with
-/// art were square and the ones without were rounded would read as a mistake.
 pub fn cover_placeholder_style(theme: &Theme) -> container::Style {
     container::Style {
         border: Border::default(),

@@ -88,17 +88,6 @@ pub fn decode(job: &Job, master: Option<Source>) -> Decoded {
         resample(master.as_ref(), side(width), side(height))
     };
 
-    // Only for a cover being seen for the first time. A second size of one
-    // already decoded is cut from a resident master, and the cache has filed
-    // that image's color since the first pass; recomputing it would be the same
-    // answer for the same pixels. `None` from a re-decode therefore means "ask
-    // the cache", not "this cover has no color", which is why
-    // [`crate::artwork::Cache::insert`] keeps the color it already holds rather
-    // than overwriting it.
-    //
-    // Taken from the master rather than from `scaled`, so every size of one
-    // cover names the same color. Reducing a 64px thumbnail again would let a
-    // small pane and a large one disagree about what an album looks like.
     let color = fresh.then(|| palette::dominant(master.as_ref())).flatten();
 
     Decoded {

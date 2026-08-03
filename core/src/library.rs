@@ -309,7 +309,11 @@ fn albums_by_key<'a>(
 fn is_audio(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
-        .is_some_and(|e| AUDIO_EXTENSIONS.contains(&e.to_lowercase().as_str()))
+        .is_some_and(|extension| {
+            AUDIO_EXTENSIONS
+                .iter()
+                .any(|known| known.eq_ignore_ascii_case(extension))
+        })
 }
 
 fn database_path() -> Result<PathBuf, LibraryError> {
@@ -410,6 +414,48 @@ mod tests {
             artist: None,
         };
         assert!(albums_by_key(&[], &[key]).is_empty());
+    }
+
+    #[test]
+    fn every_supported_extension_is_recognized() {
+        for extension in AUDIO_EXTENSIONS {
+            let path = PathBuf::from(format!("song.{extension}"));
+            assert!(is_audio(&path), "{extension} was not recognized as audio");
+        }
+    }
+
+    #[test]
+    fn an_extension_is_recognized_however_it_was_capitalized() {
+        for name in ["song.MP3", "song.Flac", "song.WaV", "song.OGG"] {
+            assert!(
+                is_audio(Path::new(name)),
+                "{name} was skipped by a scan for its capitalization"
+            );
+        }
+    }
+
+    #[test]
+    fn a_file_that_is_not_audio_is_skipped() {
+        for name in ["cover.jpg", "notes.txt", "album.m3u", "song.mp4"] {
+            assert!(!is_audio(Path::new(name)), "{name} was read as audio");
+        }
+    }
+
+    #[test]
+    fn a_file_with_no_extension_is_skipped() {
+        assert!(!is_audio(Path::new("README")));
+        assert!(!is_audio(Path::new("song.")));
+    }
+
+    /// ASCII folding is what the extensions need, and it is deliberately not
+    /// Unicode folding: the Kelvin sign lowercases to `k` under `to_lowercase`,
+    /// so a Unicode fold would accept extensions that are not the ones listed.
+    #[test]
+    fn folding_does_not_stretch_past_ascii() {
+        assert!(
+            !is_audio(Path::new("song.mp\u{212A}")),
+            "a non-ascii character was folded into a supported extension"
+        );
     }
 }
 
