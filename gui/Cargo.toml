@@ -16,6 +16,10 @@ rust-version.workspace = true
 name = "verse"
 path = "src/main.rs"
 
+[features]
+default = []
+explore = ["verse-core/explore"]
+
 [dependencies]
 verse-core = { path = "../core" }
 

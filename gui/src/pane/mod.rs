@@ -96,6 +96,7 @@ impl PaneCategory {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[serde(from = "Named")]
 pub enum PaneKind {
     Library,
     Search,
@@ -104,6 +105,8 @@ pub enum PaneKind {
     Playlists,
     Collections,
     Folders,
+    #[cfg(feature = "explore")]
+    Explore,
     Queue,
     NowPlaying,
     Controls,
@@ -118,8 +121,90 @@ pub enum PaneKind {
     Empty,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Named {
+    Library,
+    Search,
+    Albums,
+    Artists,
+    Playlists,
+    Collections,
+    Folders,
+    Explore,
+    Queue,
+    NowPlaying,
+    Controls,
+    Timeline,
+    Volume,
+    History,
+    Lyrics,
+    TrackInfo,
+    Artwork,
+    Visualizer,
+    Equalizer,
+    Empty,
+    #[serde(other)]
+    Unknown,
+}
+
+impl From<Named> for PaneKind {
+    fn from(named: Named) -> Self {
+        match named {
+            Named::Library => Self::Library,
+            Named::Search => Self::Search,
+            Named::Albums => Self::Albums,
+            Named::Artists => Self::Artists,
+            Named::Playlists => Self::Playlists,
+            Named::Collections => Self::Collections,
+            Named::Folders => Self::Folders,
+            #[cfg(feature = "explore")]
+            Named::Explore => Self::Explore,
+            #[cfg(not(feature = "explore"))]
+            Named::Explore => Self::Empty,
+            Named::Queue => Self::Queue,
+            Named::NowPlaying => Self::NowPlaying,
+            Named::Controls => Self::Controls,
+            Named::Timeline => Self::Timeline,
+            Named::Volume => Self::Volume,
+            Named::History => Self::History,
+            Named::Lyrics => Self::Lyrics,
+            Named::TrackInfo => Self::TrackInfo,
+            Named::Artwork => Self::Artwork,
+            Named::Visualizer => Self::Visualizer,
+            Named::Equalizer => Self::Equalizer,
+            Named::Empty | Named::Unknown => Self::Empty,
+        }
+    }
+}
+
 impl PaneKind {
-    pub const ALL: [PaneKind; 19] = [
+    #[cfg(feature = "explore")]
+    pub const ALL: &'static [PaneKind] = &[
+        PaneKind::Library,
+        PaneKind::Search,
+        PaneKind::Albums,
+        PaneKind::Artists,
+        PaneKind::Playlists,
+        PaneKind::Collections,
+        PaneKind::Folders,
+        PaneKind::Explore,
+        PaneKind::Queue,
+        PaneKind::NowPlaying,
+        PaneKind::Controls,
+        PaneKind::Timeline,
+        PaneKind::Volume,
+        PaneKind::History,
+        PaneKind::Lyrics,
+        PaneKind::TrackInfo,
+        PaneKind::Artwork,
+        PaneKind::Visualizer,
+        PaneKind::Equalizer,
+        PaneKind::Empty,
+    ];
+
+    #[cfg(not(feature = "explore"))]
+    pub const ALL: &'static [PaneKind] = &[
         PaneKind::Library,
         PaneKind::Search,
         PaneKind::Albums,
@@ -150,6 +235,8 @@ impl PaneKind {
             PaneKind::Playlists => "Playlists",
             PaneKind::Collections => "Collections",
             PaneKind::Folders => "Folders",
+            #[cfg(feature = "explore")]
+            PaneKind::Explore => "Explore",
             PaneKind::Queue => "Queue",
             PaneKind::NowPlaying => "Now Playing",
             PaneKind::Controls => "Controls",
@@ -174,6 +261,8 @@ impl PaneKind {
             | PaneKind::Playlists
             | PaneKind::Collections
             | PaneKind::Folders => PaneCategory::Browse,
+            #[cfg(feature = "explore")]
+            PaneKind::Explore => PaneCategory::Browse,
             PaneKind::Queue
             | PaneKind::NowPlaying
             | PaneKind::Controls
@@ -196,6 +285,8 @@ impl PaneKind {
             PaneKind::Playlists => "mixes sets collections",
             PaneKind::Collections => "albums grid covers artwork browse library",
             PaneKind::Folders => "files directories browse disk",
+            #[cfg(feature = "explore")]
+            PaneKind::Explore => "download search online discover find new music",
             PaneKind::Queue => "up next playlist upcoming",
             PaneKind::NowPlaying => "current track player",
             PaneKind::Controls => "transport play pause next previous skip",
@@ -219,7 +310,7 @@ impl PaneKind {
 
     pub fn by_category() -> Vec<(PaneCategory, Vec<PaneKind>)> {
         let mut groups: Vec<(PaneCategory, Vec<PaneKind>)> = Vec::new();
-        for kind in PaneKind::ALL {
+        for &kind in PaneKind::ALL {
             match groups.last_mut() {
                 Some((category, kinds)) if *category == kind.category() => kinds.push(kind),
                 _ => groups.push((kind.category(), vec![kind])),
@@ -231,7 +322,8 @@ impl PaneKind {
     pub fn search(query: &str) -> Vec<PaneKind> {
         let query_lower = query.to_lowercase();
         PaneKind::ALL
-            .into_iter()
+            .iter()
+            .copied()
             .filter(|kind| kind.matches(&query_lower))
             .collect()
     }
@@ -260,6 +352,8 @@ impl PaneState {
             PaneKind::Timeline => Self::Timeline(timeline::State::default()),
             PaneKind::Artwork => Self::Artwork(artwork::State::default()),
             PaneKind::Collections => Self::Collections(collections::State::default()),
+            #[cfg(feature = "explore")]
+            PaneKind::Explore => Self::Stateless,
             PaneKind::Library
             | PaneKind::Search
             | PaneKind::Albums
@@ -368,9 +462,52 @@ mod tests {
 
     #[test]
     fn every_kind_appears_exactly_once_in_all() {
-        for kind in PaneKind::ALL {
+        for &kind in PaneKind::ALL {
             let count = PaneKind::ALL.iter().filter(|k| **k == kind).count();
             assert_eq!(count, 1, "{kind:?} listed {count} times in ALL");
+        }
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct Holder {
+        kind: PaneKind,
+    }
+
+    fn read_kind(name: &str) -> PaneKind {
+        toml::from_str::<Holder>(&format!("kind = \"{name}\""))
+            .expect("a kind never fails to parse")
+            .kind
+    }
+
+    #[test]
+    fn a_kind_this_build_does_not_know_reads_as_empty() {
+        assert_eq!(read_kind("nonsense_kind"), PaneKind::Empty);
+    }
+
+    #[test]
+    fn an_explore_pane_survives_a_build_without_the_feature() {
+        let parsed = read_kind("explore");
+
+        #[cfg(feature = "explore")]
+        assert_eq!(parsed, PaneKind::Explore);
+
+        #[cfg(not(feature = "explore"))]
+        assert_eq!(
+            parsed,
+            PaneKind::Empty,
+            "a layout naming explore must degrade to a blank pane rather than \
+             failing the whole config and discarding the user's themes, \
+             keybinds and layouts"
+        );
+    }
+
+    #[test]
+    fn every_kind_round_trips_through_its_serialized_name() {
+        for &kind in PaneKind::ALL {
+            let text = toml::to_string(&Holder { kind }).expect("serializes");
+            let back: Holder = toml::from_str(&text).expect("deserializes");
+
+            assert_eq!(back.kind, kind, "{kind:?} did not survive {text}");
         }
     }
 
