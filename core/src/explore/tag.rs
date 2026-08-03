@@ -258,8 +258,6 @@ mod tests {
         assert!(path.ends_with("Nude.m4a"), "{path:?}");
     }
 
-    /// The album artist wins over the track artist, so a record with guest
-    /// credits lands in one folder rather than one per guest.
     #[test]
     fn a_guest_credit_does_not_scatter_an_album() {
         let mut guest = found("Feature");
@@ -300,8 +298,6 @@ mod tests {
         assert_eq!(sanitize(r"back\slash"), "back_slash");
     }
 
-    /// Windows silently drops a trailing dot or space, so two titles differing
-    /// only by one would land on the same file.
     #[test]
     fn trailing_dots_and_spaces_are_removed() {
         assert_eq!(sanitize("Album."), "Album");
@@ -310,7 +306,6 @@ mod tests {
         assert_eq!(sanitize(" .Album. "), "Album");
     }
 
-    /// A reserved device name fails to open even with an extension.
     #[test]
     fn reserved_device_names_are_escaped() {
         assert_eq!(sanitize("CON"), "_CON");
@@ -334,8 +329,6 @@ mod tests {
         assert_eq!(cleaned.chars().count(), MAX_COMPONENT);
     }
 
-    /// Clamping counts characters rather than bytes, so a multi-byte title is
-    /// never cut mid-character into invalid UTF-8.
     #[test]
     fn an_overlong_name_of_wide_characters_stays_whole() {
         let long = "あ".repeat(400);
