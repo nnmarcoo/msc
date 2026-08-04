@@ -103,12 +103,11 @@ const SCROLLBAR: f32 = 10.0;
 
 /// How many rows of covers an opened panel may grow to before it scrolls.
 ///
-/// Two was the cap while the panel was a fixed box, and a twelve-track album —
-/// the common case — wanted 310px against the 290 that allowed, so the album
-/// most likely to be opened was also the one guaranteed a second scrollbar
-/// nested inside the pane's own. Three fits a normal record outright and still
-/// leaves the grid it was opened from on screen.
-const PANEL_ROWS: f32 = 3.0;
+/// The panel is a track list and nothing else, so this is purely how far it may
+/// push the grid down. Two rows keeps what the album was opened from on screen,
+/// which is the point of expanding in place rather than replacing the view; a
+/// record long enough to want more scrolls inside the panel instead.
+const PANEL_ROWS: f32 = 2.0;
 
 const NUMBER_WIDTH: f32 = 26.0;
 
@@ -1145,16 +1144,38 @@ mod tests {
         );
     }
 
+    /// The cap is what keeps the grid the album was opened from on screen. A
+    /// panel free to grow to its content would push the covers out of view, and
+    /// expanding in place would then be no better than replacing the listing.
     #[test]
-    fn a_typical_album_fits_without_a_nested_scrollbar() {
+    fn a_long_album_cannot_push_the_grid_off_screen() {
         let grid = super::super::collections::layout(900.0, 12).expect("a grid");
         let ceiling = grid.cell * PANEL_ROWS + GAP;
 
         assert!(
-            wanted_height(12) <= ceiling,
-            "a twelve-track album wanted {} but the panel caps at {ceiling}, so it \
-             nests a scrollbar inside the pane's own",
-            wanted_height(12)
+            wanted_height(30) > ceiling,
+            "a thirty-track album fit inside the cap, so nothing is being bounded"
+        );
+
+        let drawn = wanted_height(30).clamp(grid.cell + GAP, ceiling);
+
+        assert!(
+            (drawn - ceiling).abs() < f32::EPSILON,
+            "the panel drew {drawn} rather than stopping at {ceiling}"
+        );
+    }
+
+    #[test]
+    fn a_short_album_is_not_padded_out_to_the_cap() {
+        let grid = super::super::collections::layout(900.0, 12).expect("a grid");
+        let floor = grid.cell + GAP;
+        let ceiling = grid.cell * PANEL_ROWS + GAP;
+
+        let drawn = wanted_height(3).clamp(floor, ceiling);
+
+        assert!(
+            drawn < ceiling,
+            "a three-track album reserved the full {ceiling} the cap allows"
         );
     }
 
