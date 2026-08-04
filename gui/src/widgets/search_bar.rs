@@ -35,6 +35,18 @@ const PLACEHOLDER: &str = "Search\u{2026}";
 
 const HERO_TEXT_SIZE: f32 = 15.0;
 const HERO_V_PAD: f32 = 11.0;
+/// The cross itself, and the ring of space around it.
+///
+/// The icon carries the meaning and the padding is only a hit target, so the
+/// icon takes most of the button: at 11px inside 5px of padding the glyph was a
+/// third of what it drew, and read as a speck centred in an empty circle rather
+/// than a control. The proportion here is roughly two thirds ink.
+const HERO_CLEAR_ICON: f32 = 15.0;
+const HERO_CLEAR_PAD: f32 = 3.0;
+
+/// The clear button's full edge, and so twice the radius that rounds it into a
+/// circle.
+const HERO_CLEAR_EDGE: f32 = HERO_CLEAR_ICON + HERO_CLEAR_PAD * 2.0;
 
 pub struct SearchBar<'a, Message> {
     query: &'a str,
@@ -121,12 +133,22 @@ impl<'a, Message: Clone + 'a> From<SearchBar<'a, Message>> for Element<'a, Messa
         }
 
         if filtering {
-            line = line.push(
+            line = line.push(if hero {
+                button(
+                    svg(Handle::from_memory(ICON_CLOSE))
+                        .width(Length::Fixed(HERO_CLEAR_ICON))
+                        .height(Length::Fixed(HERO_CLEAR_ICON))
+                        .style(hero_clear_icon_style),
+                )
+                .on_press(bar.on_clear)
+                .padding(HERO_CLEAR_PAD)
+                .style(hero_clear_style)
+            } else {
                 button(icon(ICON_CLOSE))
                     .on_press(bar.on_clear)
                     .padding(2.0)
-                    .style(styles::icon_button_style),
-            );
+                    .style(styles::icon_button_style)
+            });
         }
 
         let padding = if hero {
@@ -173,11 +195,64 @@ fn hero_field_style(theme: &Theme, status: text_input::Status) -> text_input::St
 }
 
 fn icon<'a, Message: 'a>(bytes: &'static [u8]) -> Element<'a, Message> {
+    icon_sized(bytes, ICON_SIZE)
+}
+
+fn icon_sized<'a, Message: 'a>(bytes: &'static [u8], edge: f32) -> Element<'a, Message> {
     svg(Handle::from_memory(bytes))
-        .width(Length::Fixed(ICON_SIZE))
-        .height(Length::Fixed(ICON_SIZE))
+        .width(Length::Fixed(edge))
+        .height(Length::Fixed(edge))
         .style(styles::svg_style)
         .into()
+}
+
+/// The hero field's clear button.
+///
+/// Round rather than the shared rounded-rectangle: at a hair over the icon's own
+/// size, a 6px corner radius reads as a slightly-squashed box rather than a
+/// deliberate shape, and next to a field with a 9px radius it looked like a
+/// mistake. A circle is unambiguous at any size.
+///
+/// It also sits back until pointed at. The cross is the one control in the field
+/// that destroys something, and drawing it at full strength beside the query put
+/// the most emphatic mark in the row on the thing the user least often wants.
+fn hero_clear_style(theme: &Theme, status: button::Status) -> button::Style {
+    let palette = theme.extended_palette();
+
+    let background = match status {
+        button::Status::Hovered | button::Status::Pressed => Some(iced::Background::Color(
+            palette.background.strong.color.scale_alpha(0.55),
+        )),
+        _ => None,
+    };
+
+    button::Style {
+        background,
+        text_color: palette.background.base.text,
+        border: Border {
+            radius: (HERO_CLEAR_EDGE / 2.0).into(),
+            ..Border::default()
+        },
+        ..button::Style::default()
+    }
+}
+
+/// Dimmer at rest than [`styles::svg_style`], which never drops below 0.7.
+///
+/// The cross has to sit quieter than that: it is the only mark in the field
+/// competing with the query text itself, and at icon strength the eye kept
+/// landing on the control that throws the search away.
+fn hero_clear_icon_style(theme: &Theme, status: svg::Status) -> svg::Style {
+    let base = theme.extended_palette().background.base.text;
+
+    let alpha = match status {
+        svg::Status::Hovered => 1.0,
+        svg::Status::Idle => 0.45,
+    };
+
+    svg::Style {
+        color: Some(Color { a: alpha, ..base }),
+    }
 }
 
 fn field_style(theme: &Theme, status: text_input::Status) -> text_input::Style {
@@ -252,4 +327,23 @@ mod tests {
     fn a_query_padded_with_spaces_still_filters() {
         assert!(bar("  monday  ").is_filtering());
     }
+
+    #[test]
+    fn a_bar_is_a_strip_unless_it_is_asked_to_be_a_hero() {
+        assert!(!bar("").hero);
+        assert!(bar("").hero().hero);
+    }
+
+    #[test]
+    fn a_hero_bar_can_name_what_it_is_searching() {
+        let named = bar("").placeholder("Search for music");
+
+        assert_eq!(named.placeholder, Some("Search for music"));
+        assert_eq!(bar("").placeholder, None, "the default is filled in later");
+    }
+
+    /// The clear button is round, which only holds while the radius is half the
+    /// edge; any less and it draws as a rounded square beside a field whose own
+    /// corners are a different radius entirely.
+    const _: () = assert!(HERO_CLEAR_EDGE == HERO_CLEAR_ICON + HERO_CLEAR_PAD * 2.0);
 }
