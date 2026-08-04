@@ -34,6 +34,8 @@
 pub mod artwork;
 pub mod collections;
 pub mod controls;
+#[cfg(feature = "explore")]
+pub mod explore;
 pub mod library;
 pub mod options;
 pub mod queue;
@@ -331,6 +333,8 @@ impl PaneKind {
 
 #[derive(Debug, Clone)]
 pub enum PaneMessage {
+    #[cfg(feature = "explore")]
+    Explore(explore::PanelMessage),
     Queue(queue::Message),
     Timeline(timeline::Message),
     Collections(collections::PanelMessage),
@@ -338,6 +342,8 @@ pub enum PaneMessage {
 
 #[derive(Debug)]
 pub enum PaneState {
+    #[cfg(feature = "explore")]
+    Explore(explore::State),
     Queue(queue::State),
     Timeline(timeline::State),
     Artwork(artwork::State),
@@ -353,7 +359,7 @@ impl PaneState {
             PaneKind::Artwork => Self::Artwork(artwork::State::default()),
             PaneKind::Collections => Self::Collections(collections::State::default()),
             #[cfg(feature = "explore")]
-            PaneKind::Explore => Self::Stateless,
+            PaneKind::Explore => Self::Explore(explore::State::default()),
             PaneKind::Library
             | PaneKind::Search
             | PaneKind::Albums
@@ -407,6 +413,10 @@ impl PaneStates {
 
     pub fn update(&mut self, id: PaneId, message: PaneMessage) {
         match (self.get_mut(id), message) {
+            #[cfg(feature = "explore")]
+            (Some(PaneState::Explore(state)), PaneMessage::Explore(message)) => {
+                explore::update(state, &message);
+            }
             (Some(PaneState::Queue(state)), PaneMessage::Queue(message)) => {
                 queue::update(state, &message);
             }

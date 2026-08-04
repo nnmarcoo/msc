@@ -38,7 +38,7 @@
 use serde_json::Value;
 
 use super::nav;
-use crate::explore::{Found, FoundAlbum};
+use crate::explore::{Found, FoundAlbum, Release};
 
 const ALBUM_PAGE: &str = "MUSIC_PAGE_TYPE_ALBUM";
 const ARTIST_PAGE: &str = "MUSIC_PAGE_TYPE_ARTIST";
@@ -142,10 +142,12 @@ pub fn album(response: &Value, album_id: &str) -> Option<FoundAlbum> {
 
     Some(FoundAlbum {
         id: album_id.to_owned(),
+        release: release_of(header.get("subtitle")),
         title,
         artist,
         year: year_from_subtitle(header),
         cover_url: cover,
+        explicit: is_explicit(header),
         tracks,
     })
 }
@@ -183,6 +185,102 @@ fn radio_track(row: &Value, seed: &str) -> Option<Found> {
             .and_then(clock),
         cover_url: cover_at(row, &["thumbnail", "thumbnails"]),
         explicit: is_explicit(row),
+    })
+}
+
+pub fn album_results(response: &Value, limit: usize) -> Vec<FoundAlbum> {
+    nav::find_all(response, "musicResponsiveListItemRenderer")
+        .into_iter()
+        .filter_map(album_result)
+        .take(limit)
+        .collect()
+}
+
+fn album_result(row: &Value) -> Option<FoundAlbum> {
+    let id = nav::string(row, &["navigationEndpoint", "browseEndpoint", "browseId"])?;
+
+    if !id.starts_with("MPRE") {
+        return None;
+    }
+
+    let columns = row.get("flexColumns")?.as_array()?;
+    let title = column_text(columns, 0)?;
+    let byline = columns.get(1);
+
+    Some(FoundAlbum {
+        id: id.to_owned(),
+        release: release_of(byline),
+        title,
+        artist: byline.and_then(|column| linked_run(column, ARTIST_PAGE)),
+        year: byline.and_then(year_run),
+        cover_url: cover_at(
+            row,
+            &[
+                "thumbnail",
+                "musicThumbnailRenderer",
+                "thumbnail",
+                "thumbnails",
+            ],
+        ),
+        explicit: is_explicit(row),
+        tracks: Vec::new(),
+    })
+}
+
+fn lead_word(column: &Value) -> Option<String> {
+    column_runs(column).iter().find_map(|run| {
+        let text = run.get("text")?.as_str()?.trim();
+        (!text.is_empty() && text != "\u{2022}").then(|| text.to_owned())
+    })
+}
+
+fn release_of(column: Option<&Value>) -> Release {
+    column
+        .and_then(lead_word)
+        .map_or(Release::Album, |word| Release::of(&word))
+}
+
+fn year_run(column: &Value) -> Option<u32> {
+    column_runs(column)
+        .iter()
+        .filter_map(|run| run.get("text")?.as_str()?.trim().parse::<u32>().ok())
+        .find(|year| (1000..=9999).contains(year))
+}
+
+pub fn album_tiles(response: &Value, limit: usize) -> Vec<FoundAlbum> {
+    nav::find_all(response, "musicTwoRowItemRenderer")
+        .into_iter()
+        .filter_map(album_tile)
+        .take(limit)
+        .collect()
+}
+
+fn album_tile(tile: &Value) -> Option<FoundAlbum> {
+    let id = nav::string(tile, &["navigationEndpoint", "browseEndpoint", "browseId"])?;
+
+    if !id.starts_with("MPRE") {
+        return None;
+    }
+
+    let subtitle = tile.get("subtitle");
+
+    Some(FoundAlbum {
+        id: id.to_owned(),
+        release: release_of(subtitle),
+        title: nav::runs_text(tile, &["title"])?,
+        artist: subtitle.and_then(|column| linked_run(column, ARTIST_PAGE)),
+        year: subtitle.and_then(year_run),
+        cover_url: cover_at(
+            tile,
+            &[
+                "thumbnailRenderer",
+                "musicThumbnailRenderer",
+                "thumbnail",
+                "thumbnails",
+            ],
+        ),
+        explicit: is_explicit(tile),
+        tracks: Vec::new(),
     })
 }
 

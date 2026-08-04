@@ -23,7 +23,7 @@ explore = ["verse-core/explore"]
 [dependencies]
 verse-core = { path = "../core" }
 
-iced = { version = "0.14.0", features = ["advanced", "svg", "image", "tokio"] }
+iced = { version = "0.14.0", features = ["advanced", "svg", "image", "tokio", "canvas"] }
 tokio = { version = "1", features = ["rt", "sync", "macros"] }
 image = { version = "0.25.9", default-features = false, features = [
     "jpeg",

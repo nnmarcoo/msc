@@ -68,7 +68,7 @@ async fn main() {
     println!("downloaded: {}", audio.display());
 
     let cover = match &found.cover_url {
-        Some(url) => fetch_cover(url).await,
+        Some(url) => verse_core::explore::fetch_cover_for_file(url).await,
         None => None,
     };
     println!("cover: {} bytes", cover.as_ref().map_or(0, Vec::len));
@@ -145,14 +145,4 @@ fn ingest(scratch: &std::path::Path, filed: &std::path::Path) {
         Ok(sound) => println!("  and it decodes: {:.1}s", sound.duration().as_secs_f32()),
         Err(e) => println!("  BUT IT CANNOT BE PLAYED: {e}"),
     }
-}
-
-async fn fetch_cover(url: &str) -> Option<Vec<u8>> {
-    let response = reqwest::get(url).await.ok()?;
-    response
-        .bytes()
-        .await
-        .ok()
-        .map(|bytes| bytes.to_vec())
-        .filter(|bytes| !bytes.is_empty())
 }

@@ -42,7 +42,7 @@ tokio = { version = "1.53.1", default-features = false, features = [
 ], optional = true }
 
 [dev-dependencies]
-tokio = { version = "1.53.1", features = ["rt", "macros"] }
+tokio = { version = "1.53.1", features = ["rt", "rt-multi-thread", "macros", "time"] }
 kira = { version = "0.12.2", features = ["aac", "alac", "isomp4"] }
 
 [[example]]
@@ -64,3 +64,4 @@ missing_panics_doc = "allow"
 cast_precision_loss = "allow"
 cast_possible_truncation = "allow"
 cast_sign_loss = "allow"
+ 

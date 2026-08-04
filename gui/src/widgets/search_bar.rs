@@ -26,17 +26,23 @@ use iced::{Border, Color, Element, Length, Theme};
 use crate::styles::{self, LABEL_FONT_SIZE, PAD, radius};
 
 const ICON_CLOSE: &[u8] = include_bytes!("../../../assets/icons/close.svg");
+const ICON_SEARCH: &[u8] = include_bytes!("../../../assets/icons/search.svg");
 
 const ICON_SIZE: f32 = 13.0;
 const TEXT_SIZE: f32 = 12.0;
 const V_PAD: f32 = 5.0;
 const PLACEHOLDER: &str = "Search\u{2026}";
 
+const HERO_TEXT_SIZE: f32 = 15.0;
+const HERO_V_PAD: f32 = 11.0;
+
 pub struct SearchBar<'a, Message> {
     query: &'a str,
     on_input: Box<dyn Fn(String) -> Message + 'a>,
     on_clear: Message,
     count: Option<usize>,
+    hero: bool,
+    placeholder: Option<&'a str>,
 }
 
 impl<'a, Message: Clone + 'a> SearchBar<'a, Message> {
@@ -50,11 +56,29 @@ impl<'a, Message: Clone + 'a> SearchBar<'a, Message> {
             on_input: Box::new(on_input),
             on_clear,
             count: None,
+            hero: false,
+            placeholder: None,
         }
     }
 
     pub fn count(mut self, count: usize) -> Self {
         self.count = Some(count);
+        self
+    }
+
+    /// Draws the field as the primary thing in its pane rather than a strip.
+    ///
+    /// A search that is the whole point of a pane should not look like the one
+    /// that filters a list already on screen: it carries a magnifier, sits
+    /// taller, and takes the full width so it reads as an invitation to type
+    /// rather than a control to find.
+    pub fn hero(mut self) -> Self {
+        self.hero = true;
+        self
+    }
+
+    pub fn placeholder(mut self, placeholder: &'a str) -> Self {
+        self.placeholder = Some(placeholder);
         self
     }
 
@@ -67,14 +91,26 @@ impl<'a, Message: Clone + 'a> From<SearchBar<'a, Message>> for Element<'a, Messa
     fn from(bar: SearchBar<'a, Message>) -> Self {
         let filtering = bar.is_filtering();
 
-        let field = text_input(PLACEHOLDER, bar.query)
-            .on_input(bar.on_input)
-            .size(TEXT_SIZE)
-            .padding([V_PAD, PAD])
-            .width(Length::Fill)
-            .style(field_style);
+        let hero = bar.hero;
 
-        let mut line = row![field].spacing(PAD).align_y(iced::Center);
+        let field = text_input(bar.placeholder.unwrap_or(PLACEHOLDER), bar.query)
+            .on_input(bar.on_input)
+            .size(if hero { HERO_TEXT_SIZE } else { TEXT_SIZE })
+            .padding(if hero {
+                [HERO_V_PAD, PAD].into()
+            } else {
+                iced::Padding::from([V_PAD, PAD])
+            })
+            .width(Length::Fill)
+            .style(if hero { hero_field_style } else { field_style });
+
+        let mut line = row![].spacing(PAD).align_y(iced::Center);
+
+        if hero {
+            line = line.push(container(icon(ICON_SEARCH)).padding([0.0, PAD / 2.0]));
+        }
+
+        line = line.push(field);
 
         if let Some(count) = bar.count.filter(|_| filtering) {
             line = line.push(
@@ -93,10 +129,46 @@ impl<'a, Message: Clone + 'a> From<SearchBar<'a, Message>> for Element<'a, Messa
             );
         }
 
-        container(line)
-            .padding([PAD / 2.0, PAD])
-            .width(Length::Fill)
-            .into()
+        let padding = if hero {
+            [PAD / 2.0, PAD * 1.5]
+        } else {
+            [PAD / 2.0, PAD]
+        };
+
+        let shell = container(line).padding(padding).width(Length::Fill);
+
+        if hero {
+            shell.style(hero_shell_style).into()
+        } else {
+            shell.into()
+        }
+    }
+}
+
+/// The hero field's own chrome sits on the container, not the input.
+///
+/// The magnifier is a sibling of the `text_input` rather than inside it, so the
+/// rounded surface has to enclose both or the icon floats outside the field it
+/// belongs to.
+fn hero_shell_style(theme: &Theme) -> container::Style {
+    let palette = theme.extended_palette();
+
+    container::Style {
+        background: Some(iced::Background::Color(palette.background.weak.color)),
+        border: Border {
+            color: palette.background.strong.color,
+            width: 1.0,
+            radius: (radius() * 1.5).into(),
+        },
+        ..container::Style::default()
+    }
+}
+
+fn hero_field_style(theme: &Theme, status: text_input::Status) -> text_input::Style {
+    text_input::Style {
+        background: iced::Background::Color(Color::TRANSPARENT),
+        border: Border::default(),
+        ..field_style(theme, status)
     }
 }
 

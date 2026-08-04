@@ -6,10 +6,23 @@
 //! PATH rather than bundled: a tool whose whole value is being current should be
 //! updated by whoever installed it, not pinned to whatever verse shipped with.
 //!
-//! `VERSE_YT_DLP_PATH` names the binary when it is not on PATH, which is what
-//! `scripts/setup-explore.ps1` sets after vendoring it. An empty value is
-//! ignored rather than treated as a path, since an unset and a blank variable
-//! mean the same thing to someone who exported it wrong.
+//! It is looked for in three places, in order: `VERSE_YT_DLP_PATH`, then
+//! `vendor/bin` beside the running binary, then PATH. An empty variable is
+//! ignored rather than treated as a path, since an unset and a blank one mean
+//! the same thing to whoever exported it wrong.
+//!
+//! The vendor lookup is what makes `scripts/setup-explore.ps1` sufficient on its
+//! own. That script also sets the variable, but a variable only reaches
+//! processes started after it — launch verse from an IDE, a shortcut, or a shell
+//! that was already open, and the download it just installed would report itself
+//! missing while sitting in the repository. Finding it by path costs a `is_file`
+//! at startup and removes a whole class of "but I installed it" report.
+//!
+//! The search walks up from the executable rather than from the working
+//! directory, which is wherever the user happened to launch from and says
+//! nothing about where verse lives. `target/debug/verse.exe` puts the repository
+//! root three levels up, so the depth covers a debug build, a release build, and
+//! an installed layout with the binary beside `vendor`.
 //!
 //! `--ignore-config` is not optional. A user's own `yt-dlp.conf` is read by
 //! default, and a common one carries `-x --audio-format mp3`, which silently
@@ -41,7 +54,31 @@ use tokio::process::Command;
 
 use super::DownloadSource;
 
+/// What to ask `yt-dlp` for, in preference order.
+///
+/// AAC-in-mp4 is chosen over the higher-bitrate Opus stream YouTube also
+/// carries, and that is a real cost rather than an oversight: on a typical
+/// track the choice is 130k AAC against 143k Opus, and Opus is the better codec
+/// at equal rate. It is not selectable because verse cannot play it — kira's
+/// decoder is symphonia, which ships no Opus at all, so an Opus file scans as
+/// untaggable and decodes as "unsupported audio codec" whatever container it is
+/// remuxed into. A download the player cannot open is worth less than one that
+/// is slightly smaller.
+///
+/// `abr` sorts by audio bitrate so the best AAC is taken rather than whichever
+/// mp4 stream is listed first, and the bare fallback exists for the rare track
+/// offering no mp4 audio at all.
+const FORMAT: &str = "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio";
+
 const BINARY_ENV: &str = "VERSE_YT_DLP_PATH";
+
+#[cfg(windows)]
+const BINARY_NAME: &str = "yt-dlp.exe";
+
+#[cfg(not(windows))]
+const BINARY_NAME: &str = "yt-dlp";
+
+const VENDOR_SEARCH_DEPTH: usize = 4;
 
 const CLIENTS: [&str; 3] = ["", "android_vr", "web_safari"];
 
@@ -84,12 +121,7 @@ impl Default for YtDlp {
 
 impl YtDlp {
     pub fn new() -> Self {
-        let binary = std::env::var_os(BINARY_ENV)
-            .map(PathBuf::from)
-            .filter(|path| !path.as_os_str().is_empty())
-            .unwrap_or_else(|| PathBuf::from("yt-dlp"));
-
-        Self { binary }
+        Self { binary: resolve() }
     }
 
     pub fn at(binary: PathBuf) -> Self {
@@ -142,7 +174,9 @@ impl YtDlp {
             .arg("--newline")
             .arg("--no-warnings")
             .arg("-f")
-            .arg("bestaudio[ext=m4a]/bestaudio")
+            .arg(FORMAT)
+            .arg("-S")
+            .arg("abr,asr")
             .arg("-o")
             .arg(&template);
 
@@ -230,6 +264,27 @@ impl DownloadSource for YtDlp {
 
         Err(last)
     }
+}
+
+fn resolve() -> PathBuf {
+    if let Some(named) = std::env::var_os(BINARY_ENV)
+        .map(PathBuf::from)
+        .filter(|path| !path.as_os_str().is_empty())
+    {
+        return named;
+    }
+
+    vendored().unwrap_or_else(|| PathBuf::from(BINARY_NAME))
+}
+
+fn vendored() -> Option<PathBuf> {
+    let exe = std::env::current_exe().ok()?;
+
+    exe.ancestors()
+        .skip(1)
+        .take(VENDOR_SEARCH_DEPTH)
+        .map(|dir| dir.join("vendor").join("bin").join(BINARY_NAME))
+        .find(|candidate| candidate.is_file())
 }
 
 fn with_extension_template(target: &Path) -> PathBuf {
@@ -333,6 +388,26 @@ mod tests {
     fn a_failure_with_no_error_line_still_reports_something() {
         assert_eq!(first_error("just a warning\n"), "just a warning");
         assert!(!first_error("").is_empty());
+    }
+
+    #[test]
+    fn a_vendored_binary_is_found_beside_the_executable() {
+        let found = vendored();
+
+        if let Some(path) = &found {
+            assert!(path.is_file(), "{path:?} was reported but is not a file");
+            assert!(path.ends_with(BINARY_NAME), "{path:?}");
+        }
+    }
+
+    #[test]
+    fn resolution_falls_back_to_a_bare_name_when_nothing_is_installed() {
+        let resolved = resolve();
+
+        assert!(
+            resolved.is_file() || resolved == Path::new(BINARY_NAME),
+            "{resolved:?} is neither an installed binary nor a name for PATH to find"
+        );
     }
 
     #[tokio::test]

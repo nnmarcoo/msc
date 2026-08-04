@@ -21,6 +21,10 @@ pub mod accent;
 pub mod cache;
 pub mod decode;
 pub mod palette;
+#[cfg(feature = "explore")]
+pub mod remote;
 
 pub use cache::{Art, ArtKey, Cache, Job, Source};
 pub use decode::{Decoded, decode};
+#[cfg(feature = "explore")]
+pub use remote::Remote;

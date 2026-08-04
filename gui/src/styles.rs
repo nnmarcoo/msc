@@ -251,6 +251,21 @@ pub fn cover_placeholder_style(theme: &Theme) -> container::Style {
     }
 }
 
+pub fn explicit_badge_style(theme: &Theme) -> container::Style {
+    let palette = theme.extended_palette();
+
+    container::Style {
+        background: Some(iced::Background::Color(
+            palette.background.base.text.scale_alpha(0.22),
+        )),
+        border: Border {
+            radius: 2.0.into(),
+            ..Border::default()
+        },
+        ..container::Style::default()
+    }
+}
+
 pub fn plain_text(theme: &Theme) -> text::Style {
     text::Style {
         color: Some(theme.extended_palette().background.base.text),
@@ -408,6 +423,20 @@ pub fn svg_style(theme: &Theme, status: svg::Status) -> svg::Style {
         svg::Status::Idle => base.scale_alpha(0.7),
     };
     svg::Style { color: Some(color) }
+}
+
+#[cfg(feature = "explore")]
+pub fn faint_svg_style(theme: &Theme, _status: svg::Status) -> svg::Style {
+    svg::Style {
+        color: Some(
+            theme
+                .extended_palette()
+                .background
+                .base
+                .text
+                .scale_alpha(0.45),
+        ),
+    }
 }
 
 pub fn muted_text(theme: &Theme) -> iced::Color {

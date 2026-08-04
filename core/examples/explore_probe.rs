@@ -11,6 +11,39 @@ use verse_core::explore::{Innertube, MusicSource};
 async fn main() {
     let source = Innertube::new();
 
+    match source.new_albums(14).await {
+        Ok(albums) => {
+            println!("NEW RELEASES: {} albums", albums.len());
+            for a in &albums {
+                println!(
+                    "  [{:6}] {} | {:?} | art={}",
+                    a.release.label(),
+                    a.title,
+                    a.artist,
+                    a.cover_url.is_some()
+                );
+            }
+        }
+        Err(e) => println!("NEW RELEASES FAILED: {e}"),
+    }
+
+    match source.search_albums("radiohead", 5).await {
+        Ok(albums) => {
+            println!("ALBUM SEARCH: {} results", albums.len());
+            for a in &albums {
+                println!(
+                    "  {} | {} | {:?} | {:?} | art={}",
+                    a.id,
+                    a.title,
+                    a.artist,
+                    a.year,
+                    a.cover_url.is_some()
+                );
+            }
+        }
+        Err(e) => println!("ALBUM SEARCH FAILED: {e}"),
+    }
+
     match source.search("radiohead in rainbows", 5).await {
         Ok(found) => {
             println!("SEARCH: {} results", found.len());

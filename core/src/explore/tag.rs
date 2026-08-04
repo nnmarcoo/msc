@@ -378,11 +378,13 @@ mod tests {
     #[test]
     fn a_destination_numbers_album_tracks_from_one() {
         let album = super::super::FoundAlbum {
+            release: crate::explore::Release::default(),
             id: "MPRE1".to_owned(),
             title: "In Rainbows".to_owned(),
             artist: Some("Radiohead".to_owned()),
             year: Some(2007),
             cover_url: None,
+            explicit: false,
             tracks: Vec::new(),
         };
 
