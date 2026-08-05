@@ -17,6 +17,13 @@
 //! artist rather than its own, so a compilation lands in one folder instead of
 //! scattering across the disk by guest credit.
 //!
+//! A track number alone does not name a file on a multi-disc record: both discs
+//! carry a track 1, both would be `01 Title.m4a` in the one album folder, and
+//! the second to arrive would overwrite the first. A disc past the first is
+//! therefore prefixed. The first disc is left bare so the ordinary single-disc
+//! album — which is nearly all of them, and never carries a disc number at all —
+//! keeps the plain name it already had.
+//!
 //! [`sanitize`] is the piece most likely to produce a file that cannot be
 //! opened, and it is a Windows problem specifically: the reserved device names
 //! (`CON`, `NUL`, `COM1`…) fail even with an extension, a trailing dot or space
@@ -100,9 +107,13 @@ pub fn path_for(root: &Path, found: &Found, into: &Destination) -> PathBuf {
 fn file_name(found: &Found, into: &Destination) -> String {
     let title = sanitize(&found.title);
 
-    match into.track_number {
-        Some(number) => format!("{number:02} {title}.m4a"),
-        None => format!("{title}.m4a"),
+    let Some(number) = into.track_number else {
+        return format!("{title}.m4a");
+    };
+
+    match into.disc_number {
+        Some(disc) if disc > 1 => format!("{disc}-{number:02} {title}.m4a"),
+        _ => format!("{number:02} {title}.m4a"),
     }
 }
 
@@ -249,6 +260,40 @@ mod tests {
         let path = path_for(Path::new("/music"), &found("Nude"), &into);
 
         assert!(path.ends_with("03 Nude.m4a"), "{path:?}");
+    }
+
+    #[test]
+    fn a_second_disc_does_not_overwrite_the_first() {
+        let disc_one = Destination {
+            track_number: Some(1),
+            disc_number: Some(1),
+            ..Destination::default()
+        };
+        let disc_two = Destination {
+            track_number: Some(1),
+            disc_number: Some(2),
+            ..Destination::default()
+        };
+
+        let first = path_for(Path::new("/music"), &found("Opening"), &disc_one);
+        let second = path_for(Path::new("/music"), &found("Opening"), &disc_two);
+
+        assert_ne!(first, second, "both discs filed to the same name");
+        assert!(second.ends_with("2-01 Opening.m4a"), "{second:?}");
+    }
+
+    #[test]
+    fn a_single_disc_album_keeps_a_plain_name() {
+        for disc in [None, Some(1)] {
+            let into = Destination {
+                track_number: Some(3),
+                disc_number: disc,
+                ..Destination::default()
+            };
+            let path = path_for(Path::new("/music"), &found("Nude"), &into);
+
+            assert!(path.ends_with("03 Nude.m4a"), "{path:?} for disc {disc:?}");
+        }
     }
 
     #[test]

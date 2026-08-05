@@ -57,7 +57,15 @@
 //!
 //! Nothing here plays a track. A result is not on disk yet, so the only offer is
 //! to download it; it becomes playable by entering the library, which is
-//! [`verse_core::Library::ingest`]'s job once the file lands.
+//! [`verse_core::Library::ingest_many`]'s job once the file lands.
+//!
+//! A row's other offer is to seed a station from it. Searching answers what the
+//! user could already name, and the reason to browse at all is usually the music
+//! they cannot — so "more like this" is the one control here that finds a record
+//! by way of another rather than by spelling it. It sits on every track row
+//! whatever its download state, since a track already owned is if anything the
+//! better seed, and it goes through [`verse_core::explore::MusicSource::similar`]
+//! rather than the fetcher, so an install without `yt-dlp` still has it.
 
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{
@@ -80,11 +88,10 @@ use crate::widgets::spinner::spinner;
 const ICON_DOWNLOAD: &[u8] = include_bytes!("../../../assets/icons/queue_add.svg");
 const ICON_CHECK: &[u8] = include_bytes!("../../../assets/icons/check.svg");
 const ICON_RETRY: &[u8] = include_bytes!("../../../assets/icons/cycle.svg");
+const ICON_SIMILAR: &[u8] = include_bytes!("../../../assets/icons/similar.svg");
 
 const CONTROL_ICON: f32 = 15.0;
 
-/// Matches [`super::collections`]'s over-art icon, so a hovered cover offers a
-/// control of the same weight whichever pane it is in.
 const OVER_ART_ICON: f32 = 18.0;
 
 const HEADING_SIZE: f32 = 14.0;
@@ -101,12 +108,6 @@ const GAP: f32 = PAD * 2.0;
 
 const SCROLLBAR: f32 = 10.0;
 
-/// How many rows of covers an opened panel may grow to before it scrolls.
-///
-/// The panel is a track list and nothing else, so this is purely how far it may
-/// push the grid down. Two rows keeps what the album was opened from on screen,
-/// which is the point of expanding in place rather than replacing the view; a
-/// record long enough to want more scrolls inside the panel instead.
 const PANEL_ROWS: f32 = 2.0;
 
 const NUMBER_WIDTH: f32 = 26.0;
@@ -124,17 +125,8 @@ const INLINE_SPINNER: f32 = 15.0;
 const BADGE_SIZE: f32 = 8.0;
 const BADGE_EDGE: f32 = 13.0;
 
-/// How much vertical room a tile's three caption lines take, cover excluded.
-///
-/// The grid divides the pane's *width* into square covers, so the caption is
-/// height the layout does not know about; a shelf that reserved only the cover
-/// clipped the artist and year off every tile.
 const CAPTION_HEIGHT: f32 = TILE_TITLE_SIZE + LABEL_FONT_SIZE * 2.0 + PAD * 2.0 + 5.0;
 
-/// One panel row: its text, plus the padding [`panel_row`] wraps it in.
-///
-/// A panel sized from this fits its tracks exactly, which is what keeps the
-/// common album off a second scrollbar nested inside the pane's own.
 const PANEL_ROW_HEIGHT: f32 = ROW_SIZE + PAD * 2.0;
 
 #[derive(Debug, Default)]
@@ -329,34 +321,6 @@ fn scroll<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> 
         .into()
 }
 
-fn section<'a>(label: &str) -> Element<'a, Message> {
-    column![
-        text(label.to_owned())
-            .size(HEADING_SIZE)
-            .style(styles::plain_text),
-        container(Space::new())
-            .width(Length::Fill)
-            .height(Length::Fixed(styles::RULE_HEIGHT / 2.0))
-            .style(styles::divider_inert_style),
-    ]
-    .spacing(PAD)
-    .width(Length::Fill)
-    .into()
-}
-
-/// One named row of covers that scrolls sideways.
-///
-/// A shelf is what makes a landing feed read as somewhere to browse rather than
-/// a wall to get through: each row is a reason the records are together, and the
-/// eye can skip a whole shelf it does not want in one movement. The grid below
-/// is still the right shape for *results*, where the user asked a question and
-/// wants every answer at once.
-///
-/// Tiles are a fixed [`SHELF_CELL`] rather than divided out of the pane's width,
-/// since a shelf's whole premise is that it continues past the edge. An opened
-/// album expands beneath the entire shelf rather than under its own tile: a
-/// horizontal row has nothing below a given tile to push down, and threading a
-/// panel between two columns would break the scroll.
 fn shelf<'a>(
     label: &'a str,
     found: &'a [FoundAlbum],
@@ -388,11 +352,12 @@ fn shelf<'a>(
         .as_ref()
         .filter(|opened| found.iter().any(|album| album.id == opened.id()))
     {
-        let grid = super::collections::layout(width - SCROLLBAR, found.len())
-            .unwrap_or(super::collections::Grid {
+        let grid = super::collections::layout(width - SCROLLBAR, found.len()).unwrap_or(
+            super::collections::Grid {
                 columns: 1,
                 cell: SHELF_CELL,
-            });
+            },
+        );
 
         section = section.push(panel(opened, explore, grid));
     }
@@ -400,7 +365,6 @@ fn shelf<'a>(
     section.width(Length::Fill).into()
 }
 
-/// A shelf's title, sized to read as a section rather than a field label.
 fn section_heading(label: &str) -> Element<'_, Message> {
     text(label.to_owned())
         .size(SHELF_HEADING_SIZE)
@@ -475,12 +439,6 @@ fn album_tile<'a>(
         .into()
 }
 
-/// The three lines under a cover: what it is, who made it, and when.
-///
-/// They are always drawn rather than revealed on hover. A grid that names
-/// nothing until the pointer crosses it cannot be read at a glance, which is the
-/// one thing a wall of covers is for — the eye should be able to sweep it and
-/// land on a record, not interrogate each tile in turn.
 fn caption(album: &FoundAlbum, edge: f32) -> Element<'_, Message> {
     let mut title = row![
         marquee(album.title.as_str())
@@ -524,12 +482,6 @@ fn explicit_badge<'a>() -> Element<'a, Message> {
     .into()
 }
 
-/// What a hovered cover offers, matching [`super::collections`]'s overlay.
-///
-/// Buttons only, centred along the bottom. The title and artist used to be drawn
-/// here too, back when the tile named nothing until hovered; now that the
-/// caption is permanent, repeating it over the art would hide the cover to say
-/// what is already written directly below it.
 fn controls<'a>(album: &'a FoundAlbum, explore: &'a Explore) -> Element<'a, Message> {
     let buttons = row![over_art_button(
         ICON_DOWNLOAD,
@@ -564,12 +516,6 @@ fn over_art_button<'a>(bytes: &'static [u8], message: Option<Message>) -> Elemen
     .into()
 }
 
-/// The opened album's tracks, expanded beneath the row it was opened from.
-///
-/// No cover is drawn here. The tile that was clicked is still on screen a few
-/// pixels above, showing the same art at the same size the grid uses, so a
-/// second larger copy inside the panel spent a third of the width restating what
-/// the user just pressed — the tracks are what the panel is for.
 fn panel<'a>(
     opened: &'a Opened,
     explore: &'a Explore,
@@ -584,17 +530,14 @@ fn panel<'a>(
     };
 
     let body: Element<'a, Message> = match opened {
-        Opened::Loading(_) => container(
-            spinner()
-                .size(SPINNER_SIZE)
-                .bar_height(SPINNER_BAR)
-                .style(|theme: &iced::Theme| {
-                    styles::over_tint_dim_text(theme).color.unwrap_or_default()
-                }),
-        )
-        .center_x(Length::Fill)
-        .center_y(Length::Fill)
-        .into(),
+        Opened::Loading(_) => {
+            container(spinner().size(SPINNER_SIZE).bar_height(SPINNER_BAR).style(
+                |theme: &iced::Theme| styles::over_tint_dim_text(theme).color.unwrap_or_default(),
+            ))
+            .center_x(Length::Fill)
+            .center_y(Length::Fill)
+            .into()
+        }
         Opened::Failed(_, reason) => container(
             text(reason.clone())
                 .size(ROW_SIZE)
@@ -660,7 +603,7 @@ fn panel<'a>(
         .width(Length::Fill)
         .height(Length::Fixed(height))
         .style(styles::panel_style(None))
-    .into()
+        .into()
 }
 
 fn wanted_height(tracks: usize) -> f32 {
@@ -754,20 +697,12 @@ fn tracks<'a>(
     explore: &'a Explore,
     remote: &'a Remote,
 ) -> Element<'a, Message> {
-    column(
-        found
-            .iter()
-            .map(|track| entry(track, explore, remote)),
-    )
-    .width(Length::Fill)
-    .into()
+    column(found.iter().map(|track| entry(track, explore, remote)))
+        .width(Length::Fill)
+        .into()
 }
 
-fn entry<'a>(
-    track: &'a Found,
-    explore: &'a Explore,
-    remote: &'a Remote,
-) -> Element<'a, Message> {
+fn entry<'a>(track: &'a Found, explore: &'a Explore, remote: &'a Remote) -> Element<'a, Message> {
     let lines = column![
         text(track.title.clone())
             .size(ROW_SIZE)
@@ -829,6 +764,26 @@ fn art<'a>(url: Option<&str>, remote: &'a Remote, edge: f32) -> Element<'a, Mess
 }
 
 fn state<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Message> {
+    row![similar_button(track), download_state(track, explore)]
+        .spacing(PAD)
+        .align_y(Vertical::Center)
+        .into()
+}
+
+fn similar_button(track: &Found) -> Element<'_, Message> {
+    button(
+        svg(svg::Handle::from_memory(ICON_SIMILAR))
+            .style(styles::svg_style)
+            .width(Length::Fixed(CONTROL_ICON))
+            .height(Length::Fixed(CONTROL_ICON)),
+    )
+    .on_press(Message::ExploreSimilar(track.id.clone()))
+    .padding(PAD)
+    .style(styles::listing_row_style)
+    .into()
+}
+
+fn download_state<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Message> {
     let slot = |content: Element<'a, Message>| {
         container(content)
             .width(Length::Fixed(STATE_WIDTH))
@@ -925,11 +880,6 @@ fn hint<'a>(label: &str) -> Element<'a, Message> {
     .into()
 }
 
-/// What fills the body while a request is outstanding.
-///
-/// A turning ring rather than the word "Loading", because the two failure modes
-/// look identical in text: a request about to answer and one that died draw the
-/// same pixels. Motion is the evidence that the work is still live.
 fn waiting<'a>() -> Element<'a, Message> {
     container(
         spinner()
@@ -1144,9 +1094,6 @@ mod tests {
         );
     }
 
-    /// The cap is what keeps the grid the album was opened from on screen. A
-    /// panel free to grow to its content would push the covers out of view, and
-    /// expanding in place would then be no better than replacing the listing.
     #[test]
     fn a_long_album_cannot_push_the_grid_off_screen() {
         let grid = super::super::collections::layout(900.0, 12).expect("a grid");
@@ -1228,6 +1175,39 @@ mod tests {
             !sized.ends_with(&format!("=w{}-h{}-l90-rj", ROW_ART as u32, ROW_ART as u32)),
             "art served at exactly its drawn size has no pixels spare and reads soft: {sized}"
         );
+    }
+
+    #[test]
+    fn a_track_row_offers_a_station_seeded_from_it() {
+        let mut explore = with(Stage::Results(Box::new(Results {
+            albums: Vec::new(),
+            tracks: vec![found("a")],
+        })));
+
+        for state in [
+            None,
+            Some(Download::Running(0.4)),
+            Some(Download::Done(7)),
+            Some(Download::Failed("nope".to_owned())),
+        ] {
+            if let Some(state) = state {
+                explore.downloads.set("a", state);
+            }
+            let _ = self::state(&found("a"), &explore);
+        }
+    }
+
+    #[test]
+    fn a_station_is_offered_without_the_fetcher_installed() {
+        let mut explore = with(Stage::Results(Box::new(Results {
+            albums: Vec::new(),
+            tracks: vec![found("a")],
+        })));
+        explore.fetcher = Fetcher::Missing;
+        explore.held.rebuild([found("a")].iter(), |_| true);
+
+        draw(&explore);
+        let _ = self::state(&found("a"), &explore);
     }
 
     #[test]

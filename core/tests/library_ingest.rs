@@ -257,3 +257,102 @@ fn what_was_ingested_survives_reopening_the_database() {
 
     assert_eq!(track.path(), Path::new(&path));
 }
+
+#[test]
+fn a_batch_lands_every_file_and_names_each_id() {
+    if ffmpeg_missing() {
+        eprintln!("skipping: ffmpeg is not on PATH");
+        return;
+    }
+
+    let scratch = Scratch::new("batch");
+    let mut paths = Vec::new();
+    for name in ["a.m4a", "b.m4a", "c.m4a"] {
+        let Some(path) = scratch.audio(name) else {
+            eprintln!("skipping: ffmpeg could not produce a sample");
+            return;
+        };
+        paths.push(path);
+    }
+
+    let mut library = scratch.library();
+    let landed = library.ingest_many(&paths).expect("the batch is ingested");
+
+    assert_eq!(landed.len(), 3, "a file was dropped from the batch");
+    assert_eq!(library.tracks().len(), 3);
+
+    for (path, id) in landed {
+        let track = library.track(id).expect("the returned id resolves");
+        assert_eq!(track.path(), path, "an id was paired with the wrong file");
+        assert!(track.available());
+    }
+}
+
+#[test]
+fn a_file_that_cannot_be_read_is_skipped_rather_than_failing_the_batch() {
+    if ffmpeg_missing() {
+        eprintln!("skipping: ffmpeg is not on PATH");
+        return;
+    }
+
+    let scratch = Scratch::new("partial-batch");
+    let Some(good) = scratch.audio("good.m4a") else {
+        eprintln!("skipping: ffmpeg could not produce a sample");
+        return;
+    };
+
+    let junk = scratch.root.join("junk.m4a");
+    std::fs::write(&junk, b"not audio").expect("written");
+    let absent = scratch.root.join("nothing.m4a");
+
+    let mut library = scratch.library();
+    let landed = library
+        .ingest_many(&[good.clone(), junk, absent])
+        .expect("the batch still succeeds");
+
+    assert_eq!(landed.len(), 1, "only the readable file lands");
+    assert_eq!(landed[0].0, good);
+    assert_eq!(library.tracks().len(), 1);
+}
+
+#[test]
+fn a_batch_of_nothing_is_not_an_error() {
+    let scratch = Scratch::new("empty-batch");
+    let mut library = scratch.library();
+
+    assert!(
+        library
+            .ingest_many(&[])
+            .expect("no batch is fine")
+            .is_empty()
+    );
+    assert!(library.is_empty());
+}
+
+#[test]
+fn a_scan_does_not_descend_into_a_dotted_folder() {
+    if ffmpeg_missing() {
+        eprintln!("skipping: ffmpeg is not on PATH");
+        return;
+    }
+
+    let scratch = Scratch::new("hidden");
+    let Some(_visible) = scratch.audio("song.m4a") else {
+        eprintln!("skipping: ffmpeg could not produce a sample");
+        return;
+    };
+    let Some(_staged) = scratch.audio(".verse-downloads/abc123.m4a") else {
+        eprintln!("skipping: ffmpeg could not produce a sample");
+        return;
+    };
+
+    let mut library = scratch.library();
+    library.scan(&scratch.root).expect("the scan runs");
+
+    assert_eq!(
+        library.tracks().len(),
+        1,
+        "a staged download was ingested as a track"
+    );
+    assert_eq!(library.tracks()[0].title(), Some("song"));
+}

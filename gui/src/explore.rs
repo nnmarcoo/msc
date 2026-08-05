@@ -48,11 +48,23 @@
 //! row a download started from moves the moment the query changes, and a
 //! progress bar must follow the recording rather than the position.
 //!
+//! A finished download does not enter the library where it lands. Ingesting one
+//! file reloads the whole library — every row, both indexes, every album — at a
+//! cost set by the size of the collection, and an album settling track by track
+//! paid that per track while the user watched. So a finished file is parked in
+//! [`Downloads::landed`] and the app drains the lot on a timer through
+//! [`verse_core::Library::ingest_many`], which pays the reload once.
+//!
+//! The delay that costs is bounded by the drain interval and is invisible
+//! against a download measured in seconds. What it must not do is read as
+//! unfinished: a parked row shows as complete immediately, since the bytes are
+//! on disk and the waiting is genuinely over — only the track id it will carry
+//! is still unknown.
+//!
 //! [`Download`] and the readers on [`Stage`] are in place before the pane that
 //! draws them, matching [`crate::pane`]: the state and its rules are worth
 //! settling on their own, and wiring the view to them later is then a
 //! self-contained change rather than a redesign.
-#![allow(dead_code)]
 
 use std::collections::{HashMap, HashSet};
 
@@ -64,11 +76,6 @@ pub const SIMILAR_LIMIT: usize = 25;
 
 pub const ALBUM_LIMIT: usize = 12;
 
-/// How many releases the landing feed asks for.
-///
-/// A shelf scrolls sideways, so this is no longer "what fits on screen" but
-/// "how far the row can be pushed before it runs out" — the feed is split across
-/// shelves and each wants enough to be worth dragging.
 pub const BROWSE_LIMIT: usize = 60;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -115,11 +122,6 @@ impl Opened {
     }
 }
 
-/// One named row of the landing feed.
-///
-/// The name is owned rather than `&'static str` because a shelf can be about
-/// something the user did — "More like Radiohead" names whatever they last
-/// opened — and that string is only known at runtime.
 #[derive(Debug, Clone, PartialEq)]
 pub struct Shelf {
     pub label: String,
@@ -145,6 +147,7 @@ impl Stage {
         }
     }
 
+    #[cfg(test)]
     pub fn albums(&self) -> impl Iterator<Item = &FoundAlbum> {
         let (listed, shelved) = match self {
             Stage::Results(results) => (results.albums.as_slice(), [].as_slice()),
@@ -157,6 +160,7 @@ impl Stage {
             .chain(shelved.iter().flat_map(|shelf| shelf.albums.iter()))
     }
 
+    #[cfg(test)]
     pub fn is_busy(&self) -> bool {
         matches!(self, Stage::Searching)
     }
@@ -192,6 +196,7 @@ impl Download {
 #[derive(Debug, Default)]
 pub struct Downloads {
     by_id: HashMap<String, Download>,
+    landed: Vec<(String, std::path::PathBuf)>,
 }
 
 impl Downloads {
@@ -203,6 +208,20 @@ impl Downloads {
         self.by_id.insert(id.to_owned(), state);
     }
 
+    pub fn landed(&mut self, id: &str, path: std::path::PathBuf) {
+        self.set(id, Download::Running(1.0));
+        self.landed.push((id.to_owned(), path));
+    }
+
+    pub fn waiting(&self) -> bool {
+        !self.landed.is_empty()
+    }
+
+    pub fn take_landed(&mut self) -> Vec<(String, std::path::PathBuf)> {
+        std::mem::take(&mut self.landed)
+    }
+
+    #[cfg(test)]
     pub fn running(&self) -> usize {
         self.by_id
             .values()
@@ -210,6 +229,7 @@ impl Downloads {
             .count()
     }
 
+    #[cfg(test)]
     pub fn holds(&self, id: &str) -> bool {
         self.by_id.contains_key(id)
     }
@@ -330,6 +350,7 @@ impl Explore {
         });
     }
 
+    #[cfg(test)]
     pub fn is_open(&self, id: &str) -> bool {
         self.opened.as_ref().is_some_and(|open| open.id() == id)
     }
@@ -356,11 +377,8 @@ impl Explore {
         self.stage = stage;
         self.pending = None;
         self.opened = None;
+        self.downloads.forget_settled();
         true
-    }
-
-    pub fn generation(&self) -> Generation {
-        self.generation
     }
 
     pub fn drawable(&self) -> impl Iterator<Item = &Found> {
@@ -439,7 +457,9 @@ mod tests {
     #[test]
     fn a_first_search_with_nothing_to_keep_shows_that_it_is_working() {
         let mut explore = Explore::default();
-        explore.query_changed("radiohead".to_owned()).expect("issued");
+        explore
+            .query_changed("radiohead".to_owned())
+            .expect("issued");
 
         assert_eq!(
             explore.stage,
@@ -616,6 +636,54 @@ mod tests {
 
         assert!(downloads.holds("a"));
         assert!(!downloads.holds("b"));
+    }
+
+    #[test]
+    fn a_finished_download_reads_as_complete_before_it_reaches_the_library() {
+        let mut downloads = Downloads::default();
+        downloads.landed("a", std::path::PathBuf::from("/music/a.m4a"));
+
+        assert_eq!(downloads.get("a"), Some(&Download::Running(1.0)));
+        assert!(downloads.waiting());
+    }
+
+    #[test]
+    fn draining_hands_over_every_landed_file_once() {
+        let mut downloads = Downloads::default();
+        downloads.landed("a", std::path::PathBuf::from("/music/a.m4a"));
+        downloads.landed("b", std::path::PathBuf::from("/music/b.m4a"));
+
+        let drained = downloads.take_landed();
+
+        assert_eq!(drained.len(), 2, "an album's tracks drain together");
+        assert!(!downloads.waiting(), "a drained batch is not drained twice");
+        assert!(downloads.take_landed().is_empty());
+    }
+
+    #[test]
+    fn nothing_waiting_is_nothing_to_drain() {
+        let mut downloads = Downloads::default();
+        downloads.set("a", Download::Running(0.4));
+
+        assert!(!downloads.waiting());
+        assert!(downloads.take_landed().is_empty());
+    }
+
+    #[test]
+    fn a_new_listing_forgets_downloads_that_have_finished() {
+        let mut explore = Explore::default();
+        let (generation, _) = explore.query_changed("a".to_owned()).expect("issued");
+
+        explore.downloads.set("done", Download::Done(7));
+        explore.downloads.set("live", Download::Running(0.3));
+
+        assert!(explore.settle(generation, results(vec![found("x")])));
+
+        assert!(!explore.downloads.holds("done"), "a settled row was kept");
+        assert!(
+            explore.downloads.holds("live"),
+            "a download still running was forgotten mid-flight"
+        );
     }
 
     #[test]

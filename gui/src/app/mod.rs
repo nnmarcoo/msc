@@ -179,6 +179,9 @@ const TICK: Duration = Duration::from_millis(16);
 
 const CONFIG_FLUSH: Duration = Duration::from_secs(1);
 
+#[cfg(feature = "explore")]
+const INGEST_DRAIN: Duration = Duration::from_millis(400);
+
 static NO_SETTINGS: std::sync::LazyLock<PaneSettings> =
     std::sync::LazyLock::new(PaneSettings::default);
 
@@ -238,6 +241,8 @@ pub struct App {
     explore: Explore,
     #[cfg(feature = "explore")]
     source: std::sync::Arc<verse_core::explore::Innertube>,
+    #[cfg(feature = "explore")]
+    fetcher: std::sync::Arc<verse_core::explore::YtDlp>,
     #[cfg(feature = "explore")]
     remote: crate::artwork::Remote,
 
@@ -390,6 +395,10 @@ pub enum Message {
     #[cfg(feature = "explore")]
     ExploreDownloaded(String, Box<Result<PathBuf, String>>),
     #[cfg(feature = "explore")]
+    ExploreIngestLanded,
+    #[cfg(feature = "explore")]
+    ExploreSubstituted(String, String),
+    #[cfg(feature = "explore")]
     FetcherChecked(bool),
     #[cfg(feature = "explore")]
     ExploreArt(String, Option<iced::widget::image::Handle>),
@@ -439,6 +448,8 @@ impl App {
             #[cfg(feature = "explore")]
             source: std::sync::Arc::new(verse_core::explore::Innertube::new()),
             #[cfg(feature = "explore")]
+            fetcher: std::sync::Arc::new(verse_core::explore::YtDlp::new()),
+            #[cfg(feature = "explore")]
             remote: crate::artwork::Remote::new(),
             window: iced::Size::new(1280.0, 800.0),
         };
@@ -449,9 +460,13 @@ impl App {
         return {
             let generation = app.explore.begin();
             let source = std::sync::Arc::clone(&app.source);
+            let fetcher = std::sync::Arc::clone(&app.fetcher);
             (
                 app,
-                Task::batch([tasks::check_fetcher(), tasks::browse(source, generation)]),
+                Task::batch([
+                    tasks::check_fetcher(fetcher),
+                    tasks::browse(source, generation),
+                ]),
             )
         };
 
@@ -879,6 +894,8 @@ impl App {
             | Message::ExploreAlbumOpened(..)
             | Message::ExploreProgress(..)
             | Message::ExploreDownloaded(..)
+            | Message::ExploreIngestLanded
+            | Message::ExploreSubstituted(..)
             | Message::FetcherChecked(_)
             | Message::ExploreArt(..) => return self.update_explore(message),
 
@@ -1041,6 +1058,16 @@ impl App {
                 self.finish_download(&id, *outcome);
                 Task::none()
             }
+            Message::ExploreIngestLanded => {
+                self.ingest_landed();
+                Task::none()
+            }
+            Message::ExploreSubstituted(_, title) => {
+                self.status = Some(format!(
+                    "{title}: the listing's video was the wrong length, so the album version was downloaded"
+                ));
+                Task::none()
+            }
             _ => Task::none(),
         }
     }
@@ -1080,12 +1107,12 @@ impl App {
             .as_ref()
             .and_then(crate::explore::Opened::album);
 
-        let listed = opened.map_or_else(
-            || self.explore.stage.tracks(),
-            |album| album.tracks.as_slice(),
-        );
-
-        let Some(found) = listed.iter().find(|track| track.id == id).cloned() else {
+        let Some(found) = self
+            .explore
+            .drawable()
+            .find(|track| track.id == id)
+            .cloned()
+        else {
             return Task::none();
         };
 
@@ -1114,14 +1141,19 @@ impl App {
                 verse_core::explore::Destination::from_album(album, position)
             }
             _ => verse_core::explore::Destination {
-                album_artist: found.artist.clone(),
                 album: found.album.clone(),
                 ..verse_core::explore::Destination::default()
             },
         };
 
         self.explore.downloads.set(id, Download::Queued);
-        tasks::download(found, into, root)
+        tasks::download(
+            std::sync::Arc::clone(&self.source),
+            std::sync::Arc::clone(&self.fetcher),
+            found,
+            into,
+            root,
+        )
     }
 
     #[cfg(feature = "explore")]
@@ -1155,6 +1187,8 @@ impl App {
 
             self.explore.downloads.set(&track.id, Download::Queued);
             queued.push(tasks::download(
+                std::sync::Arc::clone(&self.source),
+                std::sync::Arc::clone(&self.fetcher),
                 track.clone(),
                 verse_core::explore::Destination::from_album(album, position),
                 root.clone(),
@@ -1166,19 +1200,48 @@ impl App {
 
     #[cfg(feature = "explore")]
     fn finish_download(&mut self, id: &str, outcome: Result<PathBuf, String>) {
-        let settled = match outcome {
-            Ok(path) => match self.library.ingest(&path) {
-                Ok(track_id) => {
-                    self.refresh_visible();
-                    self.refresh_held();
-                    Download::Done(track_id)
+        match outcome {
+            Ok(path) => self.explore.downloads.landed(id, path),
+            Err(e) => self.explore.downloads.set(id, Download::Failed(e)),
+        }
+    }
+
+    #[cfg(feature = "explore")]
+    fn ingest_landed(&mut self) {
+        let landed = self.explore.downloads.take_landed();
+        if landed.is_empty() {
+            return;
+        }
+
+        let paths: Vec<PathBuf> = landed.iter().map(|(_, path)| path.clone()).collect();
+
+        let ingested = match self.library.ingest_many(&paths) {
+            Ok(ingested) => ingested,
+            Err(e) => {
+                self.status = Some(format!("Could not add downloads to the library: {e}"));
+                for (id, _) in &landed {
+                    self.explore
+                        .downloads
+                        .set(id, Download::Failed(e.to_string()));
                 }
-                Err(e) => Download::Failed(e.to_string()),
-            },
-            Err(e) => Download::Failed(e),
+                return;
+            }
         };
 
-        self.explore.downloads.set(id, settled);
+        for (id, path) in &landed {
+            let settled = ingested
+                .iter()
+                .find(|(landed_path, _)| landed_path == path)
+                .map_or_else(
+                    || Download::Failed("the file could not be read as a track".to_owned()),
+                    |(_, track_id)| Download::Done(*track_id),
+                );
+
+            self.explore.downloads.set(id, settled);
+        }
+
+        self.refresh_visible();
+        self.refresh_held();
     }
 
     #[cfg(feature = "explore")]
@@ -1513,6 +1576,11 @@ impl App {
         }
         if self.config_dirty {
             subs.push(every(CONFIG_FLUSH).map(|_| Message::SaveConfig));
+        }
+
+        #[cfg(feature = "explore")]
+        if self.explore.downloads.waiting() {
+            subs.push(every(INGEST_DRAIN).map(|_| Message::ExploreIngestLanded));
         }
 
         Subscription::batch(subs)

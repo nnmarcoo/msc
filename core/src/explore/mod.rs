@@ -17,11 +17,18 @@
 //! exist locally at all. Collapsing the two would leave the library holding
 //! rows nothing can play, which is exactly what [`crate::Track::available`]
 //! exists to prevent.
+//!
+//! A `Found` is a claim in a stronger sense than it looks: its stated duration
+//! and its id do not always describe the same recording, because a VEVO-backed
+//! album lists the album track's length beside the *music video*'s id. [`resolve`]
+//! is where the two are reconciled, and it runs between finding a recording and
+//! fetching it.
 
 mod cache;
 mod download;
 mod innertube;
 mod known;
+mod resolve;
 mod tag;
 
 use std::path::{Path, PathBuf};
@@ -29,32 +36,11 @@ use std::path::{Path, PathBuf};
 pub use download::{DownloadError, Progress, YtDlp};
 pub use innertube::{Innertube, SearchError};
 pub use known::{already_held, fold};
+pub use resolve::{Resolved, for_download};
 pub use tag::{Destination, TagError, path_for, sanitize, write_tags};
 
-/// The sizes Google's image host is asked for, mirroring
-/// `crate::artwork::cache`'s ladder and existing for the same two reasons.
-///
-/// Asking for the exact widget size refetches on every pixel of a divider drag,
-/// and it leaves nothing spare: an image served at exactly its drawn size is
-/// resampled by any rounding in layout, and shows visibly soft against art that
-/// had a pixel to give. Rounding *up* to a step means the drawn image is always
-/// downsampled, which is the sharp direction.
-///
-/// The steps are the ones YouTube Music itself requests. The top of the ladder
-/// is [`COVER_MAX`] rather than a display size, since a pane can be dragged
-/// wider than any of them.
 const COVER_LADDER: [u32; 6] = [60, 120, 226, 544, 1024, COVER_MAX];
 
-/// What a cover is asked for when it is going to be embedded in a file rather
-/// than drawn.
-///
-/// The host caps at whatever the master actually is — asking for 3000 answers
-/// 1400x1400 for most records and 1425x1425 where the master is larger — so this
-/// is deliberately past the ceiling rather than at it, and nothing is ever
-/// upscaled. A tagged file outlives the window it was downloaded from and may be
-/// opened anywhere, so it gets the largest that exists; 544, which is what the
-/// API hands out by default, is a sixth of the pixels and visibly soft the
-/// moment it is enlarged.
 pub const COVER_MAX: u32 = 3000;
 
 pub fn cover_at_size(url: &str, edge: u32) -> String {
@@ -80,13 +66,34 @@ pub async fn fetch_cover(url: &str) -> Option<Vec<u8>> {
     (!bytes.is_empty()).then(|| bytes.to_vec())
 }
 
+static LAST_COVER: std::sync::Mutex<Option<(String, Vec<u8>)>> = std::sync::Mutex::new(None);
+
 pub async fn fetch_cover_for_file(url: &str) -> Option<Vec<u8>> {
+    if let Some(bytes) = cached_cover(url) {
+        return Some(bytes);
+    }
+
     let full = resized(url, COVER_MAX);
 
-    match fetch_cover(&full).await {
+    let bytes = match fetch_cover(&full).await {
         Some(bytes) => Some(bytes),
         None => fetch_cover(url).await,
-    }
+    }?;
+
+    *LAST_COVER
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = Some((url.to_owned(), bytes.clone()));
+
+    Some(bytes)
+}
+
+fn cached_cover(url: &str) -> Option<Vec<u8>> {
+    LAST_COVER
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .as_ref()
+        .filter(|(cached, _)| cached == url)
+        .map(|(_, bytes)| bytes.clone())
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -178,6 +185,8 @@ pub trait DownloadSource {
         directory: &Path,
         progress: impl FnMut(Progress) + Send,
     ) -> impl Future<Output = Result<PathBuf, DownloadError>> + Send;
+
+    fn duration_of(&self, id: &str) -> impl Future<Output = Option<u32>> + Send;
 }
 
 #[cfg(test)]

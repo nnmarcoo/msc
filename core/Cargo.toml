@@ -39,6 +39,7 @@ tokio = { version = "1.53.1", default-features = false, features = [
     "io-util",
     "time",
     "fs",
+    "sync",
 ], optional = true }
 
 [dev-dependencies]
@@ -51,6 +52,10 @@ required-features = ["explore"]
 
 [[example]]
 name = "download_probe"
+required-features = ["explore"]
+
+[[example]]
+name = "resolve_probe"
 required-features = ["explore"]
 
 [lints.clippy]

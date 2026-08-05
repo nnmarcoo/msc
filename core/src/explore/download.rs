@@ -36,6 +36,15 @@
 //! trusted to survive `yt-dlp`'s own sanitizing intact. [`super::tag`] moves the
 //! file to its library name once tagging has succeeded.
 //!
+//! `yt-dlp`'s default `.part` suffix is deliberately left on. Writing straight
+//! to the final name makes an interrupted download indistinguishable from a
+//! finished one: the existence check that skips re-fetching a file already on
+//! disk would see a truncated `{id}.m4a` left by a killed process and report it
+//! complete, so the user gets a corrupt file tagged and filed with no way back
+//! but deleting it by hand. A partial named `.part` is unmistakably a partial —
+//! [`stale_parts`] clears any before starting, since nothing here resumes one,
+//! and [`written_file`] refuses to return one.
+//!
 //! Progress is parsed from `[download] 45.2% of ...` on stdout, which is why
 //! `--newline` is passed: without it `yt-dlp` rewrites one line with carriage
 //! returns and the stream yields nothing until the download ends.
@@ -44,30 +53,39 @@
 //! failed attempt is retried against a different player client before being
 //! reported. The clients are tried in the order that has proven most reliable,
 //! with the default first.
+//!
+//! Downloads are gated to [`CONCURRENT`] at a time, and the gate lives here
+//! rather than on the caller because this is the half that knows what one
+//! `yt-dlp` costs: a process, a connection to a host that throttles by session,
+//! and its own share of memory. Pressing download on an album asks for every
+//! track at once, and ungated that spawned one process per track — twenty
+//! against a twenty-track record. The throttling that produced is the same 403
+//! the client retry exists to absorb, so the parallelism manufactured the
+//! failure it then paid three attempts and two sleeps each to recover from.
+//!
+//! Three is chosen to keep the pipe busy while a track finishes without being
+//! enough sessions to be throttled for it.
+//!
+//! The permit is held across the retry loop rather than taken per attempt. A
+//! download that has already spent two clients getting to its third is the one
+//! closest to finishing, and making it re-queue behind newer arrivals is how a
+//! queue starves the work it has already paid for.
+//!
+//! A file already on disk answers before reaching the gate. It costs nothing to
+//! serve and waiting for a permit to discover that would put a cache hit behind
+//! three live network transfers.
 
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::Arc;
 
 use thiserror::Error;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
+use tokio::sync::Semaphore;
 
 use super::DownloadSource;
 
-/// What to ask `yt-dlp` for, in preference order.
-///
-/// AAC-in-mp4 is chosen over the higher-bitrate Opus stream YouTube also
-/// carries, and that is a real cost rather than an oversight: on a typical
-/// track the choice is 130k AAC against 143k Opus, and Opus is the better codec
-/// at equal rate. It is not selectable because verse cannot play it — kira's
-/// decoder is symphonia, which ships no Opus at all, so an Opus file scans as
-/// untaggable and decodes as "unsupported audio codec" whatever container it is
-/// remuxed into. A download the player cannot open is worth less than one that
-/// is slightly smaller.
-///
-/// `abr` sorts by audio bitrate so the best AAC is taken rather than whichever
-/// mp4 stream is listed first, and the bare fallback exists for the rare track
-/// offering no mp4 audio at all.
 const FORMAT: &str = "bestaudio[ext=m4a]/bestaudio[acodec^=mp4a]/bestaudio";
 
 const BINARY_ENV: &str = "VERSE_YT_DLP_PATH";
@@ -83,6 +101,8 @@ const VENDOR_SEARCH_DEPTH: usize = 4;
 const CLIENTS: [&str; 3] = ["", "android_vr", "web_safari"];
 
 const RETRY_DELAY: std::time::Duration = std::time::Duration::from_millis(750);
+
+const CONCURRENT: usize = 3;
 
 #[derive(Debug, Error)]
 pub enum DownloadError {
@@ -111,6 +131,7 @@ impl Progress {
 
 pub struct YtDlp {
     binary: PathBuf,
+    slots: Arc<Semaphore>,
 }
 
 impl Default for YtDlp {
@@ -121,11 +142,14 @@ impl Default for YtDlp {
 
 impl YtDlp {
     pub fn new() -> Self {
-        Self { binary: resolve() }
+        Self::at(resolve())
     }
 
     pub fn at(binary: PathBuf) -> Self {
-        Self { binary }
+        Self {
+            binary,
+            slots: Arc::new(Semaphore::new(CONCURRENT)),
+        }
     }
 
     pub fn binary(&self) -> &Path {
@@ -157,6 +181,28 @@ impl YtDlp {
             .then(|| String::from_utf8_lossy(&output.stdout).trim().to_owned())
     }
 
+    async fn probe_duration(&self, id: &str) -> Option<u32> {
+        let output = Command::new(&self.binary)
+            .arg("--ignore-config")
+            .arg("--no-playlist")
+            .arg("--no-warnings")
+            .arg("--skip-download")
+            .arg("--print")
+            .arg("%(duration)s")
+            .arg(format!("https://www.youtube.com/watch?v={id}"))
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .await
+            .ok()?;
+
+        if !output.status.success() {
+            return None;
+        }
+
+        String::from_utf8_lossy(&output.stdout).trim().parse().ok()
+    }
+
     async fn attempt(
         &self,
         id: &str,
@@ -170,7 +216,6 @@ impl YtDlp {
         command
             .arg("--ignore-config")
             .arg("--no-playlist")
-            .arg("--no-part")
             .arg("--newline")
             .arg("--no-warnings")
             .arg("-f")
@@ -225,6 +270,10 @@ impl YtDlp {
 }
 
 impl DownloadSource for YtDlp {
+    async fn duration_of(&self, id: &str) -> Option<u32> {
+        self.probe_duration(id).await
+    }
+
     async fn fetch(
         &self,
         id: &str,
@@ -241,6 +290,13 @@ impl DownloadSource for YtDlp {
             progress(Progress::at(1.0));
             return Ok(target);
         }
+
+        let _slot = Arc::clone(&self.slots)
+            .acquire_owned()
+            .await
+            .map_err(|_| DownloadError::Io("the download gate was closed".to_owned()))?;
+
+        stale_parts(directory, id).await;
 
         let mut last = DownloadError::Failed("no attempt was made".to_owned());
 
@@ -300,12 +356,41 @@ async fn written_file(directory: &Path, id: &str) -> Option<PathBuf> {
     let mut entries = tokio::fs::read_dir(directory).await.ok()?;
     while let Ok(Some(entry)) = entries.next_entry().await {
         let path = entry.path();
+        if is_part(&path) {
+            continue;
+        }
         if path.file_stem().and_then(|s| s.to_str()) == Some(id) {
             return Some(path);
         }
     }
 
     None
+}
+
+fn is_part(path: &Path) -> bool {
+    path.extension()
+        .and_then(|extension| extension.to_str())
+        .is_some_and(|extension| extension.eq_ignore_ascii_case("part"))
+}
+
+async fn stale_parts(directory: &Path, id: &str) {
+    let Ok(mut entries) = tokio::fs::read_dir(directory).await else {
+        return;
+    };
+
+    while let Ok(Some(entry)) = entries.next_entry().await {
+        let path = entry.path();
+
+        if is_part(&path) && starts_the_name(&path, id) {
+            tokio::fs::remove_file(&path).await.ok();
+        }
+    }
+}
+
+fn starts_the_name(path: &Path, id: &str) -> bool {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .is_some_and(|name| name.starts_with(id))
 }
 
 fn parse_progress(line: &str) -> Option<f32> {
@@ -423,6 +508,129 @@ mod tests {
         );
 
         tokio::fs::remove_dir_all(&directory).await.ok();
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn no_more_than_the_gate_allows_run_at_once() {
+        use std::sync::atomic::{AtomicUsize, Ordering};
+
+        let source = Arc::new(YtDlp::at(PathBuf::from("unused")));
+        let live = Arc::new(AtomicUsize::new(0));
+        let peak = Arc::new(AtomicUsize::new(0));
+
+        let running: Vec<_> = (0..CONCURRENT + 5)
+            .map(|_| {
+                let (source, live, peak) =
+                    (Arc::clone(&source), Arc::clone(&live), Arc::clone(&peak));
+
+                tokio::spawn(async move {
+                    let _slot = Arc::clone(&source.slots)
+                        .acquire_owned()
+                        .await
+                        .expect("the gate is open");
+
+                    let now = live.fetch_add(1, Ordering::SeqCst) + 1;
+                    peak.fetch_max(now, Ordering::SeqCst);
+
+                    tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+                    live.fetch_sub(1, Ordering::SeqCst);
+                })
+            })
+            .collect();
+
+        for task in running {
+            task.await.expect("no task panicked");
+        }
+
+        let peak = peak.load(Ordering::SeqCst);
+        assert!(
+            peak <= CONCURRENT,
+            "{peak} downloads held the gate at once against a limit of {CONCURRENT}"
+        );
+        assert_eq!(
+            peak, CONCURRENT,
+            "the gate never filled, so nothing was measured"
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn a_file_already_on_disk_answers_without_waiting_for_a_permit() {
+        let directory =
+            std::env::temp_dir().join(format!("verse-dl-nogate-{}", std::process::id()));
+        tokio::fs::create_dir_all(&directory)
+            .await
+            .expect("scratch");
+        let existing = directory.join("abc.m4a");
+        tokio::fs::write(&existing, b"audio").await.expect("write");
+
+        let source = YtDlp::at(PathBuf::from("definitely-not-a-real-binary-xyz"));
+        let held = Arc::clone(&source.slots)
+            .acquire_many_owned(CONCURRENT as u32)
+            .await
+            .expect("every permit");
+
+        let served = tokio::time::timeout(
+            std::time::Duration::from_secs(2),
+            source.fetch("abc", &directory, |_| {}),
+        )
+        .await
+        .expect("a cache hit waited on the gate");
+
+        assert_eq!(served.expect("the existing file"), existing);
+
+        drop(held);
+        tokio::fs::remove_dir_all(&directory).await.ok();
+    }
+
+    #[tokio::test]
+    async fn a_partial_from_a_killed_download_is_swept_before_starting() {
+        let directory = std::env::temp_dir().join(format!("verse-dl-part-{}", std::process::id()));
+        tokio::fs::create_dir_all(&directory)
+            .await
+            .expect("scratch");
+
+        let partial = directory.join("abc.m4a.part");
+        tokio::fs::write(&partial, b"half").await.expect("write");
+        let other = directory.join("zzz.m4a.part");
+        tokio::fs::write(&other, b"half").await.expect("write");
+
+        let source = YtDlp::at(PathBuf::from("definitely-not-a-real-binary-xyz"));
+        let _ = source.fetch("abc", &directory, |_| {}).await;
+
+        assert!(
+            !tokio::fs::try_exists(&partial).await.unwrap_or(true),
+            "the partial for this download survived"
+        );
+        assert!(
+            tokio::fs::try_exists(&other).await.unwrap_or(false),
+            "another download's partial was swept"
+        );
+
+        tokio::fs::remove_dir_all(&directory).await.ok();
+    }
+
+    #[tokio::test]
+    async fn a_partial_is_never_returned_as_the_finished_file() {
+        let directory =
+            std::env::temp_dir().join(format!("verse-dl-nopart-{}", std::process::id()));
+        tokio::fs::create_dir_all(&directory)
+            .await
+            .expect("scratch");
+        tokio::fs::write(directory.join("abc.m4a.part"), b"half")
+            .await
+            .expect("write");
+
+        assert_eq!(written_file(&directory, "abc").await, None);
+
+        tokio::fs::remove_dir_all(&directory).await.ok();
+    }
+
+    #[test]
+    fn a_part_file_is_told_apart_from_the_audio_beside_it() {
+        assert!(is_part(Path::new("/tmp/abc.m4a.part")));
+        assert!(is_part(Path::new("/tmp/abc.m4a.PART")));
+        assert!(!is_part(Path::new("/tmp/abc.m4a")));
+        assert!(!is_part(Path::new("/tmp/abc")));
     }
 
     #[tokio::test]

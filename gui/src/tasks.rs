@@ -17,6 +17,24 @@
 //! being spawned per keystroke: sleeping inside it means the superseded ones
 //! wake to find themselves stale and their replies dropped, with no timer state
 //! to keep in step with the query.
+//!
+//! Download progress goes over a `watch` channel rather than an `mpsc`. A
+//! progress bar wants the newest fraction and nothing else — an intermediate one
+//! is worthless the moment a later one exists — which is exactly what `watch`
+//! keeps. The bounded `mpsc` it replaced dropped sends once full, so a burst of
+//! `yt-dlp` output left bars frozen at whatever fraction last got through, and a
+//! bar stuck at 87% reads as a hung download rather than a busy one.
+//!
+//! The completing `1.0` is sent explicitly rather than relied upon from the
+//! output. `yt-dlp` reports the last chunk before its own remux and fixup, so
+//! the final line is not always 100%, and the row must not settle on whatever
+//! number happened to come last.
+//!
+//! A download resolves its id before fetching it. A listing's id does not always
+//! name the recording the listing described — see [`verse_core::explore`] — and
+//! when it does not, the album version is fetched in its place. That is a
+//! substitution the user did not ask for, so it is reported rather than made
+//! silently, on its own message ahead of the download's own result.
 
 use std::path::PathBuf;
 
@@ -29,7 +47,7 @@ use crate::artwork::{Decoded, Job, Source, decode};
 #[cfg(feature = "explore")]
 use std::sync::Arc;
 #[cfg(feature = "explore")]
-use verse_core::explore::{Destination, DownloadSource, Found, Innertube, MusicSource};
+use verse_core::explore::{Destination, DownloadSource, Found, Innertube, MusicSource, YtDlp};
 
 #[cfg(feature = "explore")]
 use iced::futures::SinkExt;
@@ -119,13 +137,6 @@ pub fn similar(source: Arc<Innertube>, generation: Generation, id: String) -> Ta
     })
 }
 
-/// Builds the landing feed's shelves.
-///
-/// The feed is one Innertube call, split into shelves here rather than fetched
-/// per shelf: the endpoint answers a mixed pool of releases and already carries
-/// the kind of each, so a second request would ask the same question twice. A
-/// shelf that ends up empty is dropped by the pane rather than drawn as a
-/// heading over nothing.
 #[cfg(feature = "explore")]
 pub fn browse(source: Arc<Innertube>, generation: Generation) -> Task<Message> {
     Task::future(async move {
@@ -163,34 +174,53 @@ fn shelves(albums: Vec<verse_core::explore::FoundAlbum>) -> Vec<crate::explore::
 }
 
 #[cfg(feature = "explore")]
-pub fn check_fetcher() -> Task<Message> {
-    Task::future(async {
-        let fetcher = verse_core::explore::YtDlp::new();
-        Message::FetcherChecked(fetcher.available().await)
-    })
+pub fn check_fetcher(fetcher: Arc<YtDlp>) -> Task<Message> {
+    Task::future(async move { Message::FetcherChecked(fetcher.available().await) })
 }
 
 #[cfg(feature = "explore")]
-pub fn download(found: Found, into: Destination, root: PathBuf) -> Task<Message> {
+pub fn download(
+    source: Arc<Innertube>,
+    fetcher: Arc<YtDlp>,
+    found: Found,
+    into: Destination,
+    root: PathBuf,
+) -> Task<Message> {
     let id = found.id.clone();
 
     Task::stream(iced::stream::channel(
         16,
         move |mut sender: iced::futures::channel::mpsc::Sender<Message>| async move {
-            let (progress, mut updates) = tokio::sync::mpsc::channel::<f32>(16);
+            let (progress, mut updates) = tokio::sync::watch::channel(0.0_f32);
             let reporting = id.clone();
 
             let mut relay = sender.clone();
-            tokio::spawn(async move {
-                while let Some(fraction) = updates.recv().await {
+            let relaying = tokio::spawn(async move {
+                while updates.changed().await.is_ok() {
+                    let fraction = *updates.borrow_and_update();
                     let _ = relay
                         .send(Message::ExploreProgress(reporting.clone(), fraction))
                         .await;
                 }
             });
 
-            let outcome = fetch_and_file(&found, &into, &root, &progress).await;
+            let outcome = fetch_and_file(&source, &fetcher, &found, &into, &root, &progress).await;
             drop(progress);
+            let _ = relaying.await;
+
+            let (outcome, substituted) = match outcome {
+                Ok((filed, substituted)) => (Ok(filed), substituted),
+                Err(e) => (Err(e), None),
+            };
+
+            if substituted.is_some() {
+                let _ = sender
+                    .send(Message::ExploreSubstituted(
+                        found.id.clone(),
+                        found.title.clone(),
+                    ))
+                    .await;
+            }
 
             let _ = sender
                 .send(Message::ExploreDownloaded(
@@ -204,22 +234,27 @@ pub fn download(found: Found, into: Destination, root: PathBuf) -> Task<Message>
 
 #[cfg(feature = "explore")]
 async fn fetch_and_file(
+    source: &Innertube,
+    fetcher: &YtDlp,
     found: &Found,
     into: &Destination,
     root: &std::path::Path,
-    progress: &tokio::sync::mpsc::Sender<f32>,
-) -> Result<PathBuf, String> {
-    let fetcher = verse_core::explore::YtDlp::new();
-    let staging = root.join(".verse-downloads");
+    progress: &tokio::sync::watch::Sender<f32>,
+) -> Result<(PathBuf, Option<String>), String> {
+    let staging = staging_directory();
+
+    let resolved = verse_core::explore::for_download(source, fetcher, found).await;
 
     let audio = fetcher
-        .fetch(&found.id, &staging, |update| {
+        .fetch(&resolved.id, &staging, |update| {
             if let Some(fraction) = update.fraction {
-                let _ = progress.try_send(fraction);
+                let _ = progress.send(fraction);
             }
         })
         .await
         .map_err(|e| e.to_string())?;
+
+    let _ = progress.send(1.0);
 
     let mut into = into.clone();
     into.cover = match found.cover_url.as_deref() {
@@ -236,11 +271,31 @@ async fn fetch_and_file(
             .map_err(|e| e.to_string())?;
     }
 
-    tokio::fs::rename(&audio, &filed)
-        .await
-        .map_err(|e| e.to_string())?;
+    file_into_place(&audio, &filed).await?;
 
-    Ok(filed)
+    Ok((filed, resolved.substituted))
+}
+
+#[cfg(feature = "explore")]
+fn staging_directory() -> PathBuf {
+    dirs::cache_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("verse")
+        .join("downloads")
+}
+
+#[cfg(feature = "explore")]
+async fn file_into_place(from: &std::path::Path, to: &PathBuf) -> Result<(), String> {
+    match tokio::fs::rename(from, to).await {
+        Ok(()) => return Ok(()),
+        Err(e) if e.kind() == std::io::ErrorKind::CrossesDevices => {}
+        Err(e) => return Err(e.to_string()),
+    }
+
+    tokio::fs::copy(from, to).await.map_err(|e| e.to_string())?;
+    tokio::fs::remove_file(from).await.ok();
+
+    Ok(())
 }
 
 #[cfg(feature = "explore")]

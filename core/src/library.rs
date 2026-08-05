@@ -44,6 +44,13 @@
 //! keeps what the user set. That is the same rule a rescan follows, for the same
 //! reason.
 //!
+//! [`Library::ingest_many`] is the same operation for a batch, and exists
+//! because the reload is the expensive half. Ingesting an album a track at a
+//! time paid a full rebuild — every row, both indexes, every album — per track,
+//! at a cost set by the size of the library rather than the size of the
+//! download. Batching pays it once. A file that cannot be read is skipped rather
+//! than failing the rest, and the caller sees which by what does not come back.
+//!
 //! [`Library::open`] takes the one database the application owns, which makes it
 //! useless to a test: two tests running in the same process would share a file
 //! and see each other's tracks. [`Library::open_at`] names the database instead,
@@ -205,6 +212,7 @@ impl Library {
         let files: Vec<PathBuf> = WalkDir::new(root)
             .follow_links(false)
             .into_iter()
+            .filter_entry(|e| !is_hidden_directory(e))
             .flatten()
             .filter(|e| e.file_type().is_file() && is_audio(e.path()))
             .map(walkdir::DirEntry::into_path)
@@ -236,13 +244,39 @@ impl Library {
         let track = Track::from_path(path)
             .map_err(|e| LibraryError::Unreadable(path.display().to_string(), e))?;
 
-        self.db.upsert_tracks(std::slice::from_ref(&track))?;
-        self.db.relink_pending()?;
-        self.reload()?;
+        self.store(&[track])?;
 
         self.track_by_path(path)
             .and_then(Track::id)
             .ok_or_else(|| LibraryError::NotIngested(path.display().to_string()))
+    }
+
+    pub fn ingest_many(&mut self, paths: &[PathBuf]) -> Result<Vec<(PathBuf, i64)>, LibraryError> {
+        let tracks: Vec<Track> = paths
+            .par_iter()
+            .filter(|path| is_audio(path))
+            .filter_map(|path| Track::from_path(path).ok())
+            .collect();
+
+        if tracks.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        self.store(&tracks)?;
+
+        Ok(paths
+            .iter()
+            .filter_map(|path| {
+                let id = self.track_by_path(path).and_then(Track::id)?;
+                Some((path.clone(), id))
+            })
+            .collect())
+    }
+
+    fn store(&mut self, tracks: &[Track]) -> Result<(), LibraryError> {
+        self.db.upsert_tracks(tracks)?;
+        self.db.relink_pending()?;
+        self.reload()
     }
 
     pub fn clear(&mut self) -> Result<(), LibraryError> {
@@ -365,6 +399,15 @@ fn albums_by_key<'a>(
     resolved
 }
 
+fn is_hidden_directory(entry: &walkdir::DirEntry) -> bool {
+    entry.depth() > 0
+        && entry.file_type().is_dir()
+        && entry
+            .file_name()
+            .to_str()
+            .is_some_and(|name| name.starts_with('.'))
+}
+
 fn is_audio(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
@@ -449,9 +492,6 @@ mod tests {
         );
     }
 
-    /// The precondition the single pass rests on. Keys out of `albums` order
-    /// resolve only what falls in sequence, which is why the header restricts
-    /// this to callers narrowing that same list.
     #[test]
     fn keys_out_of_order_are_not_all_found() {
         let albums = [album("Blue Lines"), album("Mezzanine"), album("Protection")];
@@ -488,8 +528,6 @@ mod tests {
         }
     }
 
-    /// What [`albums_by_key`] cannot do, and the reason a single-key lookup is
-    /// its own method: order is nothing to a scan.
     #[test]
     fn a_lookup_does_not_care_what_order_the_keys_came_in() {
         let albums = [album("Blue Lines"), album("Mezzanine"), album("Protection")];
@@ -574,9 +612,6 @@ mod tests {
         assert!(!is_audio(Path::new("song.")));
     }
 
-    /// ASCII folding is what the extensions need, and it is deliberately not
-    /// Unicode folding: the Kelvin sign lowercases to `k` under `to_lowercase`,
-    /// so a Unicode fold would accept extensions that are not the ones listed.
     #[test]
     fn folding_does_not_stretch_past_ascii() {
         assert!(
