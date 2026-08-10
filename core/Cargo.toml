@@ -44,7 +44,7 @@ tokio = { version = "1.53.1", default-features = false, features = [
 
 [dev-dependencies]
 tokio = { version = "1.53.1", features = ["rt", "rt-multi-thread", "macros", "time"] }
-kira = { version = "0.12.2", features = ["aac", "alac", "isomp4"] }
+kira = { version = "0.12.3", features = ["aac", "alac", "isomp4"] }
 
 [[example]]
 name = "explore_probe"
