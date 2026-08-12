@@ -17,6 +17,13 @@
 //! here. The queue's history toggle and the timeline's remaining-time toggle both
 //! qualify: each is about how one pane draws itself and nothing else.
 //!
+//! [`PaneKind`] deserializes through `Named` so that a name this build does not
+//! know degrades to [`PaneKind::Empty`] rather than failing the whole config and
+//! discarding the user's themes, keybinds and layouts along with it. `Named`
+//! therefore outlives the kinds it maps to: `explore` is the download pane's
+//! former name and still parses, because every layout saved before the rename
+//! spells it that way and a renamed pane must not silently blank itself.
+//!
 //! [`PaneKind`] derives `Ord` so that [`settings::PaneSettings`] can key a pane's
 //! settings by kind in a `BTreeMap`, which also gives that map one stable order
 //! on disk rather than a hash order that could rewrite the layout file without
@@ -34,6 +41,8 @@
 pub mod artwork;
 pub mod collections;
 pub mod controls;
+#[cfg(feature = "explore")]
+pub mod download;
 pub mod library;
 pub mod options;
 pub mod queue;
@@ -96,6 +105,7 @@ impl PaneCategory {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[serde(from = "Named")]
 pub enum PaneKind {
     Library,
     Search,
@@ -104,6 +114,8 @@ pub enum PaneKind {
     Playlists,
     Collections,
     Folders,
+    #[cfg(feature = "explore")]
+    Download,
     Queue,
     NowPlaying,
     Controls,
@@ -118,8 +130,91 @@ pub enum PaneKind {
     Empty,
 }
 
+#[derive(Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum Named {
+    Library,
+    Search,
+    Albums,
+    Artists,
+    Playlists,
+    Collections,
+    Folders,
+    Explore,
+    Download,
+    Queue,
+    NowPlaying,
+    Controls,
+    Timeline,
+    Volume,
+    History,
+    Lyrics,
+    TrackInfo,
+    Artwork,
+    Visualizer,
+    Equalizer,
+    Empty,
+    #[serde(other)]
+    Unknown,
+}
+
+impl From<Named> for PaneKind {
+    fn from(named: Named) -> Self {
+        match named {
+            Named::Library => Self::Library,
+            Named::Search => Self::Search,
+            Named::Albums => Self::Albums,
+            Named::Artists => Self::Artists,
+            Named::Playlists => Self::Playlists,
+            Named::Collections => Self::Collections,
+            Named::Folders => Self::Folders,
+            #[cfg(feature = "explore")]
+            Named::Explore | Named::Download => Self::Download,
+            #[cfg(not(feature = "explore"))]
+            Named::Explore | Named::Download => Self::Empty,
+            Named::Queue => Self::Queue,
+            Named::NowPlaying => Self::NowPlaying,
+            Named::Controls => Self::Controls,
+            Named::Timeline => Self::Timeline,
+            Named::Volume => Self::Volume,
+            Named::History => Self::History,
+            Named::Lyrics => Self::Lyrics,
+            Named::TrackInfo => Self::TrackInfo,
+            Named::Artwork => Self::Artwork,
+            Named::Visualizer => Self::Visualizer,
+            Named::Equalizer => Self::Equalizer,
+            Named::Empty | Named::Unknown => Self::Empty,
+        }
+    }
+}
+
 impl PaneKind {
-    pub const ALL: [PaneKind; 19] = [
+    #[cfg(feature = "explore")]
+    pub const ALL: &'static [PaneKind] = &[
+        PaneKind::Library,
+        PaneKind::Search,
+        PaneKind::Albums,
+        PaneKind::Artists,
+        PaneKind::Playlists,
+        PaneKind::Collections,
+        PaneKind::Folders,
+        PaneKind::Queue,
+        PaneKind::NowPlaying,
+        PaneKind::Controls,
+        PaneKind::Timeline,
+        PaneKind::Volume,
+        PaneKind::History,
+        PaneKind::Lyrics,
+        PaneKind::TrackInfo,
+        PaneKind::Artwork,
+        PaneKind::Visualizer,
+        PaneKind::Download,
+        PaneKind::Equalizer,
+        PaneKind::Empty,
+    ];
+
+    #[cfg(not(feature = "explore"))]
+    pub const ALL: &'static [PaneKind] = &[
         PaneKind::Library,
         PaneKind::Search,
         PaneKind::Albums,
@@ -150,6 +245,8 @@ impl PaneKind {
             PaneKind::Playlists => "Playlists",
             PaneKind::Collections => "Collections",
             PaneKind::Folders => "Folders",
+            #[cfg(feature = "explore")]
+            PaneKind::Download => "Download",
             PaneKind::Queue => "Queue",
             PaneKind::NowPlaying => "Now Playing",
             PaneKind::Controls => "Controls",
@@ -174,6 +271,8 @@ impl PaneKind {
             | PaneKind::Playlists
             | PaneKind::Collections
             | PaneKind::Folders => PaneCategory::Browse,
+            #[cfg(feature = "explore")]
+            PaneKind::Download => PaneCategory::Tools,
             PaneKind::Queue
             | PaneKind::NowPlaying
             | PaneKind::Controls
@@ -196,6 +295,8 @@ impl PaneKind {
             PaneKind::Playlists => "mixes sets collections",
             PaneKind::Collections => "albums grid covers artwork browse library",
             PaneKind::Folders => "files directories browse disk",
+            #[cfg(feature = "explore")]
+            PaneKind::Download => "download search online get fetch songs albums",
             PaneKind::Queue => "up next playlist upcoming",
             PaneKind::NowPlaying => "current track player",
             PaneKind::Controls => "transport play pause next previous skip",
@@ -219,7 +320,7 @@ impl PaneKind {
 
     pub fn by_category() -> Vec<(PaneCategory, Vec<PaneKind>)> {
         let mut groups: Vec<(PaneCategory, Vec<PaneKind>)> = Vec::new();
-        for kind in PaneKind::ALL {
+        for &kind in PaneKind::ALL {
             match groups.last_mut() {
                 Some((category, kinds)) if *category == kind.category() => kinds.push(kind),
                 _ => groups.push((kind.category(), vec![kind])),
@@ -231,7 +332,8 @@ impl PaneKind {
     pub fn search(query: &str) -> Vec<PaneKind> {
         let query_lower = query.to_lowercase();
         PaneKind::ALL
-            .into_iter()
+            .iter()
+            .copied()
             .filter(|kind| kind.matches(&query_lower))
             .collect()
     }
@@ -239,6 +341,8 @@ impl PaneKind {
 
 #[derive(Debug, Clone)]
 pub enum PaneMessage {
+    #[cfg(feature = "explore")]
+    Download(download::PanelMessage),
     Queue(queue::Message),
     Timeline(timeline::Message),
     Collections(collections::PanelMessage),
@@ -246,6 +350,8 @@ pub enum PaneMessage {
 
 #[derive(Debug)]
 pub enum PaneState {
+    #[cfg(feature = "explore")]
+    Download(download::State),
     Queue(queue::State),
     Timeline(timeline::State),
     Artwork(artwork::State),
@@ -260,6 +366,8 @@ impl PaneState {
             PaneKind::Timeline => Self::Timeline(timeline::State::default()),
             PaneKind::Artwork => Self::Artwork(artwork::State::default()),
             PaneKind::Collections => Self::Collections(collections::State::default()),
+            #[cfg(feature = "explore")]
+            PaneKind::Download => Self::Download(download::State::default()),
             PaneKind::Library
             | PaneKind::Search
             | PaneKind::Albums
@@ -313,6 +421,10 @@ impl PaneStates {
 
     pub fn update(&mut self, id: PaneId, message: PaneMessage) {
         match (self.get_mut(id), message) {
+            #[cfg(feature = "explore")]
+            (Some(PaneState::Download(state)), PaneMessage::Download(message)) => {
+                download::update(state, &message);
+            }
             (Some(PaneState::Queue(state)), PaneMessage::Queue(message)) => {
                 queue::update(state, &message);
             }
@@ -362,15 +474,73 @@ mod tests {
     /// the string both produce is checked once here rather than per pane.
     #[test]
     fn a_summary_names_the_count_and_the_run_time() {
-        assert_eq!(summary(1, 90.0), "1 track Â· 2 min");
-        assert_eq!(summary(12, 90.0 * 60.0), "12 tracks Â· 1 hr 30 min");
+        assert_eq!(summary(1, 90.0), "1 track \u{00b7} 2 min");
+        assert_eq!(summary(12, 90.0 * 60.0), "12 tracks \u{00b7} 1 hr 30 min");
     }
 
     #[test]
     fn every_kind_appears_exactly_once_in_all() {
-        for kind in PaneKind::ALL {
+        for &kind in PaneKind::ALL {
             let count = PaneKind::ALL.iter().filter(|k| **k == kind).count();
             assert_eq!(count, 1, "{kind:?} listed {count} times in ALL");
+        }
+    }
+
+    #[derive(Serialize, Deserialize)]
+    struct Holder {
+        kind: PaneKind,
+    }
+
+    fn read_kind(name: &str) -> PaneKind {
+        toml::from_str::<Holder>(&format!("kind = \"{name}\""))
+            .expect("a kind never fails to parse")
+            .kind
+    }
+
+    #[test]
+    fn a_kind_this_build_does_not_know_reads_as_empty() {
+        assert_eq!(read_kind("nonsense_kind"), PaneKind::Empty);
+    }
+
+    #[test]
+    fn a_download_pane_survives_a_build_without_the_feature() {
+        let parsed = read_kind("download");
+
+        #[cfg(feature = "explore")]
+        assert_eq!(parsed, PaneKind::Download);
+
+        #[cfg(not(feature = "explore"))]
+        assert_eq!(
+            parsed,
+            PaneKind::Empty,
+            "a layout naming download must degrade to a blank pane rather than \
+             failing the whole config and discarding the user's themes, \
+             keybinds and layouts"
+        );
+    }
+
+    #[test]
+    fn a_layout_saved_under_the_old_name_still_opens_the_pane() {
+        let parsed = read_kind("explore");
+
+        #[cfg(feature = "explore")]
+        assert_eq!(
+            parsed,
+            PaneKind::Download,
+            "renaming the pane silently blanked it in every layout already saved"
+        );
+
+        #[cfg(not(feature = "explore"))]
+        assert_eq!(parsed, PaneKind::Empty);
+    }
+
+    #[test]
+    fn every_kind_round_trips_through_its_serialized_name() {
+        for &kind in PaneKind::ALL {
+            let text = toml::to_string(&Holder { kind }).expect("serializes");
+            let back: Holder = toml::from_str(&text).expect("deserializes");
+
+            assert_eq!(back.kind, kind, "{kind:?} did not survive {text}");
         }
     }
 

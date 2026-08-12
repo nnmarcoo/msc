@@ -135,6 +135,10 @@ pub struct Shared<'a> {
     pub visible: &'a [i64],
     pub visible_albums: &'a [AlbumKey],
     pub artwork: &'a ArtCache,
+    #[cfg(feature = "explore")]
+    pub fetching: &'a crate::download::Search,
+    #[cfg(feature = "explore")]
+    pub remote: &'a crate::artwork::Remote,
 }
 
 #[derive(Clone, Copy)]
@@ -252,6 +256,8 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
             cover_for(pane, &shared),
         ),
         PaneKind::Search => search::view(shared.tracks, shared.visible.len()),
+        #[cfg(feature = "explore")]
+        PaneKind::Download => download_pane(pane, shared),
         PaneKind::TrackInfo => track_info::view(
             shared.tracks,
             pane.settings.track_info(),
@@ -262,6 +268,22 @@ fn content<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
             .center_y(Length::Fill)
             .into(),
     }
+}
+
+#[cfg(feature = "explore")]
+#[allow(clippy::large_types_passed_by_value)]
+fn download_pane<'a>(pane: Pane<'a>, shared: Shared<'a>) -> Element<'a, Message> {
+    static EMPTY: super::download::State = super::download::State::EMPTY;
+
+    let state = match pane.state {
+        Some(PaneState::Download(state)) => state,
+        _ => &EMPTY,
+    };
+
+    responsive(move |size| {
+        super::download::view(shared.fetching, state, shared.remote, pane.id, size.width)
+    })
+    .into()
 }
 
 fn cover_for(pane: Pane<'_>, shared: &Shared<'_>) -> Option<[u8; 3]> {

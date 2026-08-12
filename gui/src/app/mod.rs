@@ -147,6 +147,12 @@
 //! also writes the config, so letting it run mid-edit would put the live config
 //! on disk in the middle of editing a copy of it.
 //!
+//! A download already tracked is not started again, *except* a failed one: an
+//! entry in [`crate::download::Downloads`] means "in flight or finished", and
+//! treating a failure as either left the retry button pressable but inert, since
+//! the row it belonged to was still held. A 403 from YouTube is transient and
+//! common, so retrying is the one thing a failed row is for.
+//!
 //! `Tick` drives animation, and `TICK` is 16ms because of it. Position comes
 //! from `Player::position` when `view` runs, so a frame is only as fresh as the
 //! last `view`, and anything following playback moves at this rate. At 250ms the
@@ -173,6 +179,9 @@ const TICK: Duration = Duration::from_millis(16);
 
 const CONFIG_FLUSH: Duration = Duration::from_secs(1);
 
+#[cfg(feature = "explore")]
+const INGEST_DRAIN: Duration = Duration::from_millis(400);
+
 static NO_SETTINGS: std::sync::LazyLock<PaneSettings> =
     std::sync::LazyLock::new(PaneSettings::default);
 
@@ -187,6 +196,8 @@ use verse_core::{AlbumKey, Library, Player, Track};
 use crate::artwork::{Cache as ArtCache, Decoded};
 use crate::browsing::{Context, Selection};
 use crate::config::Config;
+#[cfg(feature = "explore")]
+use crate::download::{Download, Fetcher, Generation, Search, Stage};
 use crate::keybinds::Action;
 use crate::layout::{Axis, DropZone, Layout, Locks, PaneId, PaneMetrics, SplitPath};
 use crate::pane::collections::{self, Kind as CollectionKind};
@@ -225,6 +236,15 @@ pub struct App {
     seeking: Option<f32>,
     config_dirty: bool,
     status: Option<String>,
+
+    #[cfg(feature = "explore")]
+    fetching: Search,
+    #[cfg(feature = "explore")]
+    source: std::sync::Arc<verse_core::explore::Innertube>,
+    #[cfg(feature = "explore")]
+    fetcher: std::sync::Arc<verse_core::explore::YtDlp>,
+    #[cfg(feature = "explore")]
+    remote: crate::artwork::Remote,
 
     window: iced::Size,
 }
@@ -306,7 +326,10 @@ pub enum Message {
     EnqueueTracks(Vec<i64>),
     EnqueueTracksNext(Vec<i64>),
     RemoveFromQueue(usize),
-    ReorderQueue { from: usize, to: usize },
+    ReorderQueue {
+        from: usize,
+        to: usize,
+    },
     ClearQueue,
     QueueAll,
 
@@ -349,6 +372,35 @@ pub enum Message {
 
     ArtDecoded(Box<Decoded>),
 
+    #[cfg(feature = "explore")]
+    DownloadQueryChanged(String),
+    #[cfg(feature = "explore")]
+    DownloadSettled(Generation, Box<Stage>),
+    #[cfg(feature = "explore")]
+    DownloadOpenAlbum(String),
+    #[cfg(feature = "explore")]
+    DownloadRetry,
+    #[cfg(feature = "explore")]
+    DownloadOne(String),
+    #[cfg(feature = "explore")]
+    DownloadAlbum(String),
+    #[cfg(feature = "explore")]
+    DownloadAlbumReady(String, Box<Result<verse_core::explore::FoundAlbum, String>>),
+    #[cfg(feature = "explore")]
+    DownloadAlbumOpened(String, Box<Result<verse_core::explore::FoundAlbum, String>>),
+    #[cfg(feature = "explore")]
+    DownloadProgress(String, f32),
+    #[cfg(feature = "explore")]
+    DownloadFinished(String, Box<Result<PathBuf, String>>),
+    #[cfg(feature = "explore")]
+    DownloadIngestLanded,
+    #[cfg(feature = "explore")]
+    DownloadSubstituted(String, String),
+    #[cfg(feature = "explore")]
+    FetcherChecked(bool),
+    #[cfg(feature = "explore")]
+    DownloadArt(String, Option<iced::widget::image::Handle>),
+
     Noop,
 }
 
@@ -389,11 +441,26 @@ impl App {
             seeking: None,
             config_dirty: false,
             status: None,
+            #[cfg(feature = "explore")]
+            fetching: Search::default(),
+            #[cfg(feature = "explore")]
+            source: std::sync::Arc::new(verse_core::explore::Innertube::new()),
+            #[cfg(feature = "explore")]
+            fetcher: std::sync::Arc::new(verse_core::explore::YtDlp::new()),
+            #[cfg(feature = "explore")]
+            remote: crate::artwork::Remote::new(),
             window: iced::Size::new(1280.0, 800.0),
         };
         app.sync_pane_states();
         app.refresh_visible();
 
+        #[cfg(feature = "explore")]
+        return {
+            let fetcher = std::sync::Arc::clone(&app.fetcher);
+            (app, tasks::check_fetcher(fetcher))
+        };
+
+        #[cfg(not(feature = "explore"))]
         (app, Task::none())
     }
 
@@ -726,6 +793,9 @@ impl App {
     pub fn update(&mut self, message: Message) -> Task<Message> {
         let task = self.dispatch(message);
 
+        #[cfg(feature = "explore")]
+        let task = Task::batch([task, self.fetch_remote_art()]);
+
         if self.artwork.is_idle() {
             return task;
         }
@@ -770,17 +840,71 @@ impl App {
             | Message::QueueSelectionNext
             | Message::RateTrack(..) => self.update_tracks(message),
 
-            Message::Pane(id, message) => self.pane_states.update(id, message),
-            Message::SplitPane(id, axis) => {
-                if self.layout_mut().split(id, axis, PaneKind::Empty).is_some() {
-                    self.after_layout_change();
+            Message::Pane(..)
+            | Message::SplitPane(..)
+            | Message::ClosePane(_)
+            | Message::SetPaneKind(..)
+            | Message::OpenPaneOptions(..)
+            | Message::ClosePaneOptions
+            | Message::CyclePaneLock(_)
+            | Message::SetPaneSettings(..)
+            | Message::DividerGrabbed(..)
+            | Message::PaneGrabbed(_)
+            | Message::DropHovered(_)
+            | Message::DropHoverEnded(_)
+            | Message::ToggleEditMode
+            | Message::SelectLayout(_) => self.update_layout(message),
+
+            Message::TogglePreferences => self.toggle_preferences(),
+            Message::Preference(message) => self.apply_preference(message),
+
+            Message::SelectFolder
+            | Message::FolderPicked(_)
+            | Message::Rescan
+            | Message::ScanFinished(_)
+            | Message::SaveConfig => return self.update_library(message),
+
+            Message::ArtDecoded(decoded) => {
+                let decoded = *decoded;
+                if let Some((key, master)) = decoded.master {
+                    self.artwork.keep_master(key, master);
                 }
+                self.artwork.insert(decoded.art);
             }
-            Message::ClosePane(id) => {
-                if self.layout_mut().close(id) {
-                    self.pane_states.remove(id);
-                    self.after_layout_change();
-                }
+
+            #[cfg(feature = "explore")]
+            Message::DownloadQueryChanged(_)
+            | Message::DownloadSettled(..)
+            | Message::DownloadOpenAlbum(_)
+            | Message::DownloadRetry
+            | Message::DownloadOne(_)
+            | Message::DownloadAlbum(_)
+            | Message::DownloadAlbumReady(..)
+            | Message::DownloadAlbumOpened(..)
+            | Message::DownloadProgress(..)
+            | Message::DownloadFinished(..)
+            | Message::DownloadIngestLanded
+            | Message::DownloadSubstituted(..)
+            | Message::FetcherChecked(_)
+            | Message::DownloadArt(..) => return self.update_explore(message),
+
+            Message::Event(event) => return self.handle_event(&event),
+            Message::Noop => {}
+        }
+        Task::none()
+    }
+
+    fn update_layout(&mut self, message: Message) {
+        match message {
+            Message::Pane(id, message) => self.pane_states.update(id, message),
+            Message::SplitPane(id, axis)
+                if self.layout_mut().split(id, axis, PaneKind::Empty).is_some() =>
+            {
+                self.after_layout_change();
+            }
+            Message::ClosePane(id) if self.layout_mut().close(id) => {
+                self.pane_states.remove(id);
+                self.after_layout_change();
             }
             Message::SetPaneKind(id, kind) => {
                 self.layout_mut().set_kind(id, kind);
@@ -790,9 +914,7 @@ impl App {
             Message::OpenPaneOptions(..)
             | Message::ClosePaneOptions
             | Message::CyclePaneLock(_)
-            | Message::SetPaneSettings(..) => {
-                self.update_pane_options(&message);
-            }
+            | Message::SetPaneSettings(..) => self.update_pane_options(&message),
             Message::DividerGrabbed(path, span) => {
                 if let Some(axis) = self.layout().split_axis(&path) {
                     self.drag = Some(DividerDrag {
@@ -807,16 +929,18 @@ impl App {
                 self.update_pane_drag(&message);
             }
             Message::ToggleEditMode => self.toggle_edit_mode(),
-            Message::SelectLayout(index) => {
-                if index < self.layouts.len() && index != self.active_layout {
-                    self.active_layout = index;
-                    self.after_layout_change();
-                }
+            Message::SelectLayout(index)
+                if index < self.layouts.len() && index != self.active_layout =>
+            {
+                self.active_layout = index;
+                self.after_layout_change();
             }
+            _ => {}
+        }
+    }
 
-            Message::TogglePreferences => self.toggle_preferences(),
-            Message::Preference(message) => self.apply_preference(message),
-
+    fn update_library(&mut self, message: Message) -> Task<Message> {
+        match message {
             Message::SelectFolder => return tasks::pick_library_folder(),
             Message::FolderPicked(path) => return self.start_scan(path),
             Message::Rescan => {
@@ -826,21 +950,285 @@ impl App {
                 self.status = Some("No library folder set".into());
             }
             Message::ScanFinished(result) => self.finish_scan(&result),
-
             Message::SaveConfig => self.flush_config(),
-
-            Message::ArtDecoded(decoded) => {
-                let decoded = *decoded;
-                if let Some((key, master)) = decoded.master {
-                    self.artwork.keep_master(key, master);
-                }
-                self.artwork.insert(decoded.art);
-            }
-
-            Message::Event(event) => return self.handle_event(&event),
-            Message::Noop => {}
+            _ => {}
         }
         Task::none()
+    }
+
+    #[cfg(feature = "explore")]
+    fn update_explore(&mut self, message: Message) -> Task<Message> {
+        match message {
+            Message::DownloadQueryChanged(query) => {
+                match self.fetching.query_changed(query) {
+                    Some((generation, query)) => tasks::search(self.source.clone(), generation, query),
+                    None => Task::none(),
+                }
+            }
+            Message::DownloadSettled(generation, stage) => {
+                if self.fetching.settle(generation, *stage) {
+                    self.refresh_held();
+                }
+                Task::none()
+            }
+            Message::DownloadOpenAlbum(id) => {
+                if !self.fetching.open(&id) {
+                    return Task::none();
+                }
+
+                let source = self.source.clone();
+                Task::future(async move {
+                    use verse_core::explore::MusicSource as _;
+                    let album = source.album(&id).await.map_err(|e| e.to_string());
+                    Message::DownloadAlbumOpened(id, Box::new(album))
+                })
+            }
+            Message::DownloadAlbumOpened(id, album) => {
+                self.fetching.opened_settled(&id, *album);
+                self.refresh_held();
+                Task::none()
+            }
+            Message::DownloadRetry => match self.fetching.retry() {
+                Some((generation, query)) => tasks::search(self.source.clone(), generation, query),
+                None => Task::none(),
+            },
+            Message::DownloadArt(url, handle) => {
+                self.remote.insert(url, handle);
+                Task::none()
+            }
+            Message::FetcherChecked(available) => {
+                self.fetching.fetcher = if available {
+                    Fetcher::Ready
+                } else {
+                    Fetcher::Missing
+                };
+                Task::none()
+            }
+            Message::DownloadOne(id) => self.start_download(&id),
+            Message::DownloadAlbum(id) => {
+                let source = self.source.clone();
+                Task::future(async move {
+                    use verse_core::explore::MusicSource as _;
+                    let album = source.album(&id).await.map_err(|e| e.to_string());
+                    Message::DownloadAlbumReady(id, Box::new(album))
+                })
+            }
+            Message::DownloadAlbumReady(_, album) => match *album {
+                Ok(album) => self.download_album(&album),
+                Err(e) => {
+                    self.status = Some(e);
+                    Task::none()
+                }
+            },
+            Message::DownloadProgress(id, fraction) => {
+                if !self
+                    .fetching
+                    .downloads
+                    .get(&id)
+                    .is_some_and(Download::is_settled)
+                {
+                    self.fetching.downloads.set(&id, Download::Running(fraction));
+                }
+                Task::none()
+            }
+            Message::DownloadFinished(id, outcome) => {
+                self.finish_download(&id, *outcome);
+                Task::none()
+            }
+            Message::DownloadIngestLanded => {
+                self.ingest_landed();
+                Task::none()
+            }
+            Message::DownloadSubstituted(_, title) => {
+                self.status = Some(format!(
+                    "{title}: the listing's video was the wrong length, so the album version was downloaded"
+                ));
+                Task::none()
+            }
+            _ => Task::none(),
+        }
+    }
+
+    #[cfg(feature = "explore")]
+    fn refresh_held(&mut self) {
+        let library = &self.library;
+        let mut held = std::mem::take(&mut self.fetching.held);
+
+        held.rebuild(self.fetching.drawable(), |track| {
+            verse_core::explore::already_held(
+                library,
+                &track.title,
+                track.artist.as_deref(),
+                track.duration,
+            )
+            .is_some()
+        });
+
+        self.fetching.held = held;
+    }
+
+    #[cfg(feature = "explore")]
+    fn start_download(&mut self, id: &str) -> Task<Message> {
+        if self
+            .fetching
+            .downloads
+            .get(id)
+            .is_some_and(|state| !matches!(state, Download::Failed(_)))
+        {
+            return Task::none();
+        }
+
+        let opened = self
+            .fetching
+            .opened
+            .as_ref()
+            .and_then(crate::download::Opened::album);
+
+        let Some(found) = self
+            .fetching
+            .drawable()
+            .find(|track| track.id == id)
+            .cloned()
+        else {
+            return Task::none();
+        };
+
+        if let Some(track_id) = verse_core::explore::already_held(
+            &self.library,
+            &found.title,
+            found.artist.as_deref(),
+            found.duration,
+        ) {
+            self.fetching.downloads.set(id, Download::Done(track_id));
+            return Task::none();
+        }
+
+        let Some(root) = self.library.root().map(Path::to_path_buf) else {
+            self.status = Some("No library folder set".into());
+            return Task::none();
+        };
+
+        let into = match opened {
+            Some(album) if album.tracks.iter().any(|track| track.id == id) => {
+                let position = album
+                    .tracks
+                    .iter()
+                    .position(|track| track.id == id)
+                    .unwrap_or(0);
+                verse_core::explore::Destination::from_album(album, position)
+            }
+            _ => verse_core::explore::Destination {
+                album: found.album.clone(),
+                ..verse_core::explore::Destination::default()
+            },
+        };
+
+        self.fetching.downloads.set(id, Download::Queued);
+        tasks::download(
+            std::sync::Arc::clone(&self.source),
+            std::sync::Arc::clone(&self.fetcher),
+            found,
+            into,
+            root,
+        )
+    }
+
+    #[cfg(feature = "explore")]
+    fn download_album(&mut self, album: &verse_core::explore::FoundAlbum) -> Task<Message> {
+        let Some(root) = self.library.root().map(Path::to_path_buf) else {
+            self.status = Some("No library folder set".into());
+            return Task::none();
+        };
+
+        let mut queued = Vec::new();
+
+        for (position, track) in album.tracks.iter().enumerate() {
+            if self
+                .fetching
+                .downloads
+                .get(&track.id)
+                .is_some_and(|state| !matches!(state, Download::Failed(_)))
+            {
+                continue;
+            }
+
+            if let Some(id) = verse_core::explore::already_held(
+                &self.library,
+                &track.title,
+                track.artist.as_deref(),
+                track.duration,
+            ) {
+                self.fetching.downloads.set(&track.id, Download::Done(id));
+                continue;
+            }
+
+            self.fetching.downloads.set(&track.id, Download::Queued);
+            queued.push(tasks::download(
+                std::sync::Arc::clone(&self.source),
+                std::sync::Arc::clone(&self.fetcher),
+                track.clone(),
+                verse_core::explore::Destination::from_album(album, position),
+                root.clone(),
+            ));
+        }
+
+        Task::batch(queued)
+    }
+
+    #[cfg(feature = "explore")]
+    fn finish_download(&mut self, id: &str, outcome: Result<PathBuf, String>) {
+        match outcome {
+            Ok(path) => self.fetching.downloads.landed(id, path),
+            Err(e) => self.fetching.downloads.set(id, Download::Failed(e)),
+        }
+    }
+
+    #[cfg(feature = "explore")]
+    fn ingest_landed(&mut self) {
+        let landed = self.fetching.downloads.take_landed();
+        if landed.is_empty() {
+            return;
+        }
+
+        let paths: Vec<PathBuf> = landed.iter().map(|(_, path)| path.clone()).collect();
+
+        let ingested = match self.library.ingest_many(&paths) {
+            Ok(ingested) => ingested,
+            Err(e) => {
+                self.status = Some(format!("Could not add downloads to the library: {e}"));
+                for (id, _) in &landed {
+                    self.fetching
+                        .downloads
+                        .set(id, Download::Failed(e.to_string()));
+                }
+                return;
+            }
+        };
+
+        for (id, path) in &landed {
+            let settled = ingested
+                .iter()
+                .find(|(landed_path, _)| landed_path == path)
+                .map_or_else(
+                    || Download::Failed("the file could not be read as a track".to_owned()),
+                    |(_, track_id)| Download::Done(*track_id),
+                );
+
+            self.fetching.downloads.set(id, settled);
+        }
+
+        self.refresh_visible();
+        self.refresh_held();
+    }
+
+    #[cfg(feature = "explore")]
+    fn fetch_remote_art(&mut self) -> Task<Message> {
+        let wanted = self.remote.take();
+        if wanted.is_empty() {
+            return Task::none();
+        }
+
+        Task::batch(wanted.into_iter().map(tasks::fetch_art))
     }
 
     fn decode_artwork(&mut self) -> Task<Message> {
@@ -865,6 +1253,8 @@ impl App {
                 Ok(library) => {
                     self.library = library;
                     self.refresh_visible();
+                    #[cfg(feature = "explore")]
+                    self.refresh_held();
                     let live: Vec<i64> =
                         self.library.tracks().iter().filter_map(Track::id).collect();
                     self.selection.retain_listed(&live);
@@ -1077,6 +1467,10 @@ impl App {
             visible,
             visible_albums: &self.visible_albums,
             artwork: &self.artwork,
+            #[cfg(feature = "explore")]
+            fetching: &self.fetching,
+            #[cfg(feature = "explore")]
+            remote: &self.remote,
         };
 
         let pane = move |id, kind, edit, span| {
@@ -1159,6 +1553,11 @@ impl App {
         }
         if self.config_dirty {
             subs.push(every(CONFIG_FLUSH).map(|_| Message::SaveConfig));
+        }
+
+        #[cfg(feature = "explore")]
+        if self.fetching.downloads.waiting() {
+            subs.push(every(INGEST_DRAIN).map(|_| Message::DownloadIngestLanded));
         }
 
         Subscription::batch(subs)

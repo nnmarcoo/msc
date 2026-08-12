@@ -821,7 +821,7 @@ mod tests {
     #[test]
     fn every_title_fits_the_width_it_is_given() {
         for size in [LABEL_FONT_SIZE, 15.0] {
-            for kind in PaneKind::ALL {
+            for &kind in PaneKind::ALL {
                 let budget = PanePicker::<()>::label_width_at(kind, size);
                 let needed = generous(kind.title(), size);
 

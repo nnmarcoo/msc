@@ -4,6 +4,8 @@ mod app;
 mod artwork;
 mod browsing;
 mod config;
+#[cfg(feature = "explore")]
+mod download;
 mod keybinds;
 mod layout;
 mod pane;

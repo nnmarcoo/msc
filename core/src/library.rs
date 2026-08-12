@@ -26,6 +26,36 @@
 //!
 //! A key that no longer matches any album is skipped rather than faulted, since
 //! a rescan can retire an album while a cached view of it is still in flight.
+//!
+//! [`Library::ingest`] adds one file without walking the tree. It exists
+//! because a track arriving on its own — downloaded, or dropped into the folder
+//! — should appear at once, and [`Library::scan`] is the wrong tool for that in
+//! two ways: it costs a full re-walk, and it opens by marking every track
+//! missing, so a scan interrupted partway leaves the library claiming files it
+//! never got to. Ingesting one file touches only that row.
+//!
+//! It deliberately does not set `root`. A file ingested from outside the library
+//! folder is still playable and still listed, but it is not evidence about where
+//! the collection lives, and letting one download silently repoint the root
+//! would send the next rescan somewhere the user never chose.
+//!
+//! A rating already on the row survives, because the upsert leaves that column
+//! alone; ingesting a file the library already holds refreshes its tags and
+//! keeps what the user set. That is the same rule a rescan follows, for the same
+//! reason.
+//!
+//! [`Library::ingest_many`] is the same operation for a batch, and exists
+//! because the reload is the expensive half. Ingesting an album a track at a
+//! time paid a full rebuild — every row, both indexes, every album — per track,
+//! at a cost set by the size of the library rather than the size of the
+//! download. Batching pays it once. A file that cannot be read is skipped rather
+//! than failing the rest, and the caller sees which by what does not come back.
+//!
+//! [`Library::open`] takes the one database the application owns, which makes it
+//! useless to a test: two tests running in the same process would share a file
+//! and see each other's tracks. [`Library::open_at`] names the database instead,
+//! so a test can hold its own in a temporary directory. It is public rather than
+//! `pub(crate)` because the integration tests are a separate crate.
 
 use rayon::prelude::*;
 use std::{
@@ -57,7 +87,11 @@ impl Library {
             create_dir_all(parent)?;
         }
 
-        let db = Database::open(&path)?;
+        Self::open_at(&path)
+    }
+
+    pub fn open_at(path: &Path) -> Result<Self, LibraryError> {
+        let db = Database::open(path)?;
         let mut library = Library {
             tracks: Vec::new(),
             by_id: HashMap::new(),
@@ -178,6 +212,7 @@ impl Library {
         let files: Vec<PathBuf> = WalkDir::new(root)
             .follow_links(false)
             .into_iter()
+            .filter_entry(|e| !is_hidden_directory(e))
             .flatten()
             .filter(|e| e.file_type().is_file() && is_audio(e.path()))
             .map(walkdir::DirEntry::into_path)
@@ -199,6 +234,49 @@ impl Library {
     pub fn rescan(&mut self) -> Result<(), LibraryError> {
         let root = self.root.clone().ok_or(LibraryError::RootNotSet)?;
         self.scan(&root)
+    }
+
+    pub fn ingest(&mut self, path: &Path) -> Result<i64, LibraryError> {
+        if !is_audio(path) {
+            return Err(LibraryError::NotAudio(path.display().to_string()));
+        }
+
+        let track = Track::from_path(path)
+            .map_err(|e| LibraryError::Unreadable(path.display().to_string(), e))?;
+
+        self.store(&[track])?;
+
+        self.track_by_path(path)
+            .and_then(Track::id)
+            .ok_or_else(|| LibraryError::NotIngested(path.display().to_string()))
+    }
+
+    pub fn ingest_many(&mut self, paths: &[PathBuf]) -> Result<Vec<(PathBuf, i64)>, LibraryError> {
+        let tracks: Vec<Track> = paths
+            .par_iter()
+            .filter(|path| is_audio(path))
+            .filter_map(|path| Track::from_path(path).ok())
+            .collect();
+
+        if tracks.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        self.store(&tracks)?;
+
+        Ok(paths
+            .iter()
+            .filter_map(|path| {
+                let id = self.track_by_path(path).and_then(Track::id)?;
+                Some((path.clone(), id))
+            })
+            .collect())
+    }
+
+    fn store(&mut self, tracks: &[Track]) -> Result<(), LibraryError> {
+        self.db.upsert_tracks(tracks)?;
+        self.db.relink_pending()?;
+        self.reload()
     }
 
     pub fn clear(&mut self) -> Result<(), LibraryError> {
@@ -321,6 +399,15 @@ fn albums_by_key<'a>(
     resolved
 }
 
+fn is_hidden_directory(entry: &walkdir::DirEntry) -> bool {
+    entry.depth() > 0
+        && entry.file_type().is_dir()
+        && entry
+            .file_name()
+            .to_str()
+            .is_some_and(|name| name.starts_with('.'))
+}
+
 fn is_audio(path: &Path) -> bool {
     path.extension()
         .and_then(|e| e.to_str())
@@ -405,9 +492,6 @@ mod tests {
         );
     }
 
-    /// The precondition the single pass rests on. Keys out of `albums` order
-    /// resolve only what falls in sequence, which is why the header restricts
-    /// this to callers narrowing that same list.
     #[test]
     fn keys_out_of_order_are_not_all_found() {
         let albums = [album("Blue Lines"), album("Mezzanine"), album("Protection")];
@@ -444,8 +528,6 @@ mod tests {
         }
     }
 
-    /// What [`albums_by_key`] cannot do, and the reason a single-key lookup is
-    /// its own method: order is nothing to a scan.
     #[test]
     fn a_lookup_does_not_care_what_order_the_keys_came_in() {
         let albums = [album("Blue Lines"), album("Mezzanine"), album("Protection")];
@@ -530,9 +612,6 @@ mod tests {
         assert!(!is_audio(Path::new("song.")));
     }
 
-    /// ASCII folding is what the extensions need, and it is deliberately not
-    /// Unicode folding: the Kelvin sign lowercases to `k` under `to_lowercase`,
-    /// so a Unicode fold would accept extensions that are not the ones listed.
     #[test]
     fn folding_does_not_stretch_past_ascii() {
         assert!(
@@ -548,6 +627,12 @@ pub enum LibraryError {
     RootNotSet,
     #[error("Could not determine the data directory")]
     DataDirNotFound,
+    #[error("{0} is not an audio file the library can hold")]
+    NotAudio(String),
+    #[error("{0} could not be read as a track: {1}")]
+    Unreadable(String, track::TrackError),
+    #[error("{0} was stored but did not come back from the database")]
+    NotIngested(String),
     #[error("Database error: {0}")]
     Database(#[from] rusqlite::Error),
     #[error("IO error: {0}")]
