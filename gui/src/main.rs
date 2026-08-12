@@ -5,7 +5,7 @@ mod artwork;
 mod browsing;
 mod config;
 #[cfg(feature = "explore")]
-mod explore;
+mod download;
 mod keybinds;
 mod layout;
 mod pane;

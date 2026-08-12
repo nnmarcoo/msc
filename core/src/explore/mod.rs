@@ -1,8 +1,14 @@
-//! Finding music that is not in the library yet.
+//! Fetching a named record that is not in the library yet.
 //!
 //! Gated behind the `explore` feature. Downloading from YouTube is against its
 //! terms of service, so a stock build carries none of this: no dependency, no
 //! pane, and nothing in the interface naming the capability.
+//!
+//! [`MusicSource`] answers a query and nothing else. It once also served a feed
+//! of new releases and a station seeded from a recording, and both are gone:
+//! this exists so a user who can already name a record can get it, not so they
+//! can be shown records to want. Every endpoint kept here is reachable from
+//! something the user typed — a search, and the album a result belongs to.
 //!
 //! The two halves of this have opposite failure modes, which is why they are
 //! separate traits rather than one source. [`MusicSource`] reads an
@@ -157,11 +163,6 @@ pub trait MusicSource {
         limit: usize,
     ) -> impl Future<Output = Result<Vec<Found>, SearchError>> + Send;
 
-    fn new_albums(
-        &self,
-        limit: usize,
-    ) -> impl Future<Output = Result<Vec<FoundAlbum>, SearchError>> + Send;
-
     fn search_albums(
         &self,
         query: &str,
@@ -170,12 +171,6 @@ pub trait MusicSource {
 
     fn album(&self, album_id: &str)
     -> impl Future<Output = Result<FoundAlbum, SearchError>> + Send;
-
-    fn similar(
-        &self,
-        id: &str,
-        limit: usize,
-    ) -> impl Future<Output = Result<Vec<Found>, SearchError>> + Send;
 }
 
 pub trait DownloadSource {

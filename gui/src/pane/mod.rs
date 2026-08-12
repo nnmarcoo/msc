@@ -17,6 +17,13 @@
 //! here. The queue's history toggle and the timeline's remaining-time toggle both
 //! qualify: each is about how one pane draws itself and nothing else.
 //!
+//! [`PaneKind`] deserializes through `Named` so that a name this build does not
+//! know degrades to [`PaneKind::Empty`] rather than failing the whole config and
+//! discarding the user's themes, keybinds and layouts along with it. `Named`
+//! therefore outlives the kinds it maps to: `explore` is the download pane's
+//! former name and still parses, because every layout saved before the rename
+//! spells it that way and a renamed pane must not silently blank itself.
+//!
 //! [`PaneKind`] derives `Ord` so that [`settings::PaneSettings`] can key a pane's
 //! settings by kind in a `BTreeMap`, which also gives that map one stable order
 //! on disk rather than a hash order that could rewrite the layout file without
@@ -35,7 +42,7 @@ pub mod artwork;
 pub mod collections;
 pub mod controls;
 #[cfg(feature = "explore")]
-pub mod explore;
+pub mod download;
 pub mod library;
 pub mod options;
 pub mod queue;
@@ -108,7 +115,7 @@ pub enum PaneKind {
     Collections,
     Folders,
     #[cfg(feature = "explore")]
-    Explore,
+    Download,
     Queue,
     NowPlaying,
     Controls,
@@ -134,6 +141,7 @@ enum Named {
     Collections,
     Folders,
     Explore,
+    Download,
     Queue,
     NowPlaying,
     Controls,
@@ -161,9 +169,9 @@ impl From<Named> for PaneKind {
             Named::Collections => Self::Collections,
             Named::Folders => Self::Folders,
             #[cfg(feature = "explore")]
-            Named::Explore => Self::Explore,
+            Named::Explore | Named::Download => Self::Download,
             #[cfg(not(feature = "explore"))]
-            Named::Explore => Self::Empty,
+            Named::Explore | Named::Download => Self::Empty,
             Named::Queue => Self::Queue,
             Named::NowPlaying => Self::NowPlaying,
             Named::Controls => Self::Controls,
@@ -190,7 +198,6 @@ impl PaneKind {
         PaneKind::Playlists,
         PaneKind::Collections,
         PaneKind::Folders,
-        PaneKind::Explore,
         PaneKind::Queue,
         PaneKind::NowPlaying,
         PaneKind::Controls,
@@ -201,6 +208,7 @@ impl PaneKind {
         PaneKind::TrackInfo,
         PaneKind::Artwork,
         PaneKind::Visualizer,
+        PaneKind::Download,
         PaneKind::Equalizer,
         PaneKind::Empty,
     ];
@@ -238,7 +246,7 @@ impl PaneKind {
             PaneKind::Collections => "Collections",
             PaneKind::Folders => "Folders",
             #[cfg(feature = "explore")]
-            PaneKind::Explore => "Explore",
+            PaneKind::Download => "Download",
             PaneKind::Queue => "Queue",
             PaneKind::NowPlaying => "Now Playing",
             PaneKind::Controls => "Controls",
@@ -264,7 +272,7 @@ impl PaneKind {
             | PaneKind::Collections
             | PaneKind::Folders => PaneCategory::Browse,
             #[cfg(feature = "explore")]
-            PaneKind::Explore => PaneCategory::Browse,
+            PaneKind::Download => PaneCategory::Tools,
             PaneKind::Queue
             | PaneKind::NowPlaying
             | PaneKind::Controls
@@ -288,7 +296,7 @@ impl PaneKind {
             PaneKind::Collections => "albums grid covers artwork browse library",
             PaneKind::Folders => "files directories browse disk",
             #[cfg(feature = "explore")]
-            PaneKind::Explore => "download search online discover find new music",
+            PaneKind::Download => "download search online get fetch songs albums",
             PaneKind::Queue => "up next playlist upcoming",
             PaneKind::NowPlaying => "current track player",
             PaneKind::Controls => "transport play pause next previous skip",
@@ -334,7 +342,7 @@ impl PaneKind {
 #[derive(Debug, Clone)]
 pub enum PaneMessage {
     #[cfg(feature = "explore")]
-    Explore(explore::PanelMessage),
+    Download(download::PanelMessage),
     Queue(queue::Message),
     Timeline(timeline::Message),
     Collections(collections::PanelMessage),
@@ -343,7 +351,7 @@ pub enum PaneMessage {
 #[derive(Debug)]
 pub enum PaneState {
     #[cfg(feature = "explore")]
-    Explore(explore::State),
+    Download(download::State),
     Queue(queue::State),
     Timeline(timeline::State),
     Artwork(artwork::State),
@@ -359,7 +367,7 @@ impl PaneState {
             PaneKind::Artwork => Self::Artwork(artwork::State::default()),
             PaneKind::Collections => Self::Collections(collections::State::default()),
             #[cfg(feature = "explore")]
-            PaneKind::Explore => Self::Explore(explore::State::default()),
+            PaneKind::Download => Self::Download(download::State::default()),
             PaneKind::Library
             | PaneKind::Search
             | PaneKind::Albums
@@ -414,8 +422,8 @@ impl PaneStates {
     pub fn update(&mut self, id: PaneId, message: PaneMessage) {
         match (self.get_mut(id), message) {
             #[cfg(feature = "explore")]
-            (Some(PaneState::Explore(state)), PaneMessage::Explore(message)) => {
-                explore::update(state, &message);
+            (Some(PaneState::Download(state)), PaneMessage::Download(message)) => {
+                download::update(state, &message);
             }
             (Some(PaneState::Queue(state)), PaneMessage::Queue(message)) => {
                 queue::update(state, &message);
@@ -466,8 +474,8 @@ mod tests {
     /// the string both produce is checked once here rather than per pane.
     #[test]
     fn a_summary_names_the_count_and_the_run_time() {
-        assert_eq!(summary(1, 90.0), "1 track Â· 2 min");
-        assert_eq!(summary(12, 90.0 * 60.0), "12 tracks Â· 1 hr 30 min");
+        assert_eq!(summary(1, 90.0), "1 track \u{00b7} 2 min");
+        assert_eq!(summary(12, 90.0 * 60.0), "12 tracks \u{00b7} 1 hr 30 min");
     }
 
     #[test]
@@ -495,20 +503,35 @@ mod tests {
     }
 
     #[test]
-    fn an_explore_pane_survives_a_build_without_the_feature() {
-        let parsed = read_kind("explore");
+    fn a_download_pane_survives_a_build_without_the_feature() {
+        let parsed = read_kind("download");
 
         #[cfg(feature = "explore")]
-        assert_eq!(parsed, PaneKind::Explore);
+        assert_eq!(parsed, PaneKind::Download);
 
         #[cfg(not(feature = "explore"))]
         assert_eq!(
             parsed,
             PaneKind::Empty,
-            "a layout naming explore must degrade to a blank pane rather than \
+            "a layout naming download must degrade to a blank pane rather than \
              failing the whole config and discarding the user's themes, \
              keybinds and layouts"
         );
+    }
+
+    #[test]
+    fn a_layout_saved_under_the_old_name_still_opens_the_pane() {
+        let parsed = read_kind("explore");
+
+        #[cfg(feature = "explore")]
+        assert_eq!(
+            parsed,
+            PaneKind::Download,
+            "renaming the pane silently blanked it in every layout already saved"
+        );
+
+        #[cfg(not(feature = "explore"))]
+        assert_eq!(parsed, PaneKind::Empty);
     }
 
     #[test]

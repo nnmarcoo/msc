@@ -1,10 +1,17 @@
-//! Explore state: what has been searched for online, and what is downloading.
+//! Download state: what has been searched for online, and what is downloading.
 //!
 //! This is [`crate::browsing`]'s counterpart for music that is not in the
 //! library yet, and it sits on the app for the same reason: a remote query
 //! describes what the user is looking for, not how one pane draws, so two
-//! Explore panes show the same results. Only per-pane drawing state would
+//! Download panes show the same results. Only per-pane drawing state would
 //! belong in [`crate::pane::PaneState`], and this has none.
+//!
+//! Everything here begins with a query. There was once a landing feed of new
+//! releases and a station seeded from any row, and both are gone: this is where
+//! a user comes to fetch a record they can already name, not to be given records
+//! to want. That is what makes [`Stage::Idle`] a resting state rather than a gap
+//! to fill — an empty field asks for nothing and shows nothing, and the pane
+//! makes no request until there is something to search for.
 //!
 //! A search is issued per keystroke after a debounce, which means several are
 //! usually in flight at once and they can land out of order — a short query
@@ -24,7 +31,7 @@
 //! characters issues nine searches, and blanking the body for each one meant the
 //! grid the user was reading was destroyed and rebuilt nine times — the pane
 //! never held still long enough to scan. [`Stage::Searching`] is therefore only
-//! entered when there is nothing to keep, and [`Explore::is_searching`] is what
+//! entered when there is nothing to keep, and [`Search::is_searching`] is what
 //! the pane shows beside the field the rest of the time. A reply still replaces
 //! the results wholesale, so an empty one clears them; what is preserved is the
 //! *previous* answer while the next is being fetched, not a stale one after it.
@@ -72,11 +79,7 @@ use verse_core::explore::{Found, FoundAlbum};
 
 pub const SEARCH_LIMIT: usize = 20;
 
-pub const SIMILAR_LIMIT: usize = 25;
-
 pub const ALBUM_LIMIT: usize = 12;
-
-pub const BROWSE_LIMIT: usize = 60;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
 pub struct Generation(u64);
@@ -123,18 +126,10 @@ impl Opened {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct Shelf {
-    pub label: String,
-    pub albums: Vec<FoundAlbum>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
 pub enum Stage {
     Idle,
-    Browse(Vec<Shelf>),
     Searching,
     Results(Box<Results>),
-    Similar(String, Vec<Found>),
     Failed(String),
 }
 
@@ -142,22 +137,16 @@ impl Stage {
     pub fn tracks(&self) -> &[Found] {
         match self {
             Stage::Results(results) => &results.tracks,
-            Stage::Similar(_, found) => found,
-            Stage::Idle | Stage::Browse(_) | Stage::Searching | Stage::Failed(_) => &[],
+            Stage::Idle | Stage::Searching | Stage::Failed(_) => &[],
         }
     }
 
     #[cfg(test)]
-    pub fn albums(&self) -> impl Iterator<Item = &FoundAlbum> {
-        let (listed, shelved) = match self {
-            Stage::Results(results) => (results.albums.as_slice(), [].as_slice()),
-            Stage::Browse(shelves) => ([].as_slice(), shelves.as_slice()),
-            _ => ([].as_slice(), [].as_slice()),
-        };
-
-        listed
-            .iter()
-            .chain(shelved.iter().flat_map(|shelf| shelf.albums.iter()))
+    pub fn albums(&self) -> &[FoundAlbum] {
+        match self {
+            Stage::Results(results) => &results.albums,
+            Stage::Idle | Stage::Searching | Stage::Failed(_) => &[],
+        }
     }
 
     #[cfg(test)]
@@ -168,14 +157,8 @@ impl Stage {
     pub fn holds_results(&self) -> bool {
         match self {
             Stage::Results(results) => !results.is_empty(),
-            Stage::Browse(shelves) => shelves.iter().any(|shelf| !shelf.albums.is_empty()),
-            Stage::Similar(_, found) => !found.is_empty(),
             Stage::Idle | Stage::Searching | Stage::Failed(_) => false,
         }
-    }
-
-    pub fn can_go_back(&self) -> bool {
-        matches!(self, Stage::Similar(..))
     }
 }
 
@@ -279,7 +262,7 @@ impl Fetcher {
 }
 
 #[derive(Debug)]
-pub struct Explore {
+pub struct Search {
     pub query: String,
     pub stage: Stage,
     pub opened: Option<Opened>,
@@ -290,7 +273,7 @@ pub struct Explore {
     pending: Option<Generation>,
 }
 
-impl Default for Explore {
+impl Default for Search {
     fn default() -> Self {
         Self {
             query: String::new(),
@@ -305,7 +288,7 @@ impl Default for Explore {
     }
 }
 
-impl Explore {
+impl Search {
     pub fn query_changed(&mut self, query: String) -> Option<(Generation, String)> {
         self.query = query;
         self.generation = self.generation.next();
@@ -355,10 +338,15 @@ impl Explore {
         self.opened.as_ref().is_some_and(|open| open.id() == id)
     }
 
-    pub fn begin(&mut self) -> Generation {
+    pub fn retry(&mut self) -> Option<(Generation, String)> {
+        let trimmed = self.query.trim().to_owned();
+        if trimmed.is_empty() {
+            return None;
+        }
+
         self.generation = self.generation.next();
         self.begin_keeping_results();
-        self.generation
+        Some((self.generation, trimmed))
     }
 
     pub fn is_searching(&self) -> bool {
@@ -417,52 +405,52 @@ mod tests {
 
     #[test]
     fn typing_a_query_asks_for_a_search() {
-        let mut explore = Explore::default();
-        let issued = explore.query_changed("radiohead".to_owned());
+        let mut search = Search::default();
+        let issued = search.query_changed("radiohead".to_owned());
 
         let (generation, query) = issued.expect("a search is issued");
         assert_eq!(query, "radiohead");
-        assert!(explore.is_current(generation));
-        assert!(explore.stage.is_busy());
+        assert!(search.is_current(generation));
+        assert!(search.stage.is_busy());
     }
 
     #[test]
     fn a_reply_fills_the_pane() {
-        let mut explore = Explore::default();
-        let (generation, _) = explore.query_changed("a".to_owned()).expect("issued");
+        let mut search = Search::default();
+        let (generation, _) = search.query_changed("a".to_owned()).expect("issued");
 
-        assert!(explore.settle(generation, results(vec![found("x")])));
-        assert_eq!(explore.stage.tracks().len(), 1);
-        assert!(!explore.stage.is_busy());
+        assert!(search.settle(generation, results(vec![found("x")])));
+        assert_eq!(search.stage.tracks().len(), 1);
+        assert!(!search.stage.is_busy());
     }
 
     #[test]
     fn typing_again_keeps_the_results_already_on_screen() {
-        let mut explore = Explore::default();
-        let (first, _) = explore.query_changed("rad".to_owned()).expect("issued");
-        explore.settle(first, results(vec![found("showing")]));
+        let mut search = Search::default();
+        let (first, _) = search.query_changed("rad".to_owned()).expect("issued");
+        search.settle(first, results(vec![found("showing")]));
 
-        explore
+        search
             .query_changed("radiohead".to_owned())
             .expect("issued");
 
         assert_eq!(
-            explore.stage.tracks().len(),
+            search.stage.tracks().len(),
             1,
             "the grid the user was reading was thrown away mid-keystroke"
         );
-        assert!(explore.is_searching(), "the new search is still in flight");
+        assert!(search.is_searching(), "the new search is still in flight");
     }
 
     #[test]
     fn a_first_search_with_nothing_to_keep_shows_that_it_is_working() {
-        let mut explore = Explore::default();
-        explore
+        let mut search = Search::default();
+        search
             .query_changed("radiohead".to_owned())
             .expect("issued");
 
         assert_eq!(
-            explore.stage,
+            search.stage,
             Stage::Searching,
             "a cold search has no results to hold, so the body says so"
         );
@@ -470,93 +458,117 @@ mod tests {
 
     #[test]
     fn a_search_that_finds_nothing_stops_showing_the_previous_results() {
-        let mut explore = Explore::default();
-        let (first, _) = explore.query_changed("rad".to_owned()).expect("issued");
-        explore.settle(first, results(vec![found("old")]));
+        let mut search = Search::default();
+        let (first, _) = search.query_changed("rad".to_owned()).expect("issued");
+        search.settle(first, results(vec![found("old")]));
 
-        let (second, _) = explore.query_changed("zzzz".to_owned()).expect("issued");
-        explore.settle(second, results(Vec::new()));
+        let (second, _) = search.query_changed("zzzz".to_owned()).expect("issued");
+        search.settle(second, results(Vec::new()));
 
         assert!(
-            explore.stage.tracks().is_empty(),
+            search.stage.tracks().is_empty(),
             "stale results outlived the search that replaced them"
         );
     }
 
     #[test]
     fn a_stale_reply_is_dropped() {
-        let mut explore = Explore::default();
-        let (first, _) = explore.query_changed("rad".to_owned()).expect("issued");
-        let (second, _) = explore
+        let mut search = Search::default();
+        let (first, _) = search.query_changed("rad".to_owned()).expect("issued");
+        let (second, _) = search
             .query_changed("radiohead".to_owned())
             .expect("issued");
 
-        assert!(!explore.settle(first, results(vec![found("stale")])));
-        assert!(explore.stage.is_busy(), "the newer search is still running");
+        assert!(!search.settle(first, results(vec![found("stale")])));
+        assert!(search.stage.is_busy(), "the newer search is still running");
 
-        assert!(explore.settle(second, results(vec![found("fresh")])));
-        assert_eq!(explore.stage.tracks()[0].id, "fresh");
+        assert!(search.settle(second, results(vec![found("fresh")])));
+        assert_eq!(search.stage.tracks()[0].id, "fresh");
     }
 
     #[test]
     fn retyping_the_same_text_does_not_accept_the_older_reply() {
-        let mut explore = Explore::default();
-        let (first, _) = explore.query_changed("nine".to_owned()).expect("issued");
-        explore.query_changed(String::new());
-        let (third, _) = explore.query_changed("nine".to_owned()).expect("issued");
+        let mut search = Search::default();
+        let (first, _) = search.query_changed("nine".to_owned()).expect("issued");
+        search.query_changed(String::new());
+        let (third, _) = search.query_changed("nine".to_owned()).expect("issued");
 
         assert_ne!(first, third, "the same text is a different generation");
-        assert!(!explore.settle(first, results(vec![found("old")])));
-        assert!(explore.settle(third, results(vec![found("new")])));
+        assert!(!search.settle(first, results(vec![found("old")])));
+        assert!(search.settle(third, results(vec![found("new")])));
     }
 
     #[test]
     fn clearing_the_query_asks_for_nothing_and_shows_nothing() {
-        let mut explore = Explore::default();
-        explore.query_changed("radiohead".to_owned());
+        let mut search = Search::default();
+        search.query_changed("radiohead".to_owned());
 
-        assert!(explore.query_changed(String::new()).is_none());
-        assert_eq!(explore.stage, Stage::Idle);
+        assert!(search.query_changed(String::new()).is_none());
+        assert_eq!(search.stage, Stage::Idle);
     }
 
     #[test]
     fn a_query_of_only_spaces_is_not_a_search() {
-        let mut explore = Explore::default();
-        assert!(explore.query_changed("   ".to_owned()).is_none());
-        assert_eq!(explore.stage, Stage::Idle);
+        let mut search = Search::default();
+        assert!(search.query_changed("   ".to_owned()).is_none());
+        assert_eq!(search.stage, Stage::Idle);
     }
 
     #[test]
     fn a_reply_that_lands_after_clearing_is_dropped() {
-        let mut explore = Explore::default();
-        let (generation, _) = explore.query_changed("a".to_owned()).expect("issued");
-        explore.query_changed(String::new());
+        let mut search = Search::default();
+        let (generation, _) = search.query_changed("a".to_owned()).expect("issued");
+        search.query_changed(String::new());
 
-        assert!(!explore.settle(generation, results(vec![found("late")])));
-        assert_eq!(explore.stage, Stage::Idle);
+        assert!(!search.settle(generation, results(vec![found("late")])));
+        assert_eq!(search.stage, Stage::Idle);
     }
 
     #[test]
     fn a_failure_is_reported_rather_than_left_spinning() {
-        let mut explore = Explore::default();
-        let (generation, _) = explore.query_changed("a".to_owned()).expect("issued");
+        let mut search = Search::default();
+        let (generation, _) = search.query_changed("a".to_owned()).expect("issued");
 
-        explore.settle(generation, Stage::Failed("offline".to_owned()));
+        search.settle(generation, Stage::Failed("offline".to_owned()));
 
-        assert!(!explore.stage.is_busy());
-        assert!(matches!(explore.stage, Stage::Failed(_)));
+        assert!(!search.stage.is_busy());
+        assert!(matches!(search.stage, Stage::Failed(_)));
+    }
+
+    #[test]
+    fn retrying_a_failure_asks_the_same_question_again() {
+        let mut search = Search::default();
+        let (first, _) = search.query_changed("radiohead".to_owned()).expect("issued");
+        search.settle(first, Stage::Failed("offline".to_owned()));
+
+        let (second, query) = search.retry().expect("a failed search can be retried");
+
+        assert_eq!(query, "radiohead", "the retry asked something else");
+        assert_ne!(first, second, "the reply to the first attempt is now stale");
+        assert!(search.is_current(second));
+    }
+
+    #[test]
+    fn there_is_nothing_to_retry_without_a_query() {
+        let mut search = Search::default();
+
+        assert!(
+            search.retry().is_none(),
+            "an empty field has no question to ask again"
+        );
+        assert!(!search.is_searching());
     }
 
     #[test]
     fn opening_an_album_leaves_the_listing_in_place() {
-        let mut explore = Explore::default();
-        let (search, _) = explore.query_changed("a".to_owned()).expect("issued");
-        explore.settle(search, results(vec![found("t")]));
+        let mut search = Search::default();
+        let (generation, _) = search.query_changed("a".to_owned()).expect("issued");
+        search.settle(generation, results(vec![found("t")]));
 
-        assert!(explore.open("MPRE1"));
-        assert!(explore.is_open("MPRE1"));
+        assert!(search.open("MPRE1"));
+        assert!(search.is_open("MPRE1"));
         assert_eq!(
-            explore.stage.tracks().len(),
+            search.stage.tracks().len(),
             1,
             "the grid the album was opened from must stay on screen"
         );
@@ -564,31 +576,31 @@ mod tests {
 
     #[test]
     fn opening_the_same_album_again_closes_it() {
-        let mut explore = Explore::default();
+        let mut search = Search::default();
 
-        assert!(explore.open("MPRE1"));
-        assert!(!explore.open("MPRE1"), "a second click closes the panel");
-        assert!(!explore.is_open("MPRE1"));
+        assert!(search.open("MPRE1"));
+        assert!(!search.open("MPRE1"), "a second click closes the panel");
+        assert!(!search.is_open("MPRE1"));
     }
 
     #[test]
     fn a_new_listing_closes_whatever_was_open() {
-        let mut explore = Explore::default();
-        explore.open("MPRE1");
+        let mut search = Search::default();
+        search.open("MPRE1");
 
-        let (generation, _) = explore.query_changed("b".to_owned()).expect("issued");
-        explore.settle(generation, results(vec![found("x")]));
+        let (generation, _) = search.query_changed("b".to_owned()).expect("issued");
+        search.settle(generation, results(vec![found("x")]));
 
-        assert!(!explore.is_open("MPRE1"));
+        assert!(!search.is_open("MPRE1"));
     }
 
     #[test]
     fn an_album_that_arrives_after_being_closed_is_dropped() {
-        let mut explore = Explore::default();
-        explore.open("MPRE1");
-        explore.open("MPRE1");
+        let mut search = Search::default();
+        search.open("MPRE1");
+        search.open("MPRE1");
 
-        explore.opened_settled(
+        search.opened_settled(
             "MPRE1",
             Ok(FoundAlbum {
                 release: verse_core::explore::Release::default(),
@@ -602,7 +614,7 @@ mod tests {
             }),
         );
 
-        assert!(explore.opened.is_none());
+        assert!(search.opened.is_none());
     }
 
     #[test]
@@ -671,17 +683,17 @@ mod tests {
 
     #[test]
     fn a_new_listing_forgets_downloads_that_have_finished() {
-        let mut explore = Explore::default();
-        let (generation, _) = explore.query_changed("a".to_owned()).expect("issued");
+        let mut search = Search::default();
+        let (generation, _) = search.query_changed("a".to_owned()).expect("issued");
 
-        explore.downloads.set("done", Download::Done(7));
-        explore.downloads.set("live", Download::Running(0.3));
+        search.downloads.set("done", Download::Done(7));
+        search.downloads.set("live", Download::Running(0.3));
 
-        assert!(explore.settle(generation, results(vec![found("x")])));
+        assert!(search.settle(generation, results(vec![found("x")])));
 
-        assert!(!explore.downloads.holds("done"), "a settled row was kept");
+        assert!(!search.downloads.holds("done"), "a settled row was kept");
         assert!(
-            explore.downloads.holds("live"),
+            search.downloads.holds("live"),
             "a download still running was forgotten mid-flight"
         );
     }
@@ -694,12 +706,12 @@ mod tests {
 
     #[test]
     fn a_burst_of_keystrokes_leaves_only_the_last_showing() {
-        let mut explore = Explore::default();
+        let mut search = Search::default();
 
         let issued: Vec<Generation> = ["r", "ra", "rad", "radi", "radiohead"]
             .into_iter()
             .filter_map(|prefix| {
-                explore
+                search
                     .query_changed(prefix.to_owned())
                     .map(|(generation, _)| generation)
             })
@@ -711,27 +723,27 @@ mod tests {
 
         for (index, stale) in superseded.iter().enumerate() {
             assert!(
-                !explore.settle(*stale, results(vec![found(&index.to_string())])),
+                !search.settle(*stale, results(vec![found(&index.to_string())])),
                 "reply {index} is stale and must not show"
             );
         }
 
-        assert!(explore.settle(*last, results(vec![found("radiohead")])));
-        assert_eq!(explore.stage.tracks()[0].id, "radiohead");
+        assert!(search.settle(*last, results(vec![found("radiohead")])));
+        assert_eq!(search.stage.tracks()[0].id, "radiohead");
     }
 
     #[test]
     fn replies_arriving_backwards_still_leave_the_newest_showing() {
-        let mut explore = Explore::default();
-        let (first, _) = explore.query_changed("a".to_owned()).expect("issued");
-        let (second, _) = explore.query_changed("ab".to_owned()).expect("issued");
+        let mut search = Search::default();
+        let (first, _) = search.query_changed("a".to_owned()).expect("issued");
+        let (second, _) = search.query_changed("ab".to_owned()).expect("issued");
 
-        assert!(explore.settle(second, results(vec![found("newest")])));
+        assert!(search.settle(second, results(vec![found("newest")])));
         assert!(
-            !explore.settle(first, results(vec![found("oldest")])),
+            !search.settle(first, results(vec![found("oldest")])),
             "the older reply arrives last and must still be refused"
         );
 
-        assert_eq!(explore.stage.tracks()[0].id, "newest");
+        assert_eq!(search.stage.tracks()[0].id, "newest");
     }
 }

@@ -152,42 +152,6 @@ pub fn album(response: &Value, album_id: &str) -> Option<FoundAlbum> {
     })
 }
 
-pub fn radio(response: &Value, seed: &str, limit: usize) -> Vec<Found> {
-    nav::find_all(response, "playlistPanelVideoRenderer")
-        .into_iter()
-        .filter_map(|row| radio_track(row, seed))
-        .take(limit)
-        .collect()
-}
-
-fn radio_track(row: &Value, seed: &str) -> Option<Found> {
-    let id = nav::string(row, &["videoId"])?.to_owned();
-
-    if id == seed {
-        return None;
-    }
-
-    let byline = row.get("longBylineText");
-    let (album, album_id) = byline
-        .and_then(|column| browse_run(column, ALBUM_PAGE))
-        .map_or((None, None), |(name, id)| (Some(name), Some(id)));
-
-    Some(Found {
-        id,
-        title: nav::runs_text(row, &["title"])?,
-        artist: byline
-            .and_then(|column| linked_run(column, ARTIST_PAGE))
-            .or_else(|| byline.and_then(plain_lead)),
-        album,
-        album_id,
-        duration: nav::runs_text(row, &["lengthText"])
-            .as_deref()
-            .and_then(clock),
-        cover_url: cover_at(row, &["thumbnail", "thumbnails"]),
-        explicit: is_explicit(row),
-    })
-}
-
 pub fn album_results(response: &Value, limit: usize) -> Vec<FoundAlbum> {
     nav::find_all(response, "musicResponsiveListItemRenderer")
         .into_iter()
@@ -245,43 +209,6 @@ fn year_run(column: &Value) -> Option<u32> {
         .iter()
         .filter_map(|run| run.get("text")?.as_str()?.trim().parse::<u32>().ok())
         .find(|year| (1000..=9999).contains(year))
-}
-
-pub fn album_tiles(response: &Value, limit: usize) -> Vec<FoundAlbum> {
-    nav::find_all(response, "musicTwoRowItemRenderer")
-        .into_iter()
-        .filter_map(album_tile)
-        .take(limit)
-        .collect()
-}
-
-fn album_tile(tile: &Value) -> Option<FoundAlbum> {
-    let id = nav::string(tile, &["navigationEndpoint", "browseEndpoint", "browseId"])?;
-
-    if !id.starts_with("MPRE") {
-        return None;
-    }
-
-    let subtitle = tile.get("subtitle");
-
-    Some(FoundAlbum {
-        id: id.to_owned(),
-        release: release_of(subtitle),
-        title: nav::runs_text(tile, &["title"])?,
-        artist: subtitle.and_then(|column| linked_run(column, ARTIST_PAGE)),
-        year: subtitle.and_then(year_run),
-        cover_url: cover_at(
-            tile,
-            &[
-                "thumbnailRenderer",
-                "musicThumbnailRenderer",
-                "thumbnail",
-                "thumbnails",
-            ],
-        ),
-        explicit: is_explicit(tile),
-        tracks: Vec::new(),
-    })
 }
 
 fn column_text(columns: &[Value], index: usize) -> Option<String> {
@@ -571,45 +498,6 @@ mod tests {
             album_track(&row, "In Rainbows", "MPRE1", Some("Radiohead"), None).expect("row parses");
         assert_eq!(parsed.duration, Some(238));
         assert_eq!(parsed.artist.as_deref(), Some("Radiohead"));
-    }
-
-    #[test]
-    fn a_radio_row_reads_the_artist_off_its_byline() {
-        let row = json!({
-            "videoId": "r1",
-            "title": { "runs": [{ "text": "Jigsaw Falling Into Place" }] },
-            "lengthText": { "runs": [{ "text": "4:09" }] },
-            "longBylineText": { "runs": [
-                { "text": "Radiohead", "navigationEndpoint": { "browseEndpoint": {
-                    "browseId": "UC1",
-                    "browseEndpointContextSupportedConfigs": {
-                        "browseEndpointContextMusicConfig": { "pageType": ARTIST_PAGE } } } } },
-                { "text": " • " },
-                { "text": "In Rainbows", "navigationEndpoint": { "browseEndpoint": {
-                    "browseId": "MPRE1",
-                    "browseEndpointContextSupportedConfigs": {
-                        "browseEndpointContextMusicConfig": { "pageType": ALBUM_PAGE } } } } },
-                { "text": " • " },
-                { "text": "2007" }
-            ] }
-        });
-
-        let parsed = radio_track(&row, "seed").expect("row parses");
-        assert_eq!(parsed.artist.as_deref(), Some("Radiohead"));
-        assert_eq!(parsed.album.as_deref(), Some("In Rainbows"));
-        assert_eq!(parsed.album_id.as_deref(), Some("MPRE1"));
-        assert_eq!(parsed.duration, Some(249));
-    }
-
-    #[test]
-    fn a_station_does_not_return_its_own_seed() {
-        let row = json!({
-            "videoId": "seed",
-            "title": { "runs": [{ "text": "The Seed" }] }
-        });
-
-        assert!(radio_track(&row, "seed").is_none());
-        assert!(radio_track(&row, "other").is_some());
     }
 
     #[test]

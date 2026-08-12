@@ -166,10 +166,6 @@ mod tests {
             Ok(self.0.iter().take(limit).cloned().collect())
         }
 
-        async fn new_albums(&self, _limit: usize) -> Result<Vec<FoundAlbum>, SearchError> {
-            Ok(Vec::new())
-        }
-
         async fn search_albums(
             &self,
             _query: &str,
@@ -180,10 +176,6 @@ mod tests {
 
         async fn album(&self, _album_id: &str) -> Result<FoundAlbum, SearchError> {
             Err(SearchError::NoSuchAlbum("none".to_owned()))
-        }
-
-        async fn similar(&self, _id: &str, _limit: usize) -> Result<Vec<Found>, SearchError> {
-            Ok(Vec::new())
         }
     }
 

@@ -7,10 +7,10 @@
 //! comes back. Anything that can fail answers with a message rather than
 //! unwinding, since a task that dies silently leaves a pane waiting forever.
 //!
-//! The explore tasks carry a [`crate::explore::Generation`] out and back
-//! unchanged. They do not decide whether their own reply is still wanted —
-//! `update` does, against state a task cannot see — so the generation is
-//! payload here and a verdict only once it lands.
+//! [`search`] carries a [`crate::download::Generation`] out and back unchanged.
+//! It does not decide whether its own reply is still wanted — `update` does,
+//! against state a task cannot see — so the generation is payload here and a
+//! verdict only once it lands.
 //!
 //! `search` sleeps before it asks. That is the debounce, and it lives in the
 //! task rather than in a timer on the app because a `Task` is already the thing
@@ -53,9 +53,7 @@ use verse_core::explore::{Destination, DownloadSource, Found, Innertube, MusicSo
 use iced::futures::SinkExt;
 
 #[cfg(feature = "explore")]
-use crate::explore::{
-    ALBUM_LIMIT, BROWSE_LIMIT, Generation, Results, SEARCH_LIMIT, SIMILAR_LIMIT, Stage,
-};
+use crate::download::{ALBUM_LIMIT, Generation, Results, SEARCH_LIMIT, Stage};
 
 #[cfg(feature = "explore")]
 const DEBOUNCE: std::time::Duration = std::time::Duration::from_millis(300);
@@ -121,56 +119,8 @@ pub fn search(source: Arc<Innertube>, generation: Generation, query: String) -> 
             Err(e) => Stage::Failed(e.to_string()),
         };
 
-        Message::ExploreSettled(generation, Box::new(stage))
+        Message::DownloadSettled(generation, Box::new(stage))
     })
-}
-
-#[cfg(feature = "explore")]
-pub fn similar(source: Arc<Innertube>, generation: Generation, id: String) -> Task<Message> {
-    Task::future(async move {
-        let stage = match source.similar(&id, SIMILAR_LIMIT).await {
-            Ok(found) => Stage::Similar(id, found),
-            Err(e) => Stage::Failed(e.to_string()),
-        };
-
-        Message::ExploreSettled(generation, Box::new(stage))
-    })
-}
-
-#[cfg(feature = "explore")]
-pub fn browse(source: Arc<Innertube>, generation: Generation) -> Task<Message> {
-    Task::future(async move {
-        let stage = match source.new_albums(BROWSE_LIMIT).await {
-            Ok(albums) => Stage::Browse(shelves(albums)),
-            Err(e) => Stage::Failed(e.to_string()),
-        };
-
-        Message::ExploreSettled(generation, Box::new(stage))
-    })
-}
-
-#[cfg(feature = "explore")]
-fn shelves(albums: Vec<verse_core::explore::FoundAlbum>) -> Vec<crate::explore::Shelf> {
-    use verse_core::explore::Release;
-
-    let mut records = Vec::new();
-    let mut extended = Vec::new();
-
-    for album in albums {
-        match album.release {
-            Release::Ep => extended.push(album),
-            _ => records.push(album),
-        }
-    }
-
-    [("New albums", records), ("New EPs", extended)]
-        .into_iter()
-        .filter(|(_, albums)| !albums.is_empty())
-        .map(|(label, albums)| crate::explore::Shelf {
-            label: label.to_owned(),
-            albums,
-        })
-        .collect()
 }
 
 #[cfg(feature = "explore")]
@@ -199,7 +149,7 @@ pub fn download(
                 while updates.changed().await.is_ok() {
                     let fraction = *updates.borrow_and_update();
                     let _ = relay
-                        .send(Message::ExploreProgress(reporting.clone(), fraction))
+                        .send(Message::DownloadProgress(reporting.clone(), fraction))
                         .await;
                 }
             });
@@ -215,7 +165,7 @@ pub fn download(
 
             if substituted.is_some() {
                 let _ = sender
-                    .send(Message::ExploreSubstituted(
+                    .send(Message::DownloadSubstituted(
                         found.id.clone(),
                         found.title.clone(),
                     ))
@@ -223,7 +173,7 @@ pub fn download(
             }
 
             let _ = sender
-                .send(Message::ExploreDownloaded(
+                .send(Message::DownloadFinished(
                     found.id.clone(),
                     Box::new(outcome),
                 ))
@@ -302,6 +252,6 @@ async fn file_into_place(from: &std::path::Path, to: &PathBuf) -> Result<(), Str
 pub fn fetch_art(url: String) -> Task<Message> {
     Task::future(async move {
         let bytes = verse_core::explore::fetch_cover(&url).await;
-        Message::ExploreArt(url, bytes.map(iced::widget::image::Handle::from_bytes))
+        Message::DownloadArt(url, bytes.map(iced::widget::image::Handle::from_bytes))
     })
 }

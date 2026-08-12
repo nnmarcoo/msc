@@ -148,7 +148,7 @@
 //! on disk in the middle of editing a copy of it.
 //!
 //! A download already tracked is not started again, *except* a failed one: an
-//! entry in [`crate::explore::Downloads`] means "in flight or finished", and
+//! entry in [`crate::download::Downloads`] means "in flight or finished", and
 //! treating a failure as either left the retry button pressable but inert, since
 //! the row it belonged to was still held. A 403 from YouTube is transient and
 //! common, so retrying is the one thing a failed row is for.
@@ -197,7 +197,7 @@ use crate::artwork::{Cache as ArtCache, Decoded};
 use crate::browsing::{Context, Selection};
 use crate::config::Config;
 #[cfg(feature = "explore")]
-use crate::explore::{Download, Explore, Fetcher, Generation, Stage};
+use crate::download::{Download, Fetcher, Generation, Search, Stage};
 use crate::keybinds::Action;
 use crate::layout::{Axis, DropZone, Layout, Locks, PaneId, PaneMetrics, SplitPath};
 use crate::pane::collections::{self, Kind as CollectionKind};
@@ -238,7 +238,7 @@ pub struct App {
     status: Option<String>,
 
     #[cfg(feature = "explore")]
-    explore: Explore,
+    fetching: Search,
     #[cfg(feature = "explore")]
     source: std::sync::Arc<verse_core::explore::Innertube>,
     #[cfg(feature = "explore")]
@@ -373,35 +373,33 @@ pub enum Message {
     ArtDecoded(Box<Decoded>),
 
     #[cfg(feature = "explore")]
-    ExploreQueryChanged(String),
+    DownloadQueryChanged(String),
     #[cfg(feature = "explore")]
-    ExploreSettled(Generation, Box<Stage>),
+    DownloadSettled(Generation, Box<Stage>),
     #[cfg(feature = "explore")]
-    ExploreOpenAlbum(String),
+    DownloadOpenAlbum(String),
     #[cfg(feature = "explore")]
-    ExploreSimilar(String),
+    DownloadRetry,
     #[cfg(feature = "explore")]
-    ExploreBack,
+    DownloadOne(String),
     #[cfg(feature = "explore")]
-    ExploreDownload(String),
+    DownloadAlbum(String),
     #[cfg(feature = "explore")]
-    ExploreDownloadAlbum(String),
+    DownloadAlbumReady(String, Box<Result<verse_core::explore::FoundAlbum, String>>),
     #[cfg(feature = "explore")]
-    ExploreAlbumReady(String, Box<Result<verse_core::explore::FoundAlbum, String>>),
+    DownloadAlbumOpened(String, Box<Result<verse_core::explore::FoundAlbum, String>>),
     #[cfg(feature = "explore")]
-    ExploreAlbumOpened(String, Box<Result<verse_core::explore::FoundAlbum, String>>),
+    DownloadProgress(String, f32),
     #[cfg(feature = "explore")]
-    ExploreProgress(String, f32),
+    DownloadFinished(String, Box<Result<PathBuf, String>>),
     #[cfg(feature = "explore")]
-    ExploreDownloaded(String, Box<Result<PathBuf, String>>),
+    DownloadIngestLanded,
     #[cfg(feature = "explore")]
-    ExploreIngestLanded,
-    #[cfg(feature = "explore")]
-    ExploreSubstituted(String, String),
+    DownloadSubstituted(String, String),
     #[cfg(feature = "explore")]
     FetcherChecked(bool),
     #[cfg(feature = "explore")]
-    ExploreArt(String, Option<iced::widget::image::Handle>),
+    DownloadArt(String, Option<iced::widget::image::Handle>),
 
     Noop,
 }
@@ -444,7 +442,7 @@ impl App {
             config_dirty: false,
             status: None,
             #[cfg(feature = "explore")]
-            explore: Explore::default(),
+            fetching: Search::default(),
             #[cfg(feature = "explore")]
             source: std::sync::Arc::new(verse_core::explore::Innertube::new()),
             #[cfg(feature = "explore")]
@@ -458,16 +456,8 @@ impl App {
 
         #[cfg(feature = "explore")]
         return {
-            let generation = app.explore.begin();
-            let source = std::sync::Arc::clone(&app.source);
             let fetcher = std::sync::Arc::clone(&app.fetcher);
-            (
-                app,
-                Task::batch([
-                    tasks::check_fetcher(fetcher),
-                    tasks::browse(source, generation),
-                ]),
-            )
+            (app, tasks::check_fetcher(fetcher))
         };
 
         #[cfg(not(feature = "explore"))]
@@ -883,21 +873,20 @@ impl App {
             }
 
             #[cfg(feature = "explore")]
-            Message::ExploreQueryChanged(_)
-            | Message::ExploreSettled(..)
-            | Message::ExploreOpenAlbum(_)
-            | Message::ExploreSimilar(_)
-            | Message::ExploreBack
-            | Message::ExploreDownload(_)
-            | Message::ExploreDownloadAlbum(_)
-            | Message::ExploreAlbumReady(..)
-            | Message::ExploreAlbumOpened(..)
-            | Message::ExploreProgress(..)
-            | Message::ExploreDownloaded(..)
-            | Message::ExploreIngestLanded
-            | Message::ExploreSubstituted(..)
+            Message::DownloadQueryChanged(_)
+            | Message::DownloadSettled(..)
+            | Message::DownloadOpenAlbum(_)
+            | Message::DownloadRetry
+            | Message::DownloadOne(_)
+            | Message::DownloadAlbum(_)
+            | Message::DownloadAlbumReady(..)
+            | Message::DownloadAlbumOpened(..)
+            | Message::DownloadProgress(..)
+            | Message::DownloadFinished(..)
+            | Message::DownloadIngestLanded
+            | Message::DownloadSubstituted(..)
             | Message::FetcherChecked(_)
-            | Message::ExploreArt(..) => return self.update_explore(message),
+            | Message::DownloadArt(..) => return self.update_explore(message),
 
             Message::Event(event) => return self.handle_event(&event),
             Message::Noop => {}
@@ -970,22 +959,20 @@ impl App {
     #[cfg(feature = "explore")]
     fn update_explore(&mut self, message: Message) -> Task<Message> {
         match message {
-            Message::ExploreQueryChanged(query) => {
-                if let Some((generation, query)) = self.explore.query_changed(query) {
-                    tasks::search(self.source.clone(), generation, query)
-                } else {
-                    let generation = self.explore.begin();
-                    tasks::browse(self.source.clone(), generation)
+            Message::DownloadQueryChanged(query) => {
+                match self.fetching.query_changed(query) {
+                    Some((generation, query)) => tasks::search(self.source.clone(), generation, query),
+                    None => Task::none(),
                 }
             }
-            Message::ExploreSettled(generation, stage) => {
-                if self.explore.settle(generation, *stage) {
+            Message::DownloadSettled(generation, stage) => {
+                if self.fetching.settle(generation, *stage) {
                     self.refresh_held();
                 }
                 Task::none()
             }
-            Message::ExploreOpenAlbum(id) => {
-                if !self.explore.open(&id) {
+            Message::DownloadOpenAlbum(id) => {
+                if !self.fetching.open(&id) {
                     return Task::none();
                 }
 
@@ -993,76 +980,66 @@ impl App {
                 Task::future(async move {
                     use verse_core::explore::MusicSource as _;
                     let album = source.album(&id).await.map_err(|e| e.to_string());
-                    Message::ExploreAlbumOpened(id, Box::new(album))
+                    Message::DownloadAlbumOpened(id, Box::new(album))
                 })
             }
-            Message::ExploreAlbumOpened(id, album) => {
-                self.explore.opened_settled(&id, *album);
+            Message::DownloadAlbumOpened(id, album) => {
+                self.fetching.opened_settled(&id, *album);
                 self.refresh_held();
                 Task::none()
             }
-            Message::ExploreSimilar(id) => {
-                let generation = self.explore.begin();
-                tasks::similar(self.source.clone(), generation, id)
-            }
-            Message::ExploreBack => {
-                let query = self.explore.query.trim().to_owned();
-                let generation = self.explore.begin();
-
-                if query.is_empty() {
-                    tasks::browse(self.source.clone(), generation)
-                } else {
-                    tasks::search(self.source.clone(), generation, query)
-                }
-            }
-            Message::ExploreArt(url, handle) => {
+            Message::DownloadRetry => match self.fetching.retry() {
+                Some((generation, query)) => tasks::search(self.source.clone(), generation, query),
+                None => Task::none(),
+            },
+            Message::DownloadArt(url, handle) => {
                 self.remote.insert(url, handle);
                 Task::none()
             }
             Message::FetcherChecked(available) => {
-                self.explore.fetcher = if available {
+                self.fetching.fetcher = if available {
                     Fetcher::Ready
                 } else {
                     Fetcher::Missing
                 };
                 Task::none()
             }
-            Message::ExploreDownload(id) => self.start_download(&id),
-            Message::ExploreDownloadAlbum(id) => {
+            Message::DownloadOne(id) => self.start_download(&id),
+            Message::DownloadAlbum(id) => {
                 let source = self.source.clone();
                 Task::future(async move {
                     use verse_core::explore::MusicSource as _;
                     let album = source.album(&id).await.map_err(|e| e.to_string());
-                    Message::ExploreAlbumReady(id, Box::new(album))
+                    Message::DownloadAlbumReady(id, Box::new(album))
                 })
             }
-            Message::ExploreAlbumReady(_, album) => match *album {
+            Message::DownloadAlbumReady(_, album) => match *album {
                 Ok(album) => self.download_album(&album),
                 Err(e) => {
                     self.status = Some(e);
                     Task::none()
                 }
             },
-            Message::ExploreProgress(id, fraction) => {
+            Message::DownloadProgress(id, fraction) => {
                 if !self
-                    .explore
+                    .fetching
                     .downloads
                     .get(&id)
                     .is_some_and(Download::is_settled)
                 {
-                    self.explore.downloads.set(&id, Download::Running(fraction));
+                    self.fetching.downloads.set(&id, Download::Running(fraction));
                 }
                 Task::none()
             }
-            Message::ExploreDownloaded(id, outcome) => {
+            Message::DownloadFinished(id, outcome) => {
                 self.finish_download(&id, *outcome);
                 Task::none()
             }
-            Message::ExploreIngestLanded => {
+            Message::DownloadIngestLanded => {
                 self.ingest_landed();
                 Task::none()
             }
-            Message::ExploreSubstituted(_, title) => {
+            Message::DownloadSubstituted(_, title) => {
                 self.status = Some(format!(
                     "{title}: the listing's video was the wrong length, so the album version was downloaded"
                 ));
@@ -1075,9 +1052,9 @@ impl App {
     #[cfg(feature = "explore")]
     fn refresh_held(&mut self) {
         let library = &self.library;
-        let mut held = std::mem::take(&mut self.explore.held);
+        let mut held = std::mem::take(&mut self.fetching.held);
 
-        held.rebuild(self.explore.drawable(), |track| {
+        held.rebuild(self.fetching.drawable(), |track| {
             verse_core::explore::already_held(
                 library,
                 &track.title,
@@ -1087,13 +1064,13 @@ impl App {
             .is_some()
         });
 
-        self.explore.held = held;
+        self.fetching.held = held;
     }
 
     #[cfg(feature = "explore")]
     fn start_download(&mut self, id: &str) -> Task<Message> {
         if self
-            .explore
+            .fetching
             .downloads
             .get(id)
             .is_some_and(|state| !matches!(state, Download::Failed(_)))
@@ -1102,13 +1079,13 @@ impl App {
         }
 
         let opened = self
-            .explore
+            .fetching
             .opened
             .as_ref()
-            .and_then(crate::explore::Opened::album);
+            .and_then(crate::download::Opened::album);
 
         let Some(found) = self
-            .explore
+            .fetching
             .drawable()
             .find(|track| track.id == id)
             .cloned()
@@ -1122,7 +1099,7 @@ impl App {
             found.artist.as_deref(),
             found.duration,
         ) {
-            self.explore.downloads.set(id, Download::Done(track_id));
+            self.fetching.downloads.set(id, Download::Done(track_id));
             return Task::none();
         }
 
@@ -1146,7 +1123,7 @@ impl App {
             },
         };
 
-        self.explore.downloads.set(id, Download::Queued);
+        self.fetching.downloads.set(id, Download::Queued);
         tasks::download(
             std::sync::Arc::clone(&self.source),
             std::sync::Arc::clone(&self.fetcher),
@@ -1167,7 +1144,7 @@ impl App {
 
         for (position, track) in album.tracks.iter().enumerate() {
             if self
-                .explore
+                .fetching
                 .downloads
                 .get(&track.id)
                 .is_some_and(|state| !matches!(state, Download::Failed(_)))
@@ -1181,11 +1158,11 @@ impl App {
                 track.artist.as_deref(),
                 track.duration,
             ) {
-                self.explore.downloads.set(&track.id, Download::Done(id));
+                self.fetching.downloads.set(&track.id, Download::Done(id));
                 continue;
             }
 
-            self.explore.downloads.set(&track.id, Download::Queued);
+            self.fetching.downloads.set(&track.id, Download::Queued);
             queued.push(tasks::download(
                 std::sync::Arc::clone(&self.source),
                 std::sync::Arc::clone(&self.fetcher),
@@ -1201,14 +1178,14 @@ impl App {
     #[cfg(feature = "explore")]
     fn finish_download(&mut self, id: &str, outcome: Result<PathBuf, String>) {
         match outcome {
-            Ok(path) => self.explore.downloads.landed(id, path),
-            Err(e) => self.explore.downloads.set(id, Download::Failed(e)),
+            Ok(path) => self.fetching.downloads.landed(id, path),
+            Err(e) => self.fetching.downloads.set(id, Download::Failed(e)),
         }
     }
 
     #[cfg(feature = "explore")]
     fn ingest_landed(&mut self) {
-        let landed = self.explore.downloads.take_landed();
+        let landed = self.fetching.downloads.take_landed();
         if landed.is_empty() {
             return;
         }
@@ -1220,7 +1197,7 @@ impl App {
             Err(e) => {
                 self.status = Some(format!("Could not add downloads to the library: {e}"));
                 for (id, _) in &landed {
-                    self.explore
+                    self.fetching
                         .downloads
                         .set(id, Download::Failed(e.to_string()));
                 }
@@ -1237,7 +1214,7 @@ impl App {
                     |(_, track_id)| Download::Done(*track_id),
                 );
 
-            self.explore.downloads.set(id, settled);
+            self.fetching.downloads.set(id, settled);
         }
 
         self.refresh_visible();
@@ -1491,7 +1468,7 @@ impl App {
             visible_albums: &self.visible_albums,
             artwork: &self.artwork,
             #[cfg(feature = "explore")]
-            explore: &self.explore,
+            fetching: &self.fetching,
             #[cfg(feature = "explore")]
             remote: &self.remote,
         };
@@ -1579,8 +1556,8 @@ impl App {
         }
 
         #[cfg(feature = "explore")]
-        if self.explore.downloads.waiting() {
-            subs.push(every(INGEST_DRAIN).map(|_| Message::ExploreIngestLanded));
+        if self.fetching.downloads.waiting() {
+            subs.push(every(INGEST_DRAIN).map(|_| Message::DownloadIngestLanded));
         }
 
         Subscription::batch(subs)

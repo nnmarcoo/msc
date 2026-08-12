@@ -1,4 +1,11 @@
-//! The explore pane: finding music that is not in the library yet.
+//! The download pane: fetching a record the user can already name.
+//!
+//! This is a search box and its answers, and deliberately nothing else. There
+//! is no landing feed and no "more like this", because the question this pane
+//! exists to answer is "get me *that*" — the user arrives already knowing what
+//! they want, and anything offered alongside the results is an answer to a
+//! question they did not ask. An empty field therefore shows an empty pane and
+//! issues no request at all.
 //!
 //! Results arrive as two kinds and are drawn as two kinds. Albums are a grid of
 //! covers, laid out by [`super::collections::layout`] so a remote album and a
@@ -20,12 +27,6 @@
 //! the pointer had to visit each tile in turn to learn what any of it was, which
 //! is the opposite of what a wall of art is for.
 //!
-//! The landing feed is [`shelf`]s and search results are a grid, and the split
-//! is about what the user is doing. Browsing has no question in it, so the feed
-//! offers reasons records belong together and lets a whole row be skipped in one
-//! movement; a search *is* a question, and every answer should be in view at
-//! once rather than hidden past the edge of a rail.
-//!
 //! Opening an album expands a panel beneath *its row*, exactly as
 //! [`super::collections`] does and for the same reason: a panel that replaced
 //! the grid would throw away the thing the user was scanning, and one that
@@ -45,7 +46,7 @@
 //! width restating what the user had just pressed.
 //!
 //! Unlike collections, the tracks are not there to be resolved — they arrive
-//! over the network — so [`crate::explore::Opened`] carries the request through
+//! over the network — so [`crate::download::Opened`] carries the request through
 //! `Loading`, `Ready` and `Failed` and the panel draws each. It is keyed on the
 //! album's id rather than the tile's position, so a search landing while a panel
 //! is open cannot leave it attached to whatever album fell into that slot.
@@ -57,15 +58,9 @@
 //!
 //! Nothing here plays a track. A result is not on disk yet, so the only offer is
 //! to download it; it becomes playable by entering the library, which is
-//! [`verse_core::Library::ingest_many`]'s job once the file lands.
-//!
-//! A row's other offer is to seed a station from it. Searching answers what the
-//! user could already name, and the reason to browse at all is usually the music
-//! they cannot — so "more like this" is the one control here that finds a record
-//! by way of another rather than by spelling it. It sits on every track row
-//! whatever its download state, since a track already owned is if anything the
-//! better seed, and it goes through [`verse_core::explore::MusicSource::similar`]
-//! rather than the fetcher, so an install without `yt-dlp` still has it.
+//! [`verse_core::Library::ingest_many`]'s job once the file lands. Downloading
+//! is the only verb in the pane, and a row that is already held says so rather
+//! than offering the button twice.
 
 use iced::alignment::{Horizontal, Vertical};
 use iced::widget::{
@@ -77,7 +72,7 @@ use verse_core::explore::{Found, FoundAlbum};
 
 use crate::app::Message;
 use crate::artwork::Remote;
-use crate::explore::{Download, Explore, Fetcher, Opened, Stage};
+use crate::download::{Download, Fetcher, Opened, Search, Stage};
 use crate::layout::PaneId;
 use crate::pane::PaneMessage;
 use crate::styles::{self, LABEL_FONT_SIZE, PAD};
@@ -88,7 +83,6 @@ use crate::widgets::spinner::spinner;
 const ICON_DOWNLOAD: &[u8] = include_bytes!("../../../assets/icons/queue_add.svg");
 const ICON_CHECK: &[u8] = include_bytes!("../../../assets/icons/check.svg");
 const ICON_RETRY: &[u8] = include_bytes!("../../../assets/icons/cycle.svg");
-const ICON_SIMILAR: &[u8] = include_bytes!("../../../assets/icons/similar.svg");
 
 const CONTROL_ICON: f32 = 15.0;
 
@@ -113,10 +107,6 @@ const PANEL_ROWS: f32 = 2.0;
 const NUMBER_WIDTH: f32 = 26.0;
 
 const TILE_TITLE_SIZE: f32 = 12.0;
-
-const SHELF_CELL: f32 = 150.0;
-const SHELF_HEADING_SIZE: f32 = 16.0;
-const SHELF_GAP: f32 = PAD * 5.0;
 
 const SPINNER_SIZE: f32 = 26.0;
 const SPINNER_BAR: f32 = 2.5;
@@ -160,11 +150,11 @@ pub fn update(state: &mut State, message: &PanelMessage) {
 }
 
 fn hover(pane: PaneId, id: String) -> Message {
-    Message::Pane(pane, PaneMessage::Explore(PanelMessage::Hovered(id)))
+    Message::Pane(pane, PaneMessage::Download(PanelMessage::Hovered(id)))
 }
 
 fn unhover(pane: PaneId, id: String) -> Message {
-    Message::Pane(pane, PaneMessage::Explore(PanelMessage::Unhovered(id)))
+    Message::Pane(pane, PaneMessage::Download(PanelMessage::Unhovered(id)))
 }
 
 fn heading(label: &str, count: usize) -> Element<'_, Message> {
@@ -182,22 +172,22 @@ fn heading(label: &str, count: usize) -> Element<'_, Message> {
 }
 
 pub fn view<'a>(
-    explore: &'a Explore,
+    search: &'a Search,
     state: &'a State,
     remote: &'a Remote,
     pane: PaneId,
     width: f32,
 ) -> Element<'a, Message> {
-    let mut head = column![search_row(explore)]
+    let mut head = column![search_row(search)]
         .spacing(PAD)
         .width(Length::Fill);
 
-    if explore.fetcher == Fetcher::Missing {
+    if search.fetcher == Fetcher::Missing {
         head = head.push(notice());
     }
 
     container(
-        column![head, body(explore, state, remote, pane, width)]
+        column![head, body(search, state, remote, pane, width)]
             .spacing(PAD)
             .height(Length::Fill),
     )
@@ -207,29 +197,18 @@ pub fn view<'a>(
     .into()
 }
 
-fn search_row(explore: &Explore) -> Element<'_, Message> {
+fn search_row(search: &Search) -> Element<'_, Message> {
     let bar = SearchBar::new(
-        &explore.query,
-        Message::ExploreQueryChanged,
-        Message::ExploreQueryChanged(String::new()),
+        &search.query,
+        Message::DownloadQueryChanged,
+        Message::DownloadQueryChanged(String::new()),
     )
     .hero()
     .placeholder("Search for music\u{2026}");
 
-    let mut line = row![].spacing(PAD).align_y(Vertical::Center);
+    let mut line = row![bar].spacing(PAD).align_y(Vertical::Center);
 
-    if explore.stage.can_go_back() {
-        line = line.push(
-            button(text("Back").size(LABEL_FONT_SIZE))
-                .on_press(Message::ExploreBack)
-                .padding([PAD, PAD * 2.0])
-                .style(styles::listing_row_style),
-        );
-    }
-
-    line = line.push(bar);
-
-    if explore.is_searching() {
+    if search.is_searching() {
         line = line.push(
             spinner()
                 .size(INLINE_SPINNER)
@@ -242,41 +221,19 @@ fn search_row(explore: &Explore) -> Element<'_, Message> {
 }
 
 fn body<'a>(
-    explore: &'a Explore,
+    search: &'a Search,
     state: &'a State,
     remote: &'a Remote,
     pane: PaneId,
     width: f32,
 ) -> Element<'a, Message> {
-    match &explore.stage {
-        Stage::Idle | Stage::Searching => waiting(),
-        Stage::Browse(shelves) if shelves.iter().all(|shelf| shelf.albums.is_empty()) => {
-            hint("Nothing to show")
-        }
-        Stage::Browse(shelves) => scroll(
-            column(
-                shelves
-                    .iter()
-                    .filter(|shelf| !shelf.albums.is_empty())
-                    .map(|shelf| {
-                        self::shelf(
-                            &shelf.label,
-                            &shelf.albums,
-                            explore,
-                            state,
-                            remote,
-                            pane,
-                            width,
-                        )
-                    }),
-            )
-            .spacing(SHELF_GAP)
-            .width(Length::Fill),
-        ),
+    match &search.stage {
+        Stage::Idle => hint("Search to download music"),
+        Stage::Searching => waiting(),
         Stage::Failed(reason) => failed(reason),
         Stage::Results(results) if results.is_empty() => hint(&format!(
             "Nothing found for \u{201c}{}\u{201d}",
-            explore.query.trim()
+            search.query.trim()
         )),
         Stage::Results(results) => {
             let mut sections = column![].spacing(SECTION_GAP).width(Length::Fill);
@@ -285,7 +242,7 @@ fn body<'a>(
                 sections = sections.push(albums(
                     "Albums",
                     &results.albums,
-                    explore,
+                    search,
                     state,
                     remote,
                     pane,
@@ -295,19 +252,11 @@ fn body<'a>(
 
             if !results.tracks.is_empty() {
                 sections = sections.push(heading("Songs", results.tracks.len()));
-                sections = sections.push(tracks(&results.tracks, explore, remote));
+                sections = sections.push(tracks(&results.tracks, search, remote));
             }
 
             scroll(sections)
         }
-        Stage::Similar(_, found) => scroll(
-            column![
-                heading("Similar songs", found.len()),
-                tracks(found, explore, remote),
-            ]
-            .spacing(GAP)
-            .width(Length::Fill),
-        ),
     }
 }
 
@@ -321,61 +270,10 @@ fn scroll<'a>(content: impl Into<Element<'a, Message>>) -> Element<'a, Message> 
         .into()
 }
 
-fn shelf<'a>(
-    label: &'a str,
-    found: &'a [FoundAlbum],
-    explore: &'a Explore,
-    state: &'a State,
-    remote: &'a Remote,
-    pane: PaneId,
-    width: f32,
-) -> Element<'a, Message> {
-    if found.is_empty() {
-        return Space::new().into();
-    }
-
-    let cells = found
-        .iter()
-        .map(|album| album_tile(album, explore, state, remote, SHELF_CELL, pane));
-
-    let rail = scrollable(row(cells).spacing(GAP).padding([0.0, 0.0]))
-        .width(Length::Fill)
-        .height(Length::Fixed(SHELF_CELL + CAPTION_HEIGHT + SCROLLBAR))
-        .direction(scrollable::Direction::Horizontal(
-            scrollable::Scrollbar::new().width(4).scroller_width(4),
-        ));
-
-    let mut section = column![section_heading(label), rail].spacing(PAD * 2.0);
-
-    if let Some(opened) = explore
-        .opened
-        .as_ref()
-        .filter(|opened| found.iter().any(|album| album.id == opened.id()))
-    {
-        let grid = super::collections::layout(width - SCROLLBAR, found.len()).unwrap_or(
-            super::collections::Grid {
-                columns: 1,
-                cell: SHELF_CELL,
-            },
-        );
-
-        section = section.push(panel(opened, explore, grid));
-    }
-
-    section.width(Length::Fill).into()
-}
-
-fn section_heading(label: &str) -> Element<'_, Message> {
-    text(label.to_owned())
-        .size(SHELF_HEADING_SIZE)
-        .style(styles::plain_text)
-        .into()
-}
-
 fn albums<'a>(
     label: &'a str,
     found: &'a [FoundAlbum],
-    explore: &'a Explore,
+    search: &'a Search,
     state: &'a State,
     remote: &'a Remote,
     pane: PaneId,
@@ -390,16 +288,16 @@ fn albums<'a>(
     for chunk in found.chunks(grid.columns) {
         let cells = chunk
             .iter()
-            .map(|album| album_tile(album, explore, state, remote, grid.cell, pane));
+            .map(|album| album_tile(album, search, state, remote, grid.cell, pane));
 
         section = section.push(row(cells).spacing(GAP));
 
-        if let Some(opened) = explore
+        if let Some(opened) = search
             .opened
             .as_ref()
             .filter(|opened| chunk.iter().any(|album| album.id == opened.id()))
         {
-            section = section.push(panel(opened, explore, grid));
+            section = section.push(panel(opened, search, grid));
         }
     }
 
@@ -408,7 +306,7 @@ fn albums<'a>(
 
 fn album_tile<'a>(
     album: &'a FoundAlbum,
-    explore: &'a Explore,
+    search: &'a Search,
     state: &'a State,
     remote: &'a Remote,
     edge: f32,
@@ -419,14 +317,14 @@ fn album_tile<'a>(
         .width(Length::Fixed(edge))
         .height(Length::Fixed(edge))
         .style(styles::tile_style)
-        .on_press(Message::ExploreOpenAlbum(album.id.clone()));
+        .on_press(Message::DownloadOpenAlbum(album.id.clone()));
 
     let mut layers = stack![face]
         .width(Length::Fixed(edge))
         .height(Length::Fixed(edge));
 
     if state.is_hovered(&album.id) {
-        layers = layers.push(controls(album, explore));
+        layers = layers.push(controls(album, search));
     }
 
     let cover = mouse_area(layers)
@@ -482,13 +380,13 @@ fn explicit_badge<'a>() -> Element<'a, Message> {
     .into()
 }
 
-fn controls<'a>(album: &'a FoundAlbum, explore: &'a Explore) -> Element<'a, Message> {
+fn controls<'a>(album: &'a FoundAlbum, search: &'a Search) -> Element<'a, Message> {
     let buttons = row![over_art_button(
         ICON_DOWNLOAD,
-        explore
+        search
             .fetcher
             .can_download()
-            .then(|| Message::ExploreDownloadAlbum(album.id.clone())),
+            .then(|| Message::DownloadAlbum(album.id.clone())),
     )]
     .spacing(PAD);
 
@@ -518,7 +416,7 @@ fn over_art_button<'a>(bytes: &'static [u8], message: Option<Message>) -> Elemen
 
 fn panel<'a>(
     opened: &'a Opened,
-    explore: &'a Explore,
+    search: &'a Search,
     grid: super::collections::Grid,
 ) -> Element<'a, Message> {
     let floor = grid.cell + GAP;
@@ -550,10 +448,10 @@ fn panel<'a>(
             let heading = row![
                 icon_button(
                     ICON_DOWNLOAD,
-                    explore
+                    search
                         .fetcher
                         .can_download()
-                        .then(|| Message::ExploreDownloadAlbum(album.id.clone())),
+                        .then(|| Message::DownloadAlbum(album.id.clone())),
                 ),
                 column![
                     text(album.title.clone())
@@ -579,7 +477,7 @@ fn panel<'a>(
                     .tracks
                     .iter()
                     .enumerate()
-                    .map(|(index, track)| panel_row(track, index, explore)),
+                    .map(|(index, track)| panel_row(track, index, search)),
             );
 
             column![
@@ -613,7 +511,7 @@ fn wanted_height(tracks: usize) -> f32 {
     heading + rows + PAD * 3.0
 }
 
-fn panel_row<'a>(track: &'a Found, index: usize, explore: &'a Explore) -> Element<'a, Message> {
+fn panel_row<'a>(track: &'a Found, index: usize, search: &'a Search) -> Element<'a, Message> {
     let line = row![
         text((index + 1).to_string())
             .size(ROW_SIZE)
@@ -630,7 +528,7 @@ fn panel_row<'a>(track: &'a Found, index: usize, explore: &'a Explore) -> Elemen
             .style(styles::over_tint_dim_text)
             .align_x(Horizontal::Right)
             .width(Length::Fixed(CLOCK_WIDTH)),
-        panel_state(track, explore),
+        panel_state(track, search),
     ]
     .spacing(PAD)
     .align_y(Vertical::Center);
@@ -641,7 +539,7 @@ fn panel_row<'a>(track: &'a Found, index: usize, explore: &'a Explore) -> Elemen
         .into()
 }
 
-fn panel_state<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Message> {
+fn panel_state<'a>(track: &'a Found, search: &'a Search) -> Element<'a, Message> {
     let label = |body: String| {
         text(body)
             .size(LABEL_FONT_SIZE)
@@ -651,27 +549,27 @@ fn panel_state<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Messag
             .into()
     };
 
-    match explore.downloads.get(&track.id) {
+    match search.downloads.get(&track.id) {
         Some(Download::Running(fraction)) => label(format!("{:.0}%", fraction * 100.0)),
         Some(Download::Queued) => label("\u{2026}".to_owned()),
         Some(Download::Failed(_)) => container(icon_button(
             ICON_RETRY,
-            explore
+            search
                 .fetcher
                 .can_download()
-                .then(|| Message::ExploreDownload(track.id.clone())),
+                .then(|| Message::DownloadOne(track.id.clone())),
         ))
         .width(Length::Fixed(STATE_WIDTH))
         .align_x(Horizontal::Right)
         .into(),
         Some(Download::Done(_)) => label("Saved".to_owned()),
-        None if explore.held.holds(&track.id) => label("Saved".to_owned()),
+        None if search.held.holds(&track.id) => label("Saved".to_owned()),
         None => container(icon_button(
             ICON_DOWNLOAD,
-            explore
+            search
                 .fetcher
                 .can_download()
-                .then(|| Message::ExploreDownload(track.id.clone())),
+                .then(|| Message::DownloadOne(track.id.clone())),
         ))
         .width(Length::Fixed(STATE_WIDTH))
         .align_x(Horizontal::Right)
@@ -694,15 +592,15 @@ fn icon_button<'a>(bytes: &'static [u8], message: Option<Message>) -> Element<'a
 
 fn tracks<'a>(
     found: &'a [Found],
-    explore: &'a Explore,
+    search: &'a Search,
     remote: &'a Remote,
 ) -> Element<'a, Message> {
-    column(found.iter().map(|track| entry(track, explore, remote)))
+    column(found.iter().map(|track| entry(track, search, remote)))
         .width(Length::Fill)
         .into()
 }
 
-fn entry<'a>(track: &'a Found, explore: &'a Explore, remote: &'a Remote) -> Element<'a, Message> {
+fn entry<'a>(track: &'a Found, search: &'a Search, remote: &'a Remote) -> Element<'a, Message> {
     let lines = column![
         text(track.title.clone())
             .size(ROW_SIZE)
@@ -724,7 +622,7 @@ fn entry<'a>(track: &'a Found, explore: &'a Explore, remote: &'a Remote) -> Elem
             .style(styles::faint_text)
             .align_x(Horizontal::Right)
             .width(Length::Fixed(CLOCK_WIDTH)),
-        state(track, explore),
+        download_state(track, search),
     ]
     .spacing(PAD * 2.0)
     .align_y(Vertical::Center);
@@ -763,27 +661,7 @@ fn art<'a>(url: Option<&str>, remote: &'a Remote, edge: f32) -> Element<'a, Mess
     }
 }
 
-fn state<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Message> {
-    row![similar_button(track), download_state(track, explore)]
-        .spacing(PAD)
-        .align_y(Vertical::Center)
-        .into()
-}
-
-fn similar_button(track: &Found) -> Element<'_, Message> {
-    button(
-        svg(svg::Handle::from_memory(ICON_SIMILAR))
-            .style(styles::svg_style)
-            .width(Length::Fixed(CONTROL_ICON))
-            .height(Length::Fixed(CONTROL_ICON)),
-    )
-    .on_press(Message::ExploreSimilar(track.id.clone()))
-    .padding(PAD)
-    .style(styles::listing_row_style)
-    .into()
-}
-
-fn download_state<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Message> {
+fn download_state<'a>(track: &'a Found, search: &'a Search) -> Element<'a, Message> {
     let slot = |content: Element<'a, Message>| {
         container(content)
             .width(Length::Fixed(STATE_WIDTH))
@@ -791,7 +669,7 @@ fn download_state<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Mes
             .into()
     };
 
-    match explore.downloads.get(&track.id) {
+    match search.downloads.get(&track.id) {
         Some(Download::Running(fraction)) => slot(
             text(format!("{:.0}%", fraction * 100.0))
                 .size(LABEL_FONT_SIZE)
@@ -804,10 +682,10 @@ fn download_state<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Mes
                 .style(styles::faint_text)
                 .into(),
         ),
-        Some(Download::Failed(_)) => slot(retry_button(track, explore)),
+        Some(Download::Failed(_)) => slot(retry_button(track, search)),
         Some(Download::Done(_)) => slot(icon(ICON_CHECK)),
-        None if explore.held.holds(&track.id) => slot(icon(ICON_CHECK)),
-        None => slot(download_button(track, explore)),
+        None if search.held.holds(&track.id) => slot(icon(ICON_CHECK)),
+        None => slot(download_button(track, search)),
     }
 }
 
@@ -819,11 +697,11 @@ fn icon<'a>(bytes: &'static [u8]) -> Element<'a, Message> {
         .into()
 }
 
-fn retry_button<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Message> {
-    let press = explore
+fn retry_button<'a>(track: &'a Found, search: &'a Search) -> Element<'a, Message> {
+    let press = search
         .fetcher
         .can_download()
-        .then(|| Message::ExploreDownload(track.id.clone()));
+        .then(|| Message::DownloadOne(track.id.clone()));
 
     button(
         svg(svg::Handle::from_memory(ICON_RETRY))
@@ -837,11 +715,11 @@ fn retry_button<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Messa
     .into()
 }
 
-fn download_button<'a>(track: &'a Found, explore: &'a Explore) -> Element<'a, Message> {
-    let press = explore
+fn download_button<'a>(track: &'a Found, search: &'a Search) -> Element<'a, Message> {
+    let press = search
         .fetcher
         .can_download()
-        .then(|| Message::ExploreDownload(track.id.clone()));
+        .then(|| Message::DownloadOne(track.id.clone()));
 
     button(
         svg(svg::Handle::from_memory(ICON_DOWNLOAD))
@@ -901,7 +779,7 @@ fn failed<'a>(reason: &str) -> Element<'a, Message> {
             .size(LABEL_FONT_SIZE)
             .style(styles::dim_text),
         button(text("Try again").size(TITLE_SIZE))
-            .on_press(Message::ExploreBack)
+            .on_press(Message::DownloadRetry)
             .padding([PAD, PAD * 2.0])
             .style(styles::listing_row_style),
     ]
@@ -924,7 +802,7 @@ fn clock(seconds: Option<u32>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::explore::{Download, Fetcher, Results};
+    use crate::download::{Download, Fetcher, Results};
 
     fn found(id: &str) -> Found {
         Found {
@@ -952,24 +830,17 @@ mod tests {
         }
     }
 
-    fn shelf_of(albums: Vec<FoundAlbum>) -> crate::explore::Shelf {
-        crate::explore::Shelf {
-            label: "New albums".to_owned(),
-            albums,
-        }
+    fn with(stage: Stage) -> Search {
+        let mut search = Search::default();
+        search.stage = stage;
+        search.fetcher = Fetcher::Ready;
+        search
     }
 
-    fn with(stage: Stage) -> Explore {
-        let mut explore = Explore::default();
-        explore.stage = stage;
-        explore.fetcher = Fetcher::Ready;
-        explore
-    }
-
-    fn draw(explore: &Explore) {
+    fn draw(search: &Search) {
         let remote = Remote::new();
         let state = State::default();
-        let _ = view(explore, &state, &remote, crate::layout::PaneId(0), 800.0);
+        let _ = view(search, &state, &remote, crate::layout::PaneId(0), 800.0);
     }
 
     #[test]
@@ -983,14 +854,23 @@ mod tests {
                 albums: vec![album()],
                 tracks: vec![found("a")],
             })),
-            Stage::Similar("seed".to_owned(), vec![found("b")]),
-            Stage::Browse(Vec::new()),
-            Stage::Browse(vec![shelf_of(vec![album(), album()])]),
         ];
 
         for stage in stages {
             draw(&with(stage));
         }
+    }
+
+    #[test]
+    fn an_empty_field_shows_a_prompt_rather_than_a_feed() {
+        let search = with(Stage::Idle);
+
+        assert!(search.stage.albums().is_empty());
+        assert!(
+            search.stage.tracks().is_empty(),
+            "the resting pane offered music nobody asked for"
+        );
+        draw(&search);
     }
 
     #[test]
@@ -1003,12 +883,12 @@ mod tests {
         ];
 
         for state in states {
-            let mut explore = with(Stage::Results(Box::new(Results {
+            let mut search = with(Stage::Results(Box::new(Results {
                 albums: Vec::new(),
                 tracks: vec![found("a")],
             })));
-            explore.downloads.set("a", state);
-            draw(&explore);
+            search.downloads.set("a", state);
+            draw(&search);
         }
     }
 
@@ -1019,66 +899,8 @@ mod tests {
             tracks: vec![found("a"), found("b")],
         }));
 
-        assert_eq!(stage.albums().count(), 1);
+        assert_eq!(stage.albums().len(), 1);
         assert_eq!(stage.tracks().len(), 2);
-    }
-
-    #[test]
-    fn only_an_opened_view_offers_a_way_back() {
-        assert!(!Stage::Idle.can_go_back());
-        assert!(!Stage::Results(Box::default()).can_go_back());
-        assert!(Stage::Similar("s".to_owned(), Vec::new()).can_go_back());
-    }
-
-    #[test]
-    fn the_landing_feed_shows_albums_without_a_query() {
-        let stage = Stage::Browse(vec![shelf_of(vec![album()])]);
-
-        assert_eq!(stage.albums().count(), 1);
-        assert!(stage.tracks().is_empty());
-        assert!(!stage.can_go_back());
-    }
-
-    #[test]
-    fn a_feed_of_several_shelves_draws_every_one() {
-        let stage = Stage::Browse(vec![
-            shelf_of(vec![album(), album()]),
-            crate::explore::Shelf {
-                label: "New EPs".to_owned(),
-                albums: vec![album()],
-            },
-        ]);
-
-        assert_eq!(stage.albums().count(), 3, "a shelf was dropped");
-        draw(&with(stage));
-    }
-
-    #[test]
-    fn an_empty_shelf_is_not_drawn_as_a_heading_over_nothing() {
-        let stage = Stage::Browse(vec![
-            shelf_of(vec![album()]),
-            crate::explore::Shelf {
-                label: "New EPs".to_owned(),
-                albums: Vec::new(),
-            },
-        ]);
-
-        assert!(stage.holds_results(), "the filled shelf still counts");
-        draw(&with(stage));
-    }
-
-    #[test]
-    fn a_feed_of_only_empty_shelves_holds_nothing() {
-        let stage = Stage::Browse(vec![crate::explore::Shelf {
-            label: "New albums".to_owned(),
-            albums: Vec::new(),
-        }]);
-
-        assert!(
-            !stage.holds_results(),
-            "a heading over no covers reads as a broken feed"
-        );
-        draw(&with(stage));
     }
 
     const _: () = assert!(
@@ -1178,8 +1000,8 @@ mod tests {
     }
 
     #[test]
-    fn a_track_row_offers_a_station_seeded_from_it() {
-        let mut explore = with(Stage::Results(Box::new(Results {
+    fn a_row_draws_its_download_state_whatever_it_is() {
+        let mut search = with(Stage::Results(Box::new(Results {
             albums: Vec::new(),
             tracks: vec![found("a")],
         })));
@@ -1191,23 +1013,23 @@ mod tests {
             Some(Download::Failed("nope".to_owned())),
         ] {
             if let Some(state) = state {
-                explore.downloads.set("a", state);
+                search.downloads.set("a", state);
             }
-            let _ = self::state(&found("a"), &explore);
+            let _ = download_state(&found("a"), &search);
         }
     }
 
     #[test]
-    fn a_station_is_offered_without_the_fetcher_installed() {
-        let mut explore = with(Stage::Results(Box::new(Results {
-            albums: Vec::new(),
+    fn a_pane_without_the_fetcher_still_draws_its_results() {
+        let mut search = with(Stage::Results(Box::new(Results {
+            albums: vec![album()],
             tracks: vec![found("a")],
         })));
-        explore.fetcher = Fetcher::Missing;
-        explore.held.rebuild([found("a")].iter(), |_| true);
+        search.fetcher = Fetcher::Missing;
+        search.held.rebuild([found("a")].iter(), |_| true);
 
-        draw(&explore);
-        let _ = self::state(&found("a"), &explore);
+        draw(&search);
+        let _ = download_state(&found("a"), &search);
     }
 
     #[test]
